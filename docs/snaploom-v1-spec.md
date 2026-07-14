@@ -1,6 +1,6 @@
 # Snaploom v1 产品与实现规格
 
-状态：已确认，待发布为带有 `ready-for-agent` 标签的 GitHub Issue
+状态：已发布为 [GitHub Issue #1](https://github.com/liuchuana/Snaploom/issues/1)，标签为 `ready-for-agent`
 
 ## Problem Statement
 
