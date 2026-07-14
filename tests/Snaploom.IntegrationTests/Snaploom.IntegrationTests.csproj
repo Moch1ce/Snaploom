@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Snaploom.IntegrationTests</AssemblyName>
+    <RootNamespace>Snaploom.IntegrationTests</RootNamespace>
+    <OutputType>Exe</OutputType>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Snaploom.App/Snaploom.App.csproj" />
+    <ProjectReference Include="../../src/Snaploom.Platform.Windows/Snaploom.Platform.Windows.csproj" />
+    <ProjectReference Include="../../src/Snaploom.Platform.MacOS/Snaploom.Platform.MacOS.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Snaploom.App</AssemblyName>
+    <RootNamespace>Snaploom.App</RootNamespace>
+    <OutputType>WinExe</OutputType>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Snaploom.Core/Snaploom.Core.csproj" />
+    <ProjectReference Include="../Snaploom.Rendering/Snaploom.Rendering.csproj" />
+    <ProjectReference Include="../Snaploom.Platform.Abstractions/Snaploom.Platform.Abstractions.csproj" />
+    <ProjectReference Include="../Snaploom.Platform.Windows/Snaploom.Platform.Windows.csproj" />
+    <ProjectReference Include="../Snaploom.Platform.MacOS/Snaploom.Platform.MacOS.csproj" />
+  </ItemGroup>
+</Project>

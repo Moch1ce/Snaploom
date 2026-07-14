@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Snaploom.Platform.Windows</AssemblyName>
+    <RootNamespace>Snaploom.Platform.Windows</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Snaploom.Core/Snaploom.Core.csproj" />
+    <ProjectReference Include="../Snaploom.Platform.Abstractions/Snaploom.Platform.Abstractions.csproj" />
+  </ItemGroup>
+</Project>
