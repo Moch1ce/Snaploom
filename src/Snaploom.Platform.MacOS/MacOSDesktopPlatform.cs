@@ -13,6 +13,10 @@ public sealed class MacOSDesktopPlatform :
     IPngSaveDialogService,
     IDisposable
 {
+    private const uint AKeyCode = 0;
+    private const uint CommandModifier = 1 << 8;
+    private const uint ShiftModifier = 1 << 9;
+
     private static Action? s_hotKeyCallback;
     private bool _hotKeyRegistered;
 
@@ -35,7 +39,10 @@ public sealed class MacOSDesktopPlatform :
 
         UnregisterScreenshotHotKey();
         s_hotKeyCallback = callback;
-        _hotKeyRegistered = MacOSNative.RegisterScreenshotHotKey(&HandleHotKey) == 0;
+        _hotKeyRegistered = MacOSNative.RegisterScreenshotHotKey(
+            AKeyCode,
+            CommandModifier | ShiftModifier,
+            &HandleHotKey) == 0;
         if (!_hotKeyRegistered)
         {
             s_hotKeyCallback = null;

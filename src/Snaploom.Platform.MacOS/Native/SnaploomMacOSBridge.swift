@@ -152,6 +152,8 @@ private func checkedProduct(_ first: Int, _ second: Int) throws -> Int {
 
 @_cdecl("snaploom_register_screenshot_hot_key")
 public func registerScreenshotHotKey(
+    _ keyCode: UInt32,
+    _ modifiers: UInt32,
     _ callback: @escaping @convention(c) () -> Void
 ) -> Int32 {
     unregisterScreenshotHotKey()
@@ -175,9 +177,8 @@ public func registerScreenshotHotKey(
     }
 
     let hotKeyID = EventHotKeyID(signature: 0x534E4150, id: 1)
-    let modifiers = UInt32(cmdKey | shiftKey)
     let registrationStatus = RegisterEventHotKey(
-        UInt32(kVK_ANSI_A),
+        keyCode,
         modifiers,
         hotKeyID,
         GetApplicationEventTarget(),

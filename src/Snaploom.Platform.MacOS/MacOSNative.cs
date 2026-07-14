@@ -7,7 +7,10 @@ internal static unsafe partial class MacOSNative
     private const string LibraryName = "SnaploomMacOS";
 
     [LibraryImport(LibraryName, EntryPoint = "snaploom_register_screenshot_hot_key")]
-    internal static partial int RegisterScreenshotHotKey(delegate* unmanaged[Cdecl]<void> callback);
+    internal static partial int RegisterScreenshotHotKey(
+        uint keyCode,
+        uint modifiers,
+        delegate* unmanaged[Cdecl]<void> callback);
 
     [LibraryImport(LibraryName, EntryPoint = "snaploom_unregister_screenshot_hot_key")]
     internal static partial void UnregisterScreenshotHotKey();

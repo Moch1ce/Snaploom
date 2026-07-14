@@ -11,6 +11,7 @@ public sealed class ScreenshotController : IDisposable
     private readonly IPngSaveDialogService _saveDialogService;
     private readonly ScreenshotActivationGate _activationGate = new();
     private ScreenshotOverlayWindow? _overlay;
+    private CaptureFailureOverlayWindow? _failureOverlay;
     private ScreenCapturePermissionWindow? _permissionWindow;
     private bool _disposed;
 
@@ -59,25 +60,26 @@ public sealed class ScreenshotController : IDisposable
         }
         catch (ScreenCaptureException exception)
         {
-            _activationGate.End();
             await Dispatcher.UIThread.InvokeAsync(
                 () =>
                 {
                     if (exception.PermissionDenied)
                     {
+                        _activationGate.End();
                         ShowPermissionGuide();
                     }
                     else
                     {
-                        new MessageWindow("截图失败", exception.Message).Show();
+                        ShowCaptureFailure(
+                            "macOS 未能读取显示器画面。请退出截图后重试；若问题持续，请检查屏幕录制权限并重新启动 Snaploom。");
                     }
                 });
         }
         catch (Exception exception)
         {
-            _activationGate.End();
             await Dispatcher.UIThread.InvokeAsync(
-                () => new MessageWindow("截图失败", exception.Message).Show());
+                () => ShowCaptureFailure(
+                    $"截图过程中发生错误。请退出后重试。错误类型：{exception.GetType().Name}"));
         }
         finally
         {
@@ -90,6 +92,8 @@ public sealed class ScreenshotController : IDisposable
         _disposed = true;
         _overlay?.Dispose();
         _overlay = null;
+        _failureOverlay?.Close();
+        _failureOverlay = null;
         _permissionWindow?.Close();
         _permissionWindow = null;
     }
@@ -127,5 +131,22 @@ public sealed class ScreenshotController : IDisposable
             _activationGate.End();
         };
         _overlay.Show();
+    }
+
+    private void ShowCaptureFailure(string message)
+    {
+        if (_disposed)
+        {
+            _activationGate.End();
+            return;
+        }
+
+        _failureOverlay = new CaptureFailureOverlayWindow(message);
+        _failureOverlay.Closed += (_, _) =>
+        {
+            _failureOverlay = null;
+            _activationGate.End();
+        };
+        _failureOverlay.Show();
     }
 }
