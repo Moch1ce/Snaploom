@@ -1,0 +1,45 @@
+using SkiaSharp;
+using Snaploom.Core;
+
+namespace Snaploom.Rendering;
+
+public static class SelectionPngEncoder
+{
+    public static byte[] Encode(CapturedFrame frame, PhysicalRect selection)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+
+        if (selection.Width <= 0 || selection.Height <= 0 ||
+            selection.X < 0 || selection.Y < 0 ||
+            selection.X + selection.Width > frame.PhysicalSize.Width ||
+            selection.Y + selection.Height > frame.PhysicalSize.Height)
+        {
+            throw new ArgumentOutOfRangeException(nameof(selection));
+        }
+
+        using var colorSpace = SKColorSpace.CreateSrgb();
+        var imageInfo = new SKImageInfo(
+            selection.Width,
+            selection.Height,
+            SKColorType.Bgra8888,
+            SKAlphaType.Premul,
+            colorSpace);
+        using var bitmap = new SKBitmap(imageInfo);
+
+        var source = frame.Pixels.Span;
+        var destination = bitmap.GetPixelSpan();
+        var copiedBytesPerRow = checked(selection.Width * 4);
+
+        for (var row = 0; row < selection.Height; row++)
+        {
+            var sourceOffset = checked(((selection.Y + row) * frame.Stride) + (selection.X * 4));
+            var destinationOffset = checked(row * bitmap.RowBytes);
+            source.Slice(sourceOffset, copiedBytesPerRow)
+                .CopyTo(destination.Slice(destinationOffset, copiedBytesPerRow));
+        }
+
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
+        return data.ToArray();
+    }
+}

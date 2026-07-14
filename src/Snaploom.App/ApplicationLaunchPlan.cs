@@ -12,13 +12,6 @@ public sealed record TrayItemPlan(TrayAction Action, bool IsEnabled);
 
 public sealed class ApplicationLaunchPlan
 {
-    private static readonly ReadOnlyCollection<TrayItemPlan> DefaultTrayItems =
-        Array.AsReadOnly(
-        [
-            new TrayItemPlan(TrayAction.StartScreenshot, IsEnabled: false),
-            new TrayItemPlan(TrayAction.Exit, IsEnabled: true),
-        ]);
-
     private ApplicationLaunchPlan(bool showTrayIcon, IReadOnlyList<TrayItemPlan> trayItems)
     {
         ShowTrayIcon = showTrayIcon;
@@ -29,7 +22,14 @@ public sealed class ApplicationLaunchPlan
 
     public IReadOnlyList<TrayItemPlan> TrayItems { get; }
 
-    public static ApplicationLaunchPlan Default { get; } = new(
-        showTrayIcon: true,
-        trayItems: DefaultTrayItems);
+    public static ApplicationLaunchPlan Create(bool canStartScreenshot)
+    {
+        ReadOnlyCollection<TrayItemPlan> trayItems = Array.AsReadOnly(
+        [
+            new TrayItemPlan(TrayAction.StartScreenshot, IsEnabled: canStartScreenshot),
+            new TrayItemPlan(TrayAction.Exit, IsEnabled: true),
+        ]);
+
+        return new ApplicationLaunchPlan(showTrayIcon: true, trayItems);
+    }
 }

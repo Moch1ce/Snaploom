@@ -36,8 +36,8 @@ public sealed class AppLifecycleTests
             var startScreenshotItem = Assert.IsType<NativeMenuItem>(menu.Items[0]);
             var exitItem = Assert.IsType<NativeMenuItem>(menu.Items[1]);
 
-            Assert.False(startScreenshotItem.IsEnabled);
-            Assert.Null(startScreenshotItem.Command);
+            Assert.Equal(OperatingSystem.IsMacOS(), startScreenshotItem.IsEnabled);
+            Assert.Equal(OperatingSystem.IsMacOS(), startScreenshotItem.Command is not null);
             Assert.True(exitItem.IsEnabled);
             Assert.NotNull(exitItem.Command);
 

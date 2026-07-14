@@ -2,9 +2,31 @@
   <PropertyGroup>
     <AssemblyName>Snaploom.Platform.MacOS</AssemblyName>
     <RootNamespace>Snaploom.Platform.MacOS</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <_NativeBridgeSource>$(MSBuildProjectDirectory)/Native/SnaploomMacOSBridge.swift</_NativeBridgeSource>
+    <_NativeBridgeOutput>$(IntermediateOutputPath)native/libSnaploomMacOS.dylib</_NativeBridgeOutput>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Snaploom.Core/Snaploom.Core.csproj" />
     <ProjectReference Include="../Snaploom.Platform.Abstractions/Snaploom.Platform.Abstractions.csproj" />
   </ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <None
+      Include="$(_NativeBridgeOutput)"
+      Link="libSnaploomMacOS.dylib"
+      CopyToOutputDirectory="PreserveNewest"
+      CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target
+    Name="BuildMacOSNativeBridge"
+    BeforeTargets="PrepareForBuild"
+    Inputs="$(_NativeBridgeSource)"
+    Outputs="$(_NativeBridgeOutput)"
+    Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(_NativeBridgeOutput)'))" />
+    <Exec Command="xcrun swiftc &quot;$(_NativeBridgeSource)&quot; -parse-as-library -emit-library -module-name SnaploomMacOSBridge -swift-version 5 -target arm64-apple-macos14.0 -framework AppKit -framework Carbon -framework CoreGraphics -framework CoreVideo -framework ScreenCaptureKit -framework UniformTypeIdentifiers -o &quot;$(_NativeBridgeOutput)&quot;" />
+  </Target>
 </Project>

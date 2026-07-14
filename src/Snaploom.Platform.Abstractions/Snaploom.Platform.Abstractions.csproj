@@ -3,4 +3,7 @@
     <AssemblyName>Snaploom.Platform.Abstractions</AssemblyName>
     <RootNamespace>Snaploom.Platform.Abstractions</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Snaploom.Core/Snaploom.Core.csproj" />
+  </ItemGroup>
 </Project>
