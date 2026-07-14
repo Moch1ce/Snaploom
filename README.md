@@ -35,4 +35,15 @@ dotnet run --project src/Snaploom.App/Snaploom.App.csproj
 
 运行后可从 Windows 系统托盘或 macOS 菜单栏退出 Snaploom。
 
+在 Apple Silicon Mac 上执行以下命令时，发布目标会生成带 `com.snaploom.app` Bundle ID 的 `Snaploom.app`：
+
+```bash
+dotnet publish src/Snaploom.App/Snaploom.App.csproj \
+  --configuration Release \
+  --runtime osx-arm64 \
+  --self-contained true
+```
+
+应用包位于 `bin/Release/net10.0/osx-arm64/publish/bundle/Snaploom.app`。
+
 依赖许可证审计见 [`docs/licenses/dependency-licenses.md`](docs/licenses/dependency-licenses.md)。

@@ -5,8 +5,6 @@
     <OutputType>WinExe</OutputType>
     <ApplicationTitle>Snaploom</ApplicationTitle>
     <ApplicationManifest>Platforms/Windows/app.manifest</ApplicationManifest>
-    <SnaploomWindowsAppId>Snaploom.Desktop</SnaploomWindowsAppId>
-    <SnaploomMacOSBundleId>com.snaploom.app</SnaploomMacOSBundleId>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
@@ -22,4 +20,28 @@
     <ProjectReference Include="../Snaploom.Platform.Windows/Snaploom.Platform.Windows.csproj" />
     <ProjectReference Include="../Snaploom.Platform.MacOS/Snaploom.Platform.MacOS.csproj" />
   </ItemGroup>
+
+  <Target
+    Name="CreateMacOSApplicationBundle"
+    AfterTargets="Publish"
+    Condition="'$(RuntimeIdentifier)' == 'osx-arm64'">
+    <PropertyGroup>
+      <_MacOSBundleDirectory>$(PublishDir)bundle/Snaploom.app</_MacOSBundleDirectory>
+      <_MacOSBundleRoot>$(_MacOSBundleDirectory)/Contents</_MacOSBundleRoot>
+    </PropertyGroup>
+    <RemoveDir Directories="$(PublishDir)bundle" />
+    <ItemGroup>
+      <_MacOSPublishedFile
+        Include="$(PublishDir)**/*"
+        Exclude="$(PublishDir)bundle/**/*" />
+    </ItemGroup>
+    <MakeDir Directories="$(_MacOSBundleRoot)/MacOS" />
+    <Copy
+      SourceFiles="@(_MacOSPublishedFile)"
+      DestinationFiles="@(_MacOSPublishedFile->'$(_MacOSBundleRoot)/MacOS/%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+    <Copy
+      SourceFiles="$(MSBuildProjectDirectory)/Platforms/macOS/Info.plist"
+      DestinationFolder="$(_MacOSBundleRoot)" />
+  </Target>
 </Project>
