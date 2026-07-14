@@ -21,6 +21,7 @@ coverage/
 # Packages and publish outputs
 *.nupkg
 *.snupkg
+*.dylib
 publish/
 
 # Platform files
