@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Themes.Fluent;
 using Snaploom.Core;
+using Snaploom.Platform.Abstractions;
 using Snaploom.Rendering;
 
 namespace Snaploom.App;
@@ -23,6 +24,12 @@ public sealed class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            var platform = DesktopPlatformFactory.CreateCurrent();
+            if (platform is IPlatformProcessInitializer processInitializer)
+            {
+                processInitializer.InitializeProcess();
+            }
+
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             desktop.Exit += HandleDesktopExit;
 

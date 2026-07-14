@@ -10,10 +10,7 @@ public enum TrayAction
 
 public sealed record TrayItemPlan(TrayAction Action, bool IsEnabled);
 
-public sealed record ApplicationLaunchPlan(
-    bool ShowMainWindow,
-    bool ShowTrayIcon,
-    IReadOnlyList<TrayItemPlan> TrayItems)
+public sealed class ApplicationLaunchPlan
 {
     private static readonly ReadOnlyCollection<TrayItemPlan> DefaultTrayItems =
         Array.AsReadOnly(
@@ -22,8 +19,17 @@ public sealed record ApplicationLaunchPlan(
             new TrayItemPlan(TrayAction.Exit, IsEnabled: true),
         ]);
 
+    private ApplicationLaunchPlan(bool showTrayIcon, IReadOnlyList<TrayItemPlan> trayItems)
+    {
+        ShowTrayIcon = showTrayIcon;
+        TrayItems = trayItems;
+    }
+
+    public bool ShowTrayIcon { get; }
+
+    public IReadOnlyList<TrayItemPlan> TrayItems { get; }
+
     public static ApplicationLaunchPlan Default { get; } = new(
-        ShowMainWindow: false,
-        ShowTrayIcon: true,
-        TrayItems: DefaultTrayItems);
+        showTrayIcon: true,
+        trayItems: DefaultTrayItems);
 }

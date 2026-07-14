@@ -2,6 +2,7 @@
   <PropertyGroup>
     <AssemblyName>Snaploom.Platform.Windows</AssemblyName>
     <RootNamespace>Snaploom.Platform.Windows</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Snaploom.Core/Snaploom.Core.csproj" />

@@ -3,6 +3,10 @@
     <AssemblyName>Snaploom.App</AssemblyName>
     <RootNamespace>Snaploom.App</RootNamespace>
     <OutputType>WinExe</OutputType>
+    <ApplicationTitle>Snaploom</ApplicationTitle>
+    <ApplicationManifest>Platforms/Windows/app.manifest</ApplicationManifest>
+    <SnaploomWindowsAppId>Snaploom.Desktop</SnaploomWindowsAppId>
+    <SnaploomMacOSBundleId>com.snaploom.app</SnaploomMacOSBundleId>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>

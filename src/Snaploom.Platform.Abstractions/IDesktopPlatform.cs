@@ -12,3 +12,8 @@ public interface IDesktopPlatform
 
     string ApplicationId { get; }
 }
+
+public interface IPlatformProcessInitializer
+{
+    void InitializeProcess();
+}

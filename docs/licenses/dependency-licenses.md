@@ -30,7 +30,12 @@ Avalonia 的其他传递包（FreeDesktop、HarfBuzz、Native、Remote.Protocol�
 | 依赖 | 当前版本 | 许可证 |
 | --- | --- | --- |
 | xunit.v3 | 3.2.2 | Apache-2.0 |
+| Avalonia.Headless | 12.1.0 | MIT |
 | Microsoft.Testing.Platform 及 Microsoft 测试宿主组件 | 1.9.1 | MIT |
+| Microsoft.ApplicationInsights、Microsoft.Bcl.AsyncInterfaces、Microsoft.Win32.Registry | 2.23.0、6.0.0、5.0.0 | MIT |
+| xunit.analyzers | 1.27.0 | Apache-2.0 |
+
+Headless 测试引入的 Avalonia 字体、HarfBuzzSharp 和 SkiaSharp 平台原生资源包均为 MIT。
 
 ## 复核方法
 
