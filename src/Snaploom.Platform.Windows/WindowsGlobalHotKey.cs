@@ -150,7 +150,7 @@ internal sealed partial class WindowsGlobalHotKey : IDisposable
         uint messageFilterMaximum,
         uint removeMessage);
 
-    [LibraryImport("user32.dll")]
+    [LibraryImport("user32.dll", EntryPoint = "PostThreadMessageW")]
     private static partial int PostThreadMessage(
         uint threadId,
         uint message,
