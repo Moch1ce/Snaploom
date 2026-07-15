@@ -98,10 +98,10 @@ public sealed class ScreenshotMosaicTileCacheTests
             .SelectMany(tile => tile.Pixels)
             .ToArray();
         var actualHash = Convert.ToHexString(SHA256.HashData(pixels));
-        var expectedFingerprint = OperatingSystem.IsWindows()
-            ? "TBD"
-            : "132D88B4C4BD24B51204FA56170FDEC76512BF883F977A4569";
-        Assert.StartsWith(expectedFingerprint, actualHash, StringComparison.Ordinal);
+        Assert.StartsWith(
+            "132D88B4C4BD24B51204FA56170FDEC76512BF883F977A4569",
+            actualHash,
+            StringComparison.Ordinal);
     }
 
     private static byte[] CreateGradient(int width, int height)
