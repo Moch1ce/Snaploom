@@ -48,17 +48,33 @@ public interface IScreenshotOverlayConfigurator
 
 public sealed class CapturedScreen : IDisposable
 {
-    public CapturedScreen(CapturedFrame frame, PhysicalPoint cursorPosition)
+    public CapturedScreen(
+        CapturedFrame frame,
+        PhysicalPoint cursorPosition,
+        PhysicalPoint? displayOrigin = null,
+        IEnumerable<ScreenshotWindowCandidate>? windowCandidates = null)
     {
         ArgumentNullException.ThrowIfNull(frame);
 
         Frame = frame;
         CursorPosition = cursorPosition;
+        DisplayOrigin = displayOrigin ?? new PhysicalPoint(0, 0);
+        WindowCandidates = ScreenshotWindowSelector.GetEligibleWindows(
+            windowCandidates ?? Array.Empty<ScreenshotWindowCandidate>(),
+            frame.PhysicalSize);
     }
 
     public CapturedFrame Frame { get; }
 
     public PhysicalPoint CursorPosition { get; }
+
+    public PhysicalPoint DisplayOrigin { get; }
+
+    public PhysicalPoint GlobalCursorPosition => new(
+        checked(DisplayOrigin.X + CursorPosition.X),
+        checked(DisplayOrigin.Y + CursorPosition.Y));
+
+    public IReadOnlyList<ScreenshotWindowCandidate> WindowCandidates { get; }
 
     public void Dispose() => Frame.Dispose();
 }

@@ -179,6 +179,17 @@ public sealed class ScreenshotSessionTests
         Assert.Null(session.Selection);
     }
 
+    [Fact]
+    public void AWindowSnapTargetCanCompleteTheSelectionImmediately()
+    {
+        var session = new ScreenshotSession(new PhysicalSize(100, 80));
+
+        session.Select(new PhysicalRect(10, 12, 50, 40));
+
+        Assert.Equal(ScreenshotSessionState.Selected, session.State);
+        Assert.Equal(new PhysicalRect(10, 12, 50, 40), session.Selection);
+    }
+
     private static ScreenshotSession CreateSelectedSession()
     {
         var session = new ScreenshotSession(new PhysicalSize(100, 80));

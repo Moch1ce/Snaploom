@@ -14,19 +14,26 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
     private readonly CapturedFrame _frame;
     private readonly ScreenshotSession _session;
+    private readonly IReadOnlyList<ScreenshotWindowCandidate> _windowCandidates;
     private readonly WriteableBitmap _bitmap;
     private readonly ScreenshotPixelInspector _pixelInspector;
     private readonly Cursor _crosshairCursor = new(StandardCursorType.Cross);
     private readonly Cursor _moveCursor = new(StandardCursorType.SizeAll);
     private Point? _pendingSelectionStart;
     private IPointer? _capturedPointer;
+    private ScreenshotSnapTarget? _hoveredSnapTarget;
     private bool _disposed;
 
-    public ScreenshotSelectionCanvas(CapturedFrame frame)
+    public ScreenshotSelectionCanvas(
+        CapturedFrame frame,
+        IEnumerable<ScreenshotWindowCandidate>? windowCandidates = null)
     {
         ArgumentNullException.ThrowIfNull(frame);
         _frame = frame;
         _session = new ScreenshotSession(frame.PhysicalSize);
+        _windowCandidates = ScreenshotWindowSelector.GetEligibleWindows(
+            windowCandidates ?? Array.Empty<ScreenshotWindowCandidate>(),
+            frame.PhysicalSize);
         _bitmap = CreateBitmap(frame);
         _pixelInspector = new ScreenshotPixelInspector(frame, _bitmap);
         ClipToBounds = true;
@@ -39,6 +46,8 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     public event EventHandler? SelectionDoubleClicked;
 
     public ScreenshotSession Session => _session;
+
+    internal ScreenshotSnapTarget? HoveredSnapTarget => _hoveredSnapTarget;
 
     internal Rect? LogicalSelection =>
         _session.Selection is { } selection ? ToLogicalRect(selection) : null;
@@ -58,7 +67,15 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
         if (_session.Selection is not { } selection)
         {
-            _pixelInspector.Render(context, Bounds.Size);
+            if (_hoveredSnapTarget is { } snapTarget)
+            {
+                DrawSnapTarget(context, snapTarget.Bounds);
+            }
+            else
+            {
+                _pixelInspector.Render(context, Bounds.Size);
+            }
+
             return;
         }
 
@@ -183,6 +200,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                     new LogicalPoint(clampedPosition.X, clampedPosition.Y)))
             {
                 _pendingSelectionStart = null;
+                _hoveredSnapTarget = null;
                 _session.BeginSelection(ToPhysicalPoint(start));
                 _session.UpdateSelection(ToPhysicalPoint(clampedPosition));
                 SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -219,6 +237,17 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
             return;
         }
 
+        if (_session.State == ScreenshotSessionState.Ready)
+        {
+            var hoverPosition = _pixelInspector.UpdatePointer(rawPosition, Bounds.Size);
+            _hoveredSnapTarget = ScreenshotWindowSelector.HitTest(
+                _windowCandidates,
+                ToPhysicalPoint(hoverPosition),
+                _frame.PhysicalSize);
+            InvalidateVisual();
+            return;
+        }
+
         var position = _pixelInspector.UpdatePointer(rawPosition, Bounds.Size);
         if (_session.State == ScreenshotSessionState.Selecting)
         {
@@ -236,7 +265,16 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         if (_pendingSelectionStart is not null)
         {
             _pendingSelectionStart = null;
+            var snapPosition = _pixelInspector.UpdatePointer(e.GetPosition(this), Bounds.Size);
+            var snapTarget = ScreenshotWindowSelector.HitTest(
+                _windowCandidates,
+                ToPhysicalPoint(snapPosition),
+                _frame.PhysicalSize);
+            _session.Select(snapTarget.Bounds);
+            _hoveredSnapTarget = null;
             ReleasePointerCapture();
+            Cursor = _moveCursor;
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
             InvalidateVisual();
             e.Handled = true;
             return;
@@ -292,6 +330,14 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                 new Vector(96, 96),
                 frame.Stride);
         }
+    }
+
+    private void DrawSnapTarget(DrawingContext context, PhysicalRect target)
+    {
+        var source = new Rect(target.X, target.Y, target.Width, target.Height);
+        var destination = ToLogicalRect(target);
+        context.DrawImage(_bitmap, source, destination);
+        context.DrawRectangle(brush: null, SelectionPen, destination);
     }
 
     private PhysicalPoint ToPhysicalPoint(Point point) =>

@@ -54,6 +54,36 @@ internal static unsafe partial class MacOSNative
     [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_cursor_y")]
     internal static partial double GetFrameCursorY(nint handle);
 
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_display_origin_x")]
+    internal static partial int GetFrameDisplayOriginX(nint handle);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_display_origin_y")]
+    internal static partial int GetFrameDisplayOriginY(nint handle);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_window_count")]
+    internal static partial int GetFrameWindowCount(nint handle);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_window_id")]
+    internal static partial long GetFrameWindowId(nint handle, int index);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_window_x")]
+    internal static partial int GetFrameWindowX(nint handle, int index);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_window_y")]
+    internal static partial int GetFrameWindowY(nint handle, int index);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_window_width")]
+    internal static partial int GetFrameWindowWidth(nint handle, int index);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_window_height")]
+    internal static partial int GetFrameWindowHeight(nint handle, int index);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_window_z_order")]
+    internal static partial int GetFrameWindowZOrder(nint handle, int index);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_window_exclusion")]
+    internal static partial uint GetFrameWindowExclusion(nint handle, int index);
+
     [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_pixel_data")]
     internal static partial nint GetFramePixelData(nint handle);
 

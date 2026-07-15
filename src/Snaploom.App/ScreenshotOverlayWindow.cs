@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform;
 using Snaploom.Core;
 using Snaploom.Platform.Abstractions;
 using Snaploom.Rendering;
@@ -53,7 +54,9 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         SizeToContent = SizeToContent.Manual;
         Background = Brushes.Black;
 
-        _selectionCanvas = new ScreenshotSelectionCanvas(capturedScreen.Frame);
+        _selectionCanvas = new ScreenshotSelectionCanvas(
+            capturedScreen.Frame,
+            capturedScreen.WindowCandidates);
         _selectionCanvas.SelectionChanged += HandleSelectionChanged;
         _selectionCanvas.SelectionDoubleClicked += HandleConfirm;
 
@@ -115,20 +118,11 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     private void HandleOpened(object? sender, EventArgs e)
     {
-        var cursor = _capturedScreen.CursorPosition;
+        var cursor = _capturedScreen.GlobalCursorPosition;
         var screen = Screens.ScreenFromPoint(new PixelPoint(cursor.X, cursor.Y)) ?? Screens.Primary;
         if (screen is not null)
         {
             Position = screen.Bounds.Position;
-            var screenBounds = screen.Bounds;
-            var workingArea = screen.WorkingArea;
-            var logicalPerPhysicalX = _capturedScreen.Frame.LogicalSize.Width / screenBounds.Width;
-            var logicalPerPhysicalY = _capturedScreen.Frame.LogicalSize.Height / screenBounds.Height;
-            _availableUiBounds = new Rect(
-                (workingArea.X - screenBounds.X) * logicalPerPhysicalX,
-                (workingArea.Y - screenBounds.Y) * logicalPerPhysicalY,
-                workingArea.Width * logicalPerPhysicalX,
-                workingArea.Height * logicalPerPhysicalY);
         }
 
         Activate();
@@ -138,12 +132,32 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             _overlayConfigurator.ConfigureScreenshotOverlay(platformHandle.Handle);
         }
 
+        screen = Screens.ScreenFromWindow(this) ?? screen;
+        if (screen is not null)
+        {
+            Position = screen.Bounds.Position;
+            UpdateAvailableUiBounds(screen);
+        }
+
         _selectionCanvas.Focus();
         if (_selectionCanvas.LogicalSelection is { } logicalSelection)
         {
             PositionFloatingUi(logicalSelection);
         }
 
+    }
+
+    private void UpdateAvailableUiBounds(Screen screen)
+    {
+        var screenBounds = screen.Bounds;
+        var workingArea = screen.WorkingArea;
+        var logicalPerPhysicalX = _capturedScreen.Frame.LogicalSize.Width / screenBounds.Width;
+        var logicalPerPhysicalY = _capturedScreen.Frame.LogicalSize.Height / screenBounds.Height;
+        _availableUiBounds = new Rect(
+            (workingArea.X - screenBounds.X) * logicalPerPhysicalX,
+            (workingArea.Y - screenBounds.Y) * logicalPerPhysicalY,
+            workingArea.Width * logicalPerPhysicalX,
+            workingArea.Height * logicalPerPhysicalY);
     }
 
     private void HandleSelectionChanged(object? sender, EventArgs e)

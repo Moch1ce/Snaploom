@@ -89,6 +89,25 @@ public sealed class ScreenshotSession
         return true;
     }
 
+    public void Select(PhysicalRect selection)
+    {
+        if (selection.Width <= 0 ||
+            selection.Height <= 0 ||
+            selection.X < 0 ||
+            selection.Y < 0 ||
+            selection.X + selection.Width > _frameSize.Width ||
+            selection.Y + selection.Height > _frameSize.Height)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(selection),
+                selection,
+                "The selection must be inside the captured frame.");
+        }
+
+        Selection = selection;
+        State = ScreenshotSessionState.Selected;
+    }
+
     public bool SelectionContains(PhysicalPoint point) =>
         Selection is { } selection &&
         point.X >= selection.X &&

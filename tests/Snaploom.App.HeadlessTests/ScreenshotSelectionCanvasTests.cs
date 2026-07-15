@@ -72,6 +72,78 @@ public sealed class ScreenshotSelectionCanvasTests
         }
     }
 
+    [AvaloniaFact]
+    public void HoverAndClickSelectTheTopmostWindowCandidate()
+    {
+        using var frame = CreateHighDpiFrame();
+        var candidates = new[]
+        {
+            new ScreenshotWindowCandidate(
+                20,
+                new PhysicalRect(30, 30, 100, 80),
+                1,
+                ScreenshotWindowExclusion.None),
+            new ScreenshotWindowCandidate(
+                10,
+                new PhysicalRect(20, 20, 100, 80),
+                0,
+                ScreenshotWindowExclusion.None),
+        };
+        using var canvas = new ScreenshotSelectionCanvas(frame, candidates);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            window.MouseMove(new Point(20, 20), RawInputModifiers.None);
+
+            Assert.Equal(ScreenshotSnapTargetKind.Window, canvas.HoveredSnapTarget?.Kind);
+            Assert.Equal(10, canvas.HoveredSnapTarget?.WindowId);
+
+            window.MouseDown(
+                new Point(20, 20),
+                MouseButton.Left,
+                RawInputModifiers.LeftMouseButton);
+            window.MouseUp(
+                new Point(20, 20),
+                MouseButton.Left,
+                RawInputModifiers.None);
+
+            Assert.Equal(ScreenshotSessionState.Selected, canvas.Session.State);
+            Assert.Equal(new PhysicalRect(20, 20, 100, 80), canvas.Session.Selection);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void ClickingDesktopSpaceSelectsTheWholeCurrentDisplay()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(
+            frame,
+            Array.Empty<ScreenshotWindowCandidate>());
+        var window = ShowCanvas(canvas);
+        try
+        {
+            window.MouseMove(new Point(90, 90), RawInputModifiers.None);
+            window.MouseDown(
+                new Point(90, 90),
+                MouseButton.Left,
+                RawInputModifiers.LeftMouseButton);
+            window.MouseUp(
+                new Point(90, 90),
+                MouseButton.Left,
+                RawInputModifiers.None);
+
+            Assert.Equal(new PhysicalRect(0, 0, 200, 200), canvas.Session.Selection);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     private static Window ShowCanvas(ScreenshotSelectionCanvas canvas)
     {
         var window = new Window

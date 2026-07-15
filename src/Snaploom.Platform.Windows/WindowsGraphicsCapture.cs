@@ -137,7 +137,7 @@ internal static class WindowsGraphicsCapture
                         logicalSize,
                         checked(width * 4),
                         pixels);
-                    return new CapturedScreen(capturedFrame, target.RelativeCursor);
+                    return WindowsDisplayCapture.CreateCapturedScreen(capturedFrame, target);
                 }
             }
             finally

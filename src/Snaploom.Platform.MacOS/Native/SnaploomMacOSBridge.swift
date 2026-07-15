@@ -16,6 +16,29 @@ private let hotKeyEventHandler: EventHandlerUPP = { _, _, _ in
     return noErr
 }
 
+fileprivate struct WindowCandidateInfo {
+    let id: Int64
+    let x: Int32
+    let y: Int32
+    let width: Int32
+    let height: Int32
+    let zOrder: Int32
+    let exclusion: UInt32
+}
+
+private struct WindowMetadata {
+    let zOrder: Int
+    let alpha: Double
+}
+
+private let systemUiBundleIdentifiers: Set<String> = [
+    "com.apple.controlcenter",
+    "com.apple.dock",
+    "com.apple.notificationcenterui",
+    "com.apple.systemuiserver",
+    "com.apple.WindowManager",
+]
+
 final class CapturedFrameHandle: @unchecked Sendable {
     let status: Int32
     let width: Int32
@@ -25,6 +48,9 @@ final class CapturedFrameHandle: @unchecked Sendable {
     let logicalHeight: Double
     let cursorX: Double
     let cursorY: Double
+    let displayOriginX: Int32
+    let displayOriginY: Int32
+    fileprivate let windowCandidates: [WindowCandidateInfo]
     let pixels: UnsafeMutableRawPointer?
     let pixelLength: Int
     let errorMessage: UnsafeMutablePointer<CChar>?
@@ -38,12 +64,20 @@ final class CapturedFrameHandle: @unchecked Sendable {
         logicalHeight = 0
         cursorX = 0
         cursorY = 0
+        displayOriginX = 0
+        displayOriginY = 0
+        windowCandidates = []
         pixels = nil
         pixelLength = 0
         errorMessage = strdup(message)
     }
 
-    init(image: CGImage, screen: NSScreen) throws {
+    init(
+        image: CGImage,
+        screen: NSScreen,
+        displayFrame: CGRect? = nil,
+        windows: [SCWindow] = []
+    ) throws {
         let width = image.width
         let height = image.height
         let stride = try checkedProduct(width, 4)
@@ -76,15 +110,63 @@ final class CapturedFrameHandle: @unchecked Sendable {
 
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
 
-        let cursor = CGEvent(source: nil)?.location ?? .zero
+        let captureFrame = displayFrame ?? CGRect(
+            x: 0,
+            y: 0,
+            width: screen.frame.width,
+            height: screen.frame.height
+        )
+        let scaleX = Double(width) / captureFrame.width
+        let scaleY = Double(height) / captureFrame.height
+        let cursor = CGEvent(source: nil)?.location ?? captureFrame.origin
+        let metadata = currentWindowMetadata()
         self.status = 0
         self.width = Int32(width)
         self.height = Int32(height)
         self.stride = Int32(stride)
         self.logicalWidth = screen.frame.width
         self.logicalHeight = screen.frame.height
-        self.cursorX = cursor.x
-        self.cursorY = cursor.y
+        self.cursorX = (cursor.x - captureFrame.minX) * scaleX
+        self.cursorY = (cursor.y - captureFrame.minY) * scaleY
+        self.displayOriginX = Int32((captureFrame.minX * scaleX).rounded())
+        self.displayOriginY = Int32((captureFrame.minY * scaleY).rounded())
+        self.windowCandidates = windows.enumerated().compactMap { fallbackZOrder, window in
+            let windowFrame = window.frame
+            guard windowFrame.intersects(captureFrame) else {
+                return nil
+            }
+
+            var exclusion: UInt32 = 0
+            if !window.isOnScreen {
+                exclusion |= 1 << 0
+                exclusion |= 1 << 1
+            }
+            if window.windowLayer != 0 {
+                exclusion |= 1 << 2
+                exclusion |= 1 << 5
+            }
+            if window.owningApplication?.processID == getpid() {
+                exclusion |= 1 << 3
+            }
+            if let bundleIdentifier = window.owningApplication?.bundleIdentifier,
+               systemUiBundleIdentifiers.contains(bundleIdentifier) {
+                exclusion |= 1 << 4
+            }
+            let windowMetadata = metadata[window.windowID]
+            if windowMetadata?.alpha ?? 1 <= 0.01 {
+                exclusion |= 1 << 6
+            }
+
+            return WindowCandidateInfo(
+                id: Int64(window.windowID),
+                x: Int32(((windowFrame.minX - captureFrame.minX) * scaleX).rounded()),
+                y: Int32(((windowFrame.minY - captureFrame.minY) * scaleY).rounded()),
+                width: Int32((windowFrame.width * scaleX).rounded()),
+                height: Int32((windowFrame.height * scaleY).rounded()),
+                zOrder: Int32(windowMetadata?.zOrder ?? fallbackZOrder),
+                exclusion: exclusion
+            )
+        }
         self.pixels = pixels
         self.pixelLength = pixelLength
         self.errorMessage = nil
@@ -94,6 +176,30 @@ final class CapturedFrameHandle: @unchecked Sendable {
         free(pixels)
         free(errorMessage)
     }
+}
+
+private func currentWindowMetadata() -> [CGWindowID: WindowMetadata] {
+    guard let windowList = CGWindowListCopyWindowInfo(
+        [.optionOnScreenOnly, .excludeDesktopElements],
+        kCGNullWindowID
+    ) as? [[String: Any]] else {
+        return [:]
+    }
+
+    var result: [CGWindowID: WindowMetadata] = [:]
+    for (zOrder, window) in windowList.enumerated() {
+        guard let windowNumber = window[kCGWindowNumber as String] as? NSNumber else {
+            continue
+        }
+
+        let alpha = (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
+        result[CGWindowID(windowNumber.uint32Value)] = WindowMetadata(
+            zOrder: zOrder,
+            alpha: alpha
+        )
+    }
+
+    return result
 }
 
 private final class CaptureBox: @unchecked Sendable {
@@ -238,7 +344,10 @@ public func configureCaptureOverlay(_ pointer: UnsafeMutableRawPointer) {
         window.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
         window.hidesOnDeactivate = false
 
-        if let screen = window.screen ?? NSScreen.main {
+        let pointerLocation = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first(where: { $0.frame.contains(pointerLocation) }) ??
+            window.screen ??
+            NSScreen.main {
             window.setFrame(screen.frame, display: true)
         }
     }
@@ -314,7 +423,12 @@ private func captureCurrentDisplay() async throws -> CapturedFrameHandle {
         contentFilter: filter,
         configuration: configuration
     )
-    return try CapturedFrameHandle(image: image, screen: screen)
+    return try CapturedFrameHandle(
+        image: image,
+        screen: screen,
+        displayFrame: display.frame,
+        windows: shareableContent.windows
+    )
 }
 
 @_cdecl("snaploom_capture_current_display")
@@ -386,6 +500,68 @@ public func frameCursorX(_ pointer: UnsafeMutableRawPointer) -> Double {
 @_cdecl("snaploom_frame_cursor_y")
 public func frameCursorY(_ pointer: UnsafeMutableRawPointer) -> Double {
     frame(from: pointer).cursorY
+}
+
+@_cdecl("snaploom_frame_display_origin_x")
+public func frameDisplayOriginX(_ pointer: UnsafeMutableRawPointer) -> Int32 {
+    frame(from: pointer).displayOriginX
+}
+
+@_cdecl("snaploom_frame_display_origin_y")
+public func frameDisplayOriginY(_ pointer: UnsafeMutableRawPointer) -> Int32 {
+    frame(from: pointer).displayOriginY
+}
+
+@_cdecl("snaploom_frame_window_count")
+public func frameWindowCount(_ pointer: UnsafeMutableRawPointer) -> Int32 {
+    Int32(frame(from: pointer).windowCandidates.count)
+}
+
+private func windowCandidate(
+    from pointer: UnsafeMutableRawPointer,
+    at index: Int32
+) -> WindowCandidateInfo? {
+    let candidates = frame(from: pointer).windowCandidates
+    guard index >= 0, Int(index) < candidates.count else {
+        return nil
+    }
+
+    return candidates[Int(index)]
+}
+
+@_cdecl("snaploom_frame_window_id")
+public func frameWindowId(_ pointer: UnsafeMutableRawPointer, _ index: Int32) -> Int64 {
+    windowCandidate(from: pointer, at: index)?.id ?? 0
+}
+
+@_cdecl("snaploom_frame_window_x")
+public func frameWindowX(_ pointer: UnsafeMutableRawPointer, _ index: Int32) -> Int32 {
+    windowCandidate(from: pointer, at: index)?.x ?? 0
+}
+
+@_cdecl("snaploom_frame_window_y")
+public func frameWindowY(_ pointer: UnsafeMutableRawPointer, _ index: Int32) -> Int32 {
+    windowCandidate(from: pointer, at: index)?.y ?? 0
+}
+
+@_cdecl("snaploom_frame_window_width")
+public func frameWindowWidth(_ pointer: UnsafeMutableRawPointer, _ index: Int32) -> Int32 {
+    windowCandidate(from: pointer, at: index)?.width ?? 0
+}
+
+@_cdecl("snaploom_frame_window_height")
+public func frameWindowHeight(_ pointer: UnsafeMutableRawPointer, _ index: Int32) -> Int32 {
+    windowCandidate(from: pointer, at: index)?.height ?? 0
+}
+
+@_cdecl("snaploom_frame_window_z_order")
+public func frameWindowZOrder(_ pointer: UnsafeMutableRawPointer, _ index: Int32) -> Int32 {
+    windowCandidate(from: pointer, at: index)?.zOrder ?? 0
+}
+
+@_cdecl("snaploom_frame_window_exclusion")
+public func frameWindowExclusion(_ pointer: UnsafeMutableRawPointer, _ index: Int32) -> UInt32 {
+    windowCandidate(from: pointer, at: index)?.exclusion ?? 0
 }
 
 @_cdecl("snaploom_frame_pixel_data")

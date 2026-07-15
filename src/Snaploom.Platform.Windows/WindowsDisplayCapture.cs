@@ -23,8 +23,17 @@ internal static partial class WindowsDisplayCapture
             target.LogicalSize,
             checked(target.Width * 4),
             pixels);
-        return new CapturedScreen(frame, target.RelativeCursor);
+        return CreateCapturedScreen(frame, target);
     }
+
+    internal static CapturedScreen CreateCapturedScreen(
+        CapturedFrame frame,
+        WindowsCaptureTarget target) =>
+        new(
+            frame,
+            target.RelativeCursor,
+            new PhysicalPoint(target.X, target.Y),
+            WindowsWindowEnumerator.Enumerate(target));
 
     internal static WindowsCaptureTarget GetCurrentDisplayTarget()
     {

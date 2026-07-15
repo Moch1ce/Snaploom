@@ -156,7 +156,28 @@ public sealed class MacOSDesktopPlatform :
             var cursorPosition = new PhysicalPoint(
                 checked((int)Math.Round(MacOSNative.GetFrameCursorX(handle))),
                 checked((int)Math.Round(MacOSNative.GetFrameCursorY(handle))));
-            return new CapturedScreen(frame, cursorPosition);
+            var windowCount = MacOSNative.GetFrameWindowCount(handle);
+            var windowCandidates = new ScreenshotWindowCandidate[windowCount];
+            for (var index = 0; index < windowCount; index++)
+            {
+                windowCandidates[index] = new ScreenshotWindowCandidate(
+                    MacOSNative.GetFrameWindowId(handle, index),
+                    new PhysicalRect(
+                        MacOSNative.GetFrameWindowX(handle, index),
+                        MacOSNative.GetFrameWindowY(handle, index),
+                        MacOSNative.GetFrameWindowWidth(handle, index),
+                        MacOSNative.GetFrameWindowHeight(handle, index)),
+                    MacOSNative.GetFrameWindowZOrder(handle, index),
+                    (ScreenshotWindowExclusion)MacOSNative.GetFrameWindowExclusion(handle, index));
+            }
+
+            return new CapturedScreen(
+                frame,
+                cursorPosition,
+                new PhysicalPoint(
+                    MacOSNative.GetFrameDisplayOriginX(handle),
+                    MacOSNative.GetFrameDisplayOriginY(handle)),
+                windowCandidates);
         }
         finally
         {

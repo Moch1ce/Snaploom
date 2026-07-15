@@ -66,6 +66,14 @@ public sealed class DesktopPlatformTests
             capturedScreen.CursorPosition.Y,
             0,
             capturedScreen.Frame.PhysicalSize.Height);
+        Assert.All(capturedScreen.WindowCandidates, candidate =>
+        {
+            Assert.Equal(ScreenshotWindowExclusion.None, candidate.Exclusion);
+            Assert.True(candidate.Bounds.Width > 0);
+            Assert.True(candidate.Bounds.Height > 0);
+            Assert.InRange(candidate.Bounds.X, 0, capturedScreen.Frame.PhysicalSize.Width - 1);
+            Assert.InRange(candidate.Bounds.Y, 0, capturedScreen.Frame.PhysicalSize.Height - 1);
+        });
     }
 
     [Fact]
