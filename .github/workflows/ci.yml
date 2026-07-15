@@ -48,6 +48,22 @@ jobs:
       - name: Test
         run: dotnet test Snaploom.sln --configuration Release --no-build
 
+      - name: Build ad hoc macOS DMG
+        if: runner.os == 'macOS'
+        run: ./scripts/build-macos-dmg.sh --version 1.0.0 --adhoc
+
+      - name: Verify ad hoc macOS DMG
+        if: runner.os == 'macOS'
+        run: ./tests/packaging/verify-macos-dmg.sh --dmg-directory ./artifacts/macos-arm64/dmg --version 1.0.0 --expected-signing adhoc
+
+      - name: Upload macOS DMG
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: snaploom-macos-arm64-dmg
+          path: artifacts/macos-arm64/dmg/*
+          if-no-files-found: error
+
       - name: Install pinned Inno Setup
         if: runner.os == 'Windows'
         run: choco upgrade innosetup --version=6.7.1 --allow-downgrade --yes --no-progress

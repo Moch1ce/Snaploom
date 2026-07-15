@@ -5,6 +5,19 @@ namespace Snaploom.Rendering;
 public static class TrayIconRenderer
 {
     private static readonly int[] WindowsIconSizes = [16, 32, 48, 64, 256];
+    private static readonly (string FileName, int PixelSize)[] MacOSIconAssets =
+    [
+        ("icon_16x16.png", 16),
+        ("icon_16x16@2x.png", 32),
+        ("icon_32x32.png", 32),
+        ("icon_32x32@2x.png", 64),
+        ("icon_128x128.png", 128),
+        ("icon_128x128@2x.png", 256),
+        ("icon_256x256.png", 256),
+        ("icon_256x256@2x.png", 512),
+        ("icon_512x512.png", 512),
+        ("icon_512x512@2x.png", 1024),
+    ];
 
     public static byte[] RenderPng(int size)
     {
@@ -92,5 +105,24 @@ public static class TrayIconRenderer
         }
 
         return stream.ToArray();
+    }
+
+    public static IReadOnlyDictionary<string, byte[]> RenderMacOSIconset()
+    {
+        var renderedSizes = new Dictionary<int, byte[]>();
+        var iconset = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+
+        foreach (var (fileName, pixelSize) in MacOSIconAssets)
+        {
+            if (!renderedSizes.TryGetValue(pixelSize, out var png))
+            {
+                png = RenderPng(pixelSize);
+                renderedSizes.Add(pixelSize, png);
+            }
+
+            iconset.Add(fileName, png);
+        }
+
+        return iconset;
     }
 }

@@ -31,7 +31,7 @@ New-Item $installerDirectory -ItemType Directory -Force | Out-Null
 & dotnet run `
     --project (Join-Path $repoRoot 'tools/Snaploom.AssetGenerator/Snaploom.AssetGenerator.csproj') `
     --configuration $Configuration `
-    -- $iconPath
+    -- windows-icon $iconPath
 if ($LASTEXITCODE -ne 0) {
     throw 'Windows icon generation failed.'
 }

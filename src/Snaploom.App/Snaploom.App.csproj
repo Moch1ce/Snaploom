@@ -37,6 +37,7 @@
     <PropertyGroup>
       <_MacOSBundleDirectory>$(PublishDir)bundle/Snaploom.app</_MacOSBundleDirectory>
       <_MacOSBundleRoot>$(_MacOSBundleDirectory)/Contents</_MacOSBundleRoot>
+      <_MacOSResourcesDirectory>$(_MacOSBundleRoot)/Resources</_MacOSResourcesDirectory>
     </PropertyGroup>
     <RemoveDir Directories="$(PublishDir)bundle" />
     <ItemGroup>
@@ -44,7 +45,7 @@
         Include="$(PublishDir)**/*"
         Exclude="$(PublishDir)bundle/**/*" />
     </ItemGroup>
-    <MakeDir Directories="$(_MacOSBundleRoot)/MacOS" />
+    <MakeDir Directories="$(_MacOSBundleRoot)/MacOS;$(_MacOSResourcesDirectory)/en.lproj;$(_MacOSResourcesDirectory)/zh-Hans.lproj" />
     <Copy
       SourceFiles="@(_MacOSPublishedFile)"
       DestinationFiles="@(_MacOSPublishedFile->'$(_MacOSBundleRoot)/MacOS/%(RecursiveDir)%(Filename)%(Extension)')"
@@ -52,5 +53,14 @@
     <Copy
       SourceFiles="$(MSBuildProjectDirectory)/Platforms/macOS/Info.plist"
       DestinationFolder="$(_MacOSBundleRoot)" />
+    <Copy
+      SourceFiles="$(MSBuildProjectDirectory)/Assets/Snaploom.icns"
+      DestinationFolder="$(_MacOSResourcesDirectory)" />
+    <Copy
+      SourceFiles="$(MSBuildProjectDirectory)/Platforms/macOS/en.lproj/InfoPlist.strings"
+      DestinationFolder="$(_MacOSResourcesDirectory)/en.lproj" />
+    <Copy
+      SourceFiles="$(MSBuildProjectDirectory)/Platforms/macOS/zh-Hans.lproj/InfoPlist.strings"
+      DestinationFolder="$(_MacOSResourcesDirectory)/zh-Hans.lproj" />
   </Target>
 </Project>
