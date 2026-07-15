@@ -151,6 +151,43 @@ public sealed class SelectionPngEncoderTests
         Assert.NotEqual(original.GetPixel(40, 24), mosaic.GetPixel(40, 24));
     }
 
+    [Fact]
+    public void ExportCompositesOverlappingAnnotationsInCreationOrder()
+    {
+        const int size = 64;
+        var pixels = new byte[size * size * 4];
+        for (var alphaOffset = 3; alphaOffset < pixels.Length; alphaOffset += 4)
+        {
+            pixels[alphaOffset] = byte.MaxValue;
+        }
+
+        using var frame = new CapturedFrame(
+            new PhysicalSize(size, size),
+            new LogicalSize(size, size),
+            size * 4,
+            pixels);
+        var rectangle = new ScreenshotRectangleAnnotation(
+            new LogicalPoint(8, 8),
+            new LogicalPoint(40, 40),
+            new ScreenshotAnnotationStyle(ScreenshotAnnotationColor.Green, 8));
+        var mosaic = new ScreenshotMosaicAnnotation(
+            [new LogicalPoint(4, 8), new LogicalPoint(44, 8)],
+            new ScreenshotMosaicStyle(16, 8));
+        var selection = new PhysicalRect(0, 0, size, size);
+
+        using var rectangleOnTop = SKBitmap.Decode(SelectionPngEncoder.Encode(
+            frame,
+            selection,
+            [mosaic, rectangle]));
+        using var mosaicOnTop = SKBitmap.Decode(SelectionPngEncoder.Encode(
+            frame,
+            selection,
+            [rectangle, mosaic]));
+
+        Assert.NotEqual(rectangleOnTop.GetPixel(20, 8), mosaicOnTop.GetPixel(20, 8));
+        Assert.True(rectangleOnTop.GetPixel(20, 8).Green > mosaicOnTop.GetPixel(20, 8).Green);
+    }
+
     private static void SetPixel(
         byte[] pixels,
         int width,

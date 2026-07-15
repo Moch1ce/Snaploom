@@ -53,7 +53,9 @@ internal static class ScreenshotUiText
 
     internal static string MosaicBrush64 => Get(nameof(MosaicBrush64));
 
-    internal static string UndoUnavailable => Get(nameof(UndoUnavailable));
+    internal static string Undo => Get(nameof(Undo));
+
+    internal static string Redo => Get(nameof(Redo));
 
     internal static string SavePng => Get(nameof(SavePng));
 

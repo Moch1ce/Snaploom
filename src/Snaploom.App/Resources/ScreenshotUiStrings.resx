@@ -34,7 +34,8 @@
   <data name="MosaicBrush16" xml:space="preserve"><value>16 px mosaic brush</value></data>
   <data name="MosaicBrush32" xml:space="preserve"><value>32 px mosaic brush</value></data>
   <data name="MosaicBrush64" xml:space="preserve"><value>64 px mosaic brush</value></data>
-  <data name="UndoUnavailable" xml:space="preserve"><value>Undo (coming soon)</value></data>
+  <data name="Undo" xml:space="preserve"><value>Undo (Ctrl/Command+Z)</value></data>
+  <data name="Redo" xml:space="preserve"><value>Redo (Ctrl/Command+Shift+Z)</value></data>
   <data name="SavePng" xml:space="preserve"><value>Save PNG</value></data>
   <data name="ExitScreenshot" xml:space="preserve"><value>Exit screenshot</value></data>
   <data name="CompleteAndCopy" xml:space="preserve"><value>Copy and finish</value></data>

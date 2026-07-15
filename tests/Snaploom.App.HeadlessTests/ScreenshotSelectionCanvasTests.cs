@@ -347,6 +347,74 @@ public sealed class ScreenshotSelectionCanvasTests
         }
     }
 
+    [AvaloniaFact]
+    public void SelectedAnnotationMovesInsteadOfTheSelectionAndCanBeUndone()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            Drag(window, new Point(10, 10), new Point(80, 80));
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Rectangle);
+            Drag(window, new Point(20, 20), new Point(50, 45));
+            var originalSelection = canvas.Session.Selection;
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Select);
+
+            Drag(window, new Point(20, 30), new Point(30, 35));
+
+            Assert.Equal(originalSelection, canvas.Session.Selection);
+            var moved = Assert.IsType<ScreenshotRectangleAnnotation>(
+                Assert.Single(canvas.Annotations));
+            Assert.Equal(new LogicalPoint(20, 15), moved.Start);
+            Assert.Equal(new LogicalPoint(50, 40), moved.End);
+            Assert.NotNull(canvas.SelectedAnnotation);
+            Assert.Equal(
+                ScreenshotCancelResult.ActionCanceled,
+                canvas.CancelCurrentLayer());
+            Assert.Null(canvas.SelectedAnnotation);
+            Assert.NotNull(canvas.Session.Selection);
+            Assert.True(canvas.UndoAnnotation());
+            var restored = Assert.IsType<ScreenshotRectangleAnnotation>(
+                Assert.Single(canvas.Annotations));
+            Assert.Equal(new LogicalPoint(10, 10), restored.Start);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void ResizingSelectionFromTopLeftKeepsAnnotationAtItsScreenPosition()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            Drag(window, new Point(10, 10), new Point(80, 80));
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Rectangle);
+            Drag(window, new Point(30, 30), new Point(50, 50));
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Select);
+
+            Drag(window, new Point(10, 10), new Point(15, 15));
+
+            var selection = Assert.IsType<PhysicalRect>(canvas.Session.Selection);
+            var logicalSelection = Assert.IsType<Rect>(canvas.LogicalSelection);
+            var rectangle = Assert.IsType<ScreenshotRectangleAnnotation>(
+                Assert.Single(canvas.Annotations));
+            Assert.Equal(new LogicalPoint(15, 15), rectangle.Start);
+            Assert.Equal(30, logicalSelection.X + rectangle.Start.X);
+            Assert.Equal(30, logicalSelection.Y + rectangle.Start.Y);
+            Assert.Equal(new PhysicalRect(30, 30, 130, 130), selection);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     private static Window ShowCanvas(ScreenshotSelectionCanvas canvas)
     {
         var window = new Window

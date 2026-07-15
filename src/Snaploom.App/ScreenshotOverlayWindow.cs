@@ -27,6 +27,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     private Rect _availableUiBounds;
     private bool _floatingUiFrozen;
     private bool _changingTextEditor;
+    private bool _synchronizingAnnotationStyle;
     private bool _resourcesDisposed;
 
     internal ScreenshotAnnotationTool ActiveAnnotationTool => _toolbar.ActiveTool;
@@ -40,6 +41,8 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     internal IReadOnlyList<IScreenshotAnnotation> Annotations => _selectionCanvas.Annotations;
 
     internal ScreenshotTextEdit? TextEdit => _selectionCanvas.TextEdit;
+
+    internal IScreenshotAnnotation? SelectedAnnotation => _selectionCanvas.SelectedAnnotation;
 
     public ScreenshotOverlayWindow(
         CapturedScreen capturedScreen,
@@ -77,6 +80,8 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _selectionCanvas.SelectionDoubleClicked += HandleConfirm;
         _selectionCanvas.AnnotationStarted += HandleAnnotationStarted;
         _selectionCanvas.TextEditingStarted += HandleTextEditingStarted;
+        _selectionCanvas.AnnotationSelectionChanged += HandleAnnotationSelectionChanged;
+        _selectionCanvas.AnnotationHistoryChanged += HandleAnnotationHistoryChanged;
         _selectionCanvas.SelectionReplaced += HandleSelectionReplaced;
 
         _sizeText = new TextBlock
@@ -108,6 +113,8 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _toolbar.CancelRequested += HandleCancel;
         _toolbar.ToolChanged += HandleToolChanged;
         _toolbar.AnnotationStyleChanged += HandleAnnotationStyleChanged;
+        _toolbar.UndoRequested += HandleUndo;
+        _toolbar.RedoRequested += HandleRedo;
 
         _textEditor = new TextBox
         {
@@ -345,9 +352,43 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     private void HandleAnnotationStyleChanged(object? sender, EventArgs e)
     {
+        if (_synchronizingAnnotationStyle)
+        {
+            return;
+        }
+
+        CommitTextEditing();
         _selectionCanvas.SetAnnotationStyle(_toolbar.AnnotationStyle);
         _selectionCanvas.SetTextStyle(_toolbar.TextStyle);
         _selectionCanvas.SetMosaicStyle(_toolbar.MosaicStyle);
+    }
+
+    private void HandleAnnotationSelectionChanged(object? sender, EventArgs e)
+    {
+        _synchronizingAnnotationStyle = true;
+        try
+        {
+            _toolbar.SetSelectedAnnotation(_selectionCanvas.SelectedAnnotation);
+        }
+        finally
+        {
+            _synchronizingAnnotationStyle = false;
+        }
+    }
+
+    private void HandleAnnotationHistoryChanged(object? sender, EventArgs e) =>
+        _toolbar.SetHistoryActionsEnabled(_selectionCanvas.CanUndo, _selectionCanvas.CanRedo);
+
+    private void HandleUndo(object? sender, EventArgs e)
+    {
+        CommitTextEditing();
+        _selectionCanvas.UndoAnnotation();
+    }
+
+    private void HandleRedo(object? sender, EventArgs e)
+    {
+        CommitTextEditing();
+        _selectionCanvas.RedoAnnotation();
     }
 
     private void HandleAnnotationStarted(object? sender, EventArgs e) =>
@@ -500,6 +541,38 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             return;
         }
 
+        var commandModifierPressed = OperatingSystem.IsMacOS()
+            ? e.KeyModifiers.HasFlag(KeyModifiers.Meta)
+            : e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        if (commandModifierPressed && e.Key == Key.Z)
+        {
+            e.Handled = true;
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            {
+                _selectionCanvas.RedoAnnotation();
+            }
+            else
+            {
+                _selectionCanvas.UndoAnnotation();
+            }
+
+            return;
+        }
+
+        if (commandModifierPressed && e.Key == Key.Y)
+        {
+            e.Handled = true;
+            _selectionCanvas.RedoAnnotation();
+            return;
+        }
+
+        if (e.Key is Key.Delete or Key.Back &&
+            _selectionCanvas.DeleteSelectedAnnotation())
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Escape)
         {
             e.Handled = true;
@@ -581,12 +654,16 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _toolbar.CancelRequested -= HandleCancel;
         _toolbar.ToolChanged -= HandleToolChanged;
         _toolbar.AnnotationStyleChanged -= HandleAnnotationStyleChanged;
+        _toolbar.UndoRequested -= HandleUndo;
+        _toolbar.RedoRequested -= HandleRedo;
         _textEditor.TextChanged -= HandleTextChanged;
         _textEditor.KeyDown -= HandleTextEditorKeyDown;
         _selectionCanvas.SelectionChanged -= HandleSelectionChanged;
         _selectionCanvas.SelectionDoubleClicked -= HandleConfirm;
         _selectionCanvas.AnnotationStarted -= HandleAnnotationStarted;
         _selectionCanvas.TextEditingStarted -= HandleTextEditingStarted;
+        _selectionCanvas.AnnotationSelectionChanged -= HandleAnnotationSelectionChanged;
+        _selectionCanvas.AnnotationHistoryChanged -= HandleAnnotationHistoryChanged;
         _selectionCanvas.SelectionReplaced -= HandleSelectionReplaced;
         _selectionCanvas.Dispose();
         _capturedScreen.Dispose();

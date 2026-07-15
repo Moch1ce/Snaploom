@@ -15,6 +15,8 @@ internal sealed class ScreenshotToolbar : Border
     private readonly ScreenshotToolbarButton _mosaicButton;
     private readonly ScreenshotToolbarButton _saveButton;
     private readonly ScreenshotToolbarButton _confirmButton;
+    private readonly ScreenshotToolbarButton _undoButton;
+    private readonly ScreenshotToolbarButton _redoButton;
     private readonly StackPanel _annotationOptions;
     private readonly StackPanel _colorOptions = new()
     {
@@ -40,6 +42,7 @@ internal sealed class ScreenshotToolbar : Border
     private readonly Dictionary<int, ScreenshotToolbarButton> _lineWidthButtons = [];
     private readonly Dictionary<int, ScreenshotToolbarButton> _fontSizeButtons = [];
     private readonly Dictionary<int, ScreenshotToolbarButton> _mosaicBrushButtons = [];
+    private ScreenshotAnnotationTool? _selectedObjectTool;
 
     internal ScreenshotToolbar()
     {
@@ -82,10 +85,18 @@ internal sealed class ScreenshotToolbar : Border
             ScreenshotUiTheme.PrimaryTextBrush,
             isEnabled: false);
         _mosaicButton.Invoked += (_, _) => ToggleTool(ScreenshotAnnotationTool.Mosaic);
-        var undoButton = CreateUnavailableButton(
+        _undoButton = CreateButton(
             ScreenshotToolbarIconKind.Undo,
-            ScreenshotUiText.UndoUnavailable,
-            ScreenshotUiTheme.DisabledIconBrush);
+            ScreenshotUiText.Undo,
+            ScreenshotUiTheme.PrimaryTextBrush,
+            isEnabled: false);
+        _undoButton.Invoked += (_, _) => UndoRequested?.Invoke(this, EventArgs.Empty);
+        _redoButton = CreateButton(
+            ScreenshotToolbarIconKind.Redo,
+            ScreenshotUiText.Redo,
+            ScreenshotUiTheme.PrimaryTextBrush,
+            isEnabled: false);
+        _redoButton.Invoked += (_, _) => RedoRequested?.Invoke(this, EventArgs.Empty);
 
         _saveButton = CreateButton(
             ScreenshotToolbarIconKind.Save,
@@ -119,7 +130,8 @@ internal sealed class ScreenshotToolbar : Border
         content.Children.Add(_mosaicButton);
         content.Children.Add(_annotationOptions);
         content.Children.Add(CreateSeparator());
-        content.Children.Add(undoButton);
+        content.Children.Add(_undoButton);
+        content.Children.Add(_redoButton);
         content.Children.Add(_saveButton);
         content.Children.Add(CreateSeparator());
         content.Children.Add(cancelButton);
@@ -136,6 +148,10 @@ internal sealed class ScreenshotToolbar : Border
     internal event EventHandler? ToolChanged;
 
     internal event EventHandler? AnnotationStyleChanged;
+
+    internal event EventHandler? UndoRequested;
+
+    internal event EventHandler? RedoRequested;
 
     internal ScreenshotAnnotationTool ActiveTool { get; private set; }
 
@@ -172,6 +188,12 @@ internal sealed class ScreenshotToolbar : Border
         }
     }
 
+    internal void SetHistoryActionsEnabled(bool canUndo, bool canRedo)
+    {
+        _undoButton.SetEnabled(canUndo);
+        _redoButton.SetEnabled(canRedo);
+    }
+
     internal void SelectTool(ScreenshotAnnotationTool tool)
     {
         if (ActiveTool == tool)
@@ -180,19 +202,48 @@ internal sealed class ScreenshotToolbar : Border
         }
 
         ActiveTool = tool;
+        if (tool != ScreenshotAnnotationTool.Select)
+        {
+            _selectedObjectTool = null;
+        }
+
         _rectangleButton.IsSelected = tool == ScreenshotAnnotationTool.Rectangle;
         _arrowButton.IsSelected = tool == ScreenshotAnnotationTool.Arrow;
         _textButton.IsSelected = tool == ScreenshotAnnotationTool.Text;
         _mosaicButton.IsSelected = tool == ScreenshotAnnotationTool.Mosaic;
-        _annotationOptions.IsVisible = tool != ScreenshotAnnotationTool.Select;
-        _colorOptions.IsVisible = tool is ScreenshotAnnotationTool.Rectangle or
-            ScreenshotAnnotationTool.Arrow or ScreenshotAnnotationTool.Text;
-        _lineWidthOptions.IsVisible = tool is ScreenshotAnnotationTool.Rectangle or
-            ScreenshotAnnotationTool.Arrow;
-        _fontSizeOptions.IsVisible = tool == ScreenshotAnnotationTool.Text;
-        _mosaicBrushOptions.IsVisible = tool == ScreenshotAnnotationTool.Mosaic;
+        UpdateOptionVisibility();
         UpdateStyleSelection();
         ToolChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal void SetSelectedAnnotation(IScreenshotAnnotation? annotation)
+    {
+        _selectedObjectTool = annotation switch
+        {
+            ScreenshotRectangleAnnotation => ScreenshotAnnotationTool.Rectangle,
+            ScreenshotArrowAnnotation => ScreenshotAnnotationTool.Arrow,
+            ScreenshotTextAnnotation => ScreenshotAnnotationTool.Text,
+            ScreenshotMosaicAnnotation => ScreenshotAnnotationTool.Mosaic,
+            _ => null,
+        };
+        switch (annotation)
+        {
+            case ScreenshotRectangleAnnotation rectangle:
+                AnnotationStyle = rectangle.Style;
+                break;
+            case ScreenshotArrowAnnotation arrow:
+                AnnotationStyle = arrow.Style;
+                break;
+            case ScreenshotTextAnnotation text:
+                TextStyle = text.Style;
+                break;
+            case ScreenshotMosaicAnnotation mosaic:
+                MosaicStyle = mosaic.Style;
+                break;
+        }
+
+        UpdateOptionVisibility();
+        UpdateStyleSelection();
     }
 
     internal void SelectAnnotationStyle(ScreenshotAnnotationStyle style)
@@ -337,7 +388,7 @@ internal sealed class ScreenshotToolbar : Border
 
     private void SelectColor(ScreenshotAnnotationColor color)
     {
-        if (ActiveTool == ScreenshotAnnotationTool.Text)
+        if (EffectiveTool == ScreenshotAnnotationTool.Text)
         {
             SelectTextStyle(new ScreenshotTextStyle(color, TextStyle.FontSize));
         }
@@ -349,7 +400,7 @@ internal sealed class ScreenshotToolbar : Border
 
     private void UpdateStyleSelection()
     {
-        var color = ActiveTool == ScreenshotAnnotationTool.Text
+        var color = EffectiveTool == ScreenshotAnnotationTool.Text
             ? TextStyle.Color
             : AnnotationStyle.Color;
         foreach (var colorButton in _colorButtons)
@@ -372,6 +423,23 @@ internal sealed class ScreenshotToolbar : Border
             mosaicBrushButton.Value.IsSelected =
                 mosaicBrushButton.Key == MosaicStyle.BrushSize;
         }
+    }
+
+    private ScreenshotAnnotationTool EffectiveTool =>
+        ActiveTool == ScreenshotAnnotationTool.Select && _selectedObjectTool is { } selectedTool
+            ? selectedTool
+            : ActiveTool;
+
+    private void UpdateOptionVisibility()
+    {
+        var tool = EffectiveTool;
+        _annotationOptions.IsVisible = tool != ScreenshotAnnotationTool.Select;
+        _colorOptions.IsVisible = tool is ScreenshotAnnotationTool.Rectangle or
+            ScreenshotAnnotationTool.Arrow or ScreenshotAnnotationTool.Text;
+        _lineWidthOptions.IsVisible = tool is ScreenshotAnnotationTool.Rectangle or
+            ScreenshotAnnotationTool.Arrow;
+        _fontSizeOptions.IsVisible = tool == ScreenshotAnnotationTool.Text;
+        _mosaicBrushOptions.IsVisible = tool == ScreenshotAnnotationTool.Mosaic;
     }
 
     private void ToggleTool(ScreenshotAnnotationTool tool) =>

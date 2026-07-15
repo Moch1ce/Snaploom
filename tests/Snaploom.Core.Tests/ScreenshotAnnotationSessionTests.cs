@@ -195,6 +195,120 @@ public sealed class ScreenshotAnnotationSessionTests
         Assert.Same(preview, Assert.Single(session.Annotations));
     }
 
+    [Fact]
+    public void HitTestingSelectsOnlyTheTopmostOverlappingObject()
+    {
+        var session = new ScreenshotAnnotationSession();
+        DrawRectangle(session, new LogicalPoint(5, 5), new LogicalPoint(45, 35));
+        session.SetStyle(new ScreenshotAnnotationStyle(ScreenshotAnnotationColor.Blue, 8));
+        DrawRectangle(session, new LogicalPoint(5, 5), new LogicalPoint(45, 35));
+
+        Assert.Equal(1, session.HitTest(new LogicalPoint(5, 20)));
+        Assert.True(session.SelectAt(new LogicalPoint(5, 20)));
+        Assert.Equal(1, session.SelectedIndex);
+        Assert.Equal(
+            ScreenshotAnnotationColor.Blue,
+            Assert.IsType<ScreenshotRectangleAnnotation>(session.SelectedAnnotation).Style.Color);
+
+        Assert.False(session.SelectAt(new LogicalPoint(80, 80)));
+        Assert.Null(session.SelectedIndex);
+    }
+
+    [Fact]
+    public void CreationMoveResizeStyleAndDeleteAreUndoableAndRedoable()
+    {
+        var session = new ScreenshotAnnotationSession();
+        DrawRectangle(session, new LogicalPoint(5, 5), new LogicalPoint(25, 20));
+        Assert.True(session.CanUndo);
+        Assert.True(session.Undo());
+        Assert.Empty(session.Annotations);
+        Assert.True(session.Redo());
+
+        Assert.True(session.Select(0));
+        Assert.True(session.BeginMoveSelected(new LogicalPoint(5, 5)));
+        session.UpdateSelectedTransform(new LogicalPoint(15, 10));
+        Assert.True(session.CompleteSelectedTransform());
+        var moved = Assert.IsType<ScreenshotRectangleAnnotation>(session.SelectedAnnotation);
+        Assert.Equal(new LogicalPoint(15, 10), moved.Start);
+        Assert.Equal(new LogicalPoint(35, 25), moved.End);
+
+        Assert.True(session.BeginResizeSelected(AnnotationResizeHandle.End));
+        session.UpdateSelectedTransform(new LogicalPoint(50, 40));
+        Assert.True(session.CompleteSelectedTransform());
+        var resized = Assert.IsType<ScreenshotRectangleAnnotation>(session.SelectedAnnotation);
+        Assert.Equal(new LogicalPoint(50, 40), resized.End);
+
+        Assert.True(session.UpdateSelectedStyle(
+            new ScreenshotAnnotationStyle(ScreenshotAnnotationColor.Green, 2)));
+        Assert.Equal(
+            ScreenshotAnnotationColor.Green,
+            Assert.IsType<ScreenshotRectangleAnnotation>(session.SelectedAnnotation).Style.Color);
+        Assert.True(session.DeleteSelected());
+        Assert.Empty(session.Annotations);
+
+        Assert.True(session.Undo());
+        Assert.NotNull(session.SelectedAnnotation);
+        Assert.True(session.Undo());
+        Assert.Equal(
+            ScreenshotAnnotationColor.Red,
+            Assert.IsType<ScreenshotRectangleAnnotation>(session.SelectedAnnotation).Style.Color);
+    }
+
+    [Fact]
+    public void TextAndMosaicCanMoveAndChangeStyleButMosaicCannotResize()
+    {
+        var session = new ScreenshotAnnotationSession();
+        session.SetTool(ScreenshotAnnotationTool.Text);
+        session.BeginText(new LogicalPoint(10, 12), 120);
+        session.UpdateText("text", isComposing: false);
+        Assert.True(session.CommitText());
+        Assert.True(session.Select(0));
+        Assert.True(session.UpdateSelectedStyle(
+            new ScreenshotTextStyle(ScreenshotAnnotationColor.Yellow, 32)));
+        Assert.Equal(
+            32,
+            Assert.IsType<ScreenshotTextAnnotation>(session.SelectedAnnotation).Style.FontSize);
+
+        session.SetTool(ScreenshotAnnotationTool.Mosaic);
+        session.Begin(new LogicalPoint(30, 30));
+        session.Update(new LogicalPoint(50, 50));
+        Assert.True(session.Complete());
+        Assert.True(session.Select(1));
+        Assert.False(session.BeginResizeSelected(AnnotationResizeHandle.End));
+        Assert.True(session.UpdateSelectedStyle(new ScreenshotMosaicStyle(64, 16)));
+        Assert.True(session.BeginMoveSelected(new LogicalPoint(30, 30)));
+        session.UpdateSelectedTransform(new LogicalPoint(40, 35));
+        Assert.True(session.CompleteSelectedTransform());
+        var mosaic = Assert.IsType<ScreenshotMosaicAnnotation>(session.SelectedAnnotation);
+        Assert.Equal(new LogicalPoint(40, 35), mosaic.Points[0]);
+        Assert.Equal(64, mosaic.Style.BrushSize);
+    }
+
+    [Fact]
+    public void RebasingAfterSelectionResizeKeepsObjectsAtTheirScreenCoordinates()
+    {
+        var session = new ScreenshotAnnotationSession();
+        DrawRectangle(session, new LogicalPoint(20, 15), new LogicalPoint(50, 40));
+
+        session.RebaseForSelectionOriginChange(new LogicalPoint(8, 5));
+
+        var rectangle = Assert.IsType<ScreenshotRectangleAnnotation>(session.Annotations[0]);
+        Assert.Equal(new LogicalPoint(28, 20), rectangle.Start);
+        Assert.Equal(new LogicalPoint(58, 45), rectangle.End);
+        Assert.True(session.CanUndo);
+    }
+
+    private static void DrawRectangle(
+        ScreenshotAnnotationSession session,
+        LogicalPoint start,
+        LogicalPoint end)
+    {
+        session.SetTool(ScreenshotAnnotationTool.Rectangle);
+        session.Begin(start);
+        session.Update(end);
+        Assert.True(session.Complete());
+    }
+
     private static double Distance(LogicalPoint first, LogicalPoint second)
     {
         var deltaX = second.X - first.X;

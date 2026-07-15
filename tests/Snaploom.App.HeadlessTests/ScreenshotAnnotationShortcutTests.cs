@@ -87,6 +87,20 @@ public sealed class ScreenshotAnnotationShortcutTests
         Assert.True(toolbar.MosaicBrushOptionsVisible);
         Assert.Equal(64, toolbar.MosaicStyle.BrushSize);
         Assert.Equal(16, toolbar.MosaicStyle.PixelSize);
+
+        toolbar.SelectTool(ScreenshotAnnotationTool.Select);
+        toolbar.SetSelectedAnnotation(new ScreenshotTextAnnotation(
+            new LogicalPoint(4, 4),
+            "selected",
+            100,
+            new ScreenshotTextStyle(ScreenshotAnnotationColor.Blue, 16)));
+        Assert.True(toolbar.AnnotationOptionsVisible);
+        Assert.True(toolbar.ColorOptionsVisible);
+        Assert.True(toolbar.FontSizeOptionsVisible);
+        Assert.Equal(ScreenshotAnnotationColor.Blue, toolbar.TextStyle.Color);
+        Assert.Equal(16, toolbar.TextStyle.FontSize);
+        toolbar.SetSelectedAnnotation(annotation: null);
+        Assert.False(toolbar.AnnotationOptionsVisible);
     }
 
     [AvaloniaFact]
@@ -148,6 +162,41 @@ public sealed class ScreenshotAnnotationShortcutTests
         Drag(window, new Point(400, 300), new Point(500, 350));
 
         Assert.Equal(annotationToolbarOrigin, window.ToolbarOrigin);
+    }
+
+    [AvaloniaFact]
+    public void DeleteUndoAndRedoEditTheSelectedAnnotation()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(100, 100));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.R, RawInputModifiers.None, PhysicalKey.R, "r");
+        Drag(window, new Point(100, 100), new Point(220, 180));
+        window.KeyPress(Key.V, RawInputModifiers.None, PhysicalKey.V, "v");
+        Drag(window, new Point(100, 140), new Point(110, 145));
+        Assert.NotNull(window.SelectedAnnotation);
+
+        window.KeyPress(Key.Delete, RawInputModifiers.None, PhysicalKey.Delete, null);
+        Assert.Empty(window.Annotations);
+
+        var commandModifier = OperatingSystem.IsMacOS()
+            ? RawInputModifiers.Meta
+            : RawInputModifiers.Control;
+        window.KeyPress(Key.Z, commandModifier, PhysicalKey.Z, "z");
+        Assert.Single(window.Annotations);
+        window.KeyPress(
+            Key.Z,
+            commandModifier | RawInputModifiers.Shift,
+            PhysicalKey.Z,
+            "z");
+        Assert.Empty(window.Annotations);
     }
 
     private static CapturedFrame CreateFrame(int width = 100, int height = 100)

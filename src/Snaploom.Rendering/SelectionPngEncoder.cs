@@ -46,28 +46,46 @@ public static class SelectionPngEncoder
                 .CopyTo(destination.Slice(destinationOffset, copiedBytesPerRow));
         }
 
-        var mosaics = annotationList.OfType<ScreenshotMosaicAnnotation>().ToArray();
-        if (mosaics.Length > 0)
+        var pendingMosaics = new List<ScreenshotMosaicAnnotation>();
+        foreach (var annotation in annotationList)
         {
-            ScreenshotMosaicRenderer.ApplyToBitmap(
-                bitmap,
-                frame.ScaleX,
-                frame.ScaleY,
-                mosaics);
-        }
+            if (annotation is ScreenshotMosaicAnnotation mosaic)
+            {
+                pendingMosaics.Add(mosaic);
+                continue;
+            }
 
-        using (var canvas = new SKCanvas(bitmap))
-        {
+            ApplyPendingMosaics(bitmap, frame, pendingMosaics);
+            using var canvas = new SKCanvas(bitmap);
             ScreenshotAnnotationRenderer.Draw(
                 canvas,
                 frame.ScaleX,
                 frame.ScaleY,
-                annotationList.Where(annotation =>
-                    annotation is not ScreenshotMosaicAnnotation));
+                [annotation]);
         }
+
+        ApplyPendingMosaics(bitmap, frame, pendingMosaics);
 
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
         return data.ToArray();
+    }
+
+    private static void ApplyPendingMosaics(
+        SKBitmap bitmap,
+        CapturedFrame frame,
+        List<ScreenshotMosaicAnnotation> pendingMosaics)
+    {
+        if (pendingMosaics.Count == 0)
+        {
+            return;
+        }
+
+        ScreenshotMosaicRenderer.ApplyToBitmap(
+            bitmap,
+            frame.ScaleX,
+            frame.ScaleY,
+            pendingMosaics);
+        pendingMosaics.Clear();
     }
 }

@@ -11,6 +11,7 @@ internal enum ScreenshotToolbarIconKind
     Text,
     Mosaic,
     Undo,
+    Redo,
     Save,
     Cancel,
     Confirm,
@@ -64,6 +65,14 @@ internal sealed class ScreenshotToolbarIcon : Control
                 context.DrawLine(pen, new Point(2, 8), new Point(11, 8));
                 context.DrawLine(pen, new Point(11, 8), new Point(16, 12));
                 context.DrawLine(pen, new Point(16, 12), new Point(14, 17));
+                break;
+
+            case ScreenshotToolbarIconKind.Redo:
+                context.DrawLine(pen, new Point(15, 4), new Point(18, 8));
+                context.DrawLine(pen, new Point(18, 8), new Point(14, 11));
+                context.DrawLine(pen, new Point(18, 8), new Point(9, 8));
+                context.DrawLine(pen, new Point(9, 8), new Point(4, 12));
+                context.DrawLine(pen, new Point(4, 12), new Point(6, 17));
                 break;
 
             case ScreenshotToolbarIconKind.Save:

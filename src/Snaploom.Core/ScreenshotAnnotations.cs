@@ -140,12 +140,24 @@ public sealed record ScreenshotTextEdit(
     int? AnnotationIndex,
     bool IsComposing);
 
+public enum AnnotationResizeHandle
+{
+    Start,
+    End,
+}
+
 public sealed class ScreenshotAnnotationSession
 {
     private readonly List<IScreenshotAnnotation> _annotations = [];
     private readonly ReadOnlyCollection<IScreenshotAnnotation> _readOnlyAnnotations;
     private readonly List<LogicalPoint> _mosaicPoints = [];
+    private readonly Stack<AnnotationHistoryState> _undo = [];
+    private readonly Stack<AnnotationHistoryState> _redo = [];
     private LogicalPoint _start;
+    private AnnotationHistoryState? _transformBefore;
+    private IScreenshotAnnotation? _transformOriginal;
+    private LogicalPoint _transformStart;
+    private AnnotationResizeHandle? _resizeHandle;
 
     public ScreenshotAnnotationSession()
     {
@@ -169,12 +181,26 @@ public sealed class ScreenshotAnnotationSession
 
     public ScreenshotTextEdit? TextEdit { get; private set; }
 
+    public int? SelectedIndex { get; private set; }
+
+    public IScreenshotAnnotation? SelectedAnnotation =>
+        SelectedIndex is { } index && index >= 0 && index < _annotations.Count
+            ? _annotations[index]
+            : null;
+
+    public bool CanUndo => _undo.Count > 0;
+
+    public bool CanRedo => _redo.Count > 0;
+
+    public bool IsTransforming => _transformBefore is not null;
+
     public void SetTool(ScreenshotAnnotationTool tool)
     {
         ActiveTool = tool;
         Preview = null;
         TextEdit = null;
         _mosaicPoints.Clear();
+        SelectedIndex = null;
     }
 
     public void SetStyle(ScreenshotAnnotationStyle style) => Style = style;
@@ -240,6 +266,7 @@ public sealed class ScreenshotAnnotationSession
             return false;
         }
 
+        PushHistory(CaptureState());
         _annotations.Add(preview);
         return true;
     }
@@ -284,6 +311,7 @@ public sealed class ScreenshotAnnotationSession
         }
 
         Preview = null;
+        SelectedIndex = annotationIndex;
         TextEdit = new ScreenshotTextEdit(
             annotation.Origin,
             annotation.Text,
@@ -316,9 +344,9 @@ public sealed class ScreenshotAnnotationSession
             return false;
         }
 
-        TextEdit = null;
         if (string.IsNullOrWhiteSpace(edit.Text))
         {
+            TextEdit = null;
             return false;
         }
 
@@ -327,12 +355,22 @@ public sealed class ScreenshotAnnotationSession
             NormalizeLineEndings(edit.Text),
             edit.MaxWidth,
             edit.Style);
+        var before = CaptureState();
+        TextEdit = null;
         if (edit.AnnotationIndex is { } annotationIndex)
         {
+            if (Equals(_annotations[annotationIndex], annotation))
+            {
+                return false;
+            }
+
+            PushHistory(before);
             _annotations[annotationIndex] = annotation;
+            SelectedIndex = annotationIndex;
         }
         else
         {
+            PushHistory(before);
             _annotations.Add(annotation);
         }
 
@@ -356,6 +394,217 @@ public sealed class ScreenshotAnnotationSession
         TextEdit = null;
         _mosaicPoints.Clear();
         _annotations.Clear();
+        SelectedIndex = null;
+        _transformBefore = null;
+        _transformOriginal = null;
+        _undo.Clear();
+        _redo.Clear();
+    }
+
+    public int? HitTest(LogicalPoint point, double tolerance = 6)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(tolerance);
+        for (var index = _annotations.Count - 1; index >= 0; index--)
+        {
+            if (ContainsPoint(_annotations[index], point, tolerance))
+            {
+                return index;
+            }
+        }
+
+        return null;
+    }
+
+    public bool SelectAt(LogicalPoint point, double tolerance = 6)
+    {
+        SelectedIndex = HitTest(point, tolerance);
+        return SelectedIndex is not null;
+    }
+
+    public bool Select(int annotationIndex)
+    {
+        if (annotationIndex < 0 || annotationIndex >= _annotations.Count)
+        {
+            return false;
+        }
+
+        SelectedIndex = annotationIndex;
+        return true;
+    }
+
+    public bool ClearSelection()
+    {
+        if (SelectedIndex is null)
+        {
+            return false;
+        }
+
+        SelectedIndex = null;
+        return true;
+    }
+
+    public bool BeginMoveSelected(LogicalPoint point)
+    {
+        if (SelectedAnnotation is not { } annotation || IsTransforming)
+        {
+            return false;
+        }
+
+        _transformBefore = CaptureState();
+        _transformOriginal = annotation;
+        _transformStart = point;
+        _resizeHandle = null;
+        return true;
+    }
+
+    public bool BeginResizeSelected(AnnotationResizeHandle handle)
+    {
+        if (SelectedAnnotation is not (ScreenshotRectangleAnnotation or
+            ScreenshotArrowAnnotation) || IsTransforming)
+        {
+            return false;
+        }
+
+        _transformBefore = CaptureState();
+        _transformOriginal = SelectedAnnotation;
+        _resizeHandle = handle;
+        return true;
+    }
+
+    public void UpdateSelectedTransform(LogicalPoint point)
+    {
+        if (_transformOriginal is null || SelectedIndex is not { } index)
+        {
+            throw new InvalidOperationException("An annotation transform has not been started.");
+        }
+
+        _annotations[index] = _resizeHandle is { } resizeHandle
+            ? ResizeAnnotation(_transformOriginal, resizeHandle, point)
+            : TranslateAnnotation(
+                _transformOriginal,
+                new LogicalPoint(
+                    point.X - _transformStart.X,
+                    point.Y - _transformStart.Y));
+    }
+
+    public bool CompleteSelectedTransform()
+    {
+        if (_transformBefore is not { } before ||
+            _transformOriginal is null ||
+            SelectedAnnotation is not { } current)
+        {
+            return false;
+        }
+
+        var changed = !Equals(_transformOriginal, current);
+        ResetTransform();
+        if (changed)
+        {
+            PushHistory(before);
+        }
+
+        return changed;
+    }
+
+    public bool CancelSelectedTransform()
+    {
+        if (_transformBefore is not { } before)
+        {
+            return false;
+        }
+
+        RestoreState(before);
+        ResetTransform();
+        return true;
+    }
+
+    public bool UpdateSelectedStyle(ScreenshotAnnotationStyle style)
+    {
+        if (SelectedIndex is not { } index)
+        {
+            return false;
+        }
+
+        IScreenshotAnnotation? updated = _annotations[index] switch
+        {
+            ScreenshotRectangleAnnotation rectangle => rectangle with { Style = style },
+            ScreenshotArrowAnnotation arrow => arrow with { Style = style },
+            _ => null,
+        };
+        return ReplaceSelectedWithHistory(updated);
+    }
+
+    public bool UpdateSelectedStyle(ScreenshotTextStyle style)
+    {
+        if (SelectedAnnotation is not ScreenshotTextAnnotation text)
+        {
+            return false;
+        }
+
+        return ReplaceSelectedWithHistory(text with { Style = style });
+    }
+
+    public bool UpdateSelectedStyle(ScreenshotMosaicStyle style)
+    {
+        if (SelectedAnnotation is not ScreenshotMosaicAnnotation mosaic)
+        {
+            return false;
+        }
+
+        return ReplaceSelectedWithHistory(mosaic with { Style = style });
+    }
+
+    public bool DeleteSelected()
+    {
+        if (SelectedIndex is not { } index)
+        {
+            return false;
+        }
+
+        PushHistory(CaptureState());
+        _annotations.RemoveAt(index);
+        SelectedIndex = null;
+        return true;
+    }
+
+    public bool Undo()
+    {
+        if (_undo.Count == 0 || Preview is not null || TextEdit is not null || IsTransforming)
+        {
+            return false;
+        }
+
+        _redo.Push(CaptureState());
+        RestoreState(_undo.Pop());
+        return true;
+    }
+
+    public bool Redo()
+    {
+        if (_redo.Count == 0 || Preview is not null || TextEdit is not null || IsTransforming)
+        {
+            return false;
+        }
+
+        _undo.Push(CaptureState());
+        RestoreState(_redo.Pop());
+        return true;
+    }
+
+    public void RebaseForSelectionOriginChange(LogicalPoint offset)
+    {
+        if (offset == default)
+        {
+            return;
+        }
+
+        for (var index = 0; index < _annotations.Count; index++)
+        {
+            _annotations[index] = TranslateAnnotation(_annotations[index], offset);
+        }
+
+        RebaseHistory(_undo, offset);
+        RebaseHistory(_redo, offset);
     }
 
     public IEnumerable<IScreenshotAnnotation> EnumerateForRendering()
@@ -409,7 +658,221 @@ public sealed class ScreenshotAnnotationSession
         }
     }
 
+    private bool ReplaceSelectedWithHistory(IScreenshotAnnotation? updated)
+    {
+        if (updated is null || SelectedIndex is not { } index ||
+            Equals(_annotations[index], updated))
+        {
+            return false;
+        }
+
+        PushHistory(CaptureState());
+        _annotations[index] = updated;
+        return true;
+    }
+
+    private void PushHistory(AnnotationHistoryState state)
+    {
+        _undo.Push(state);
+        _redo.Clear();
+    }
+
+    private AnnotationHistoryState CaptureState() =>
+        new(_annotations.ToArray(), SelectedIndex);
+
+    private void RestoreState(AnnotationHistoryState state)
+    {
+        _annotations.Clear();
+        _annotations.AddRange(state.Annotations);
+        SelectedIndex = state.SelectedIndex is { } index && index < _annotations.Count
+            ? index
+            : null;
+    }
+
+    private void ResetTransform()
+    {
+        _transformBefore = null;
+        _transformOriginal = null;
+        _resizeHandle = null;
+    }
+
+    private static IScreenshotAnnotation ResizeAnnotation(
+        IScreenshotAnnotation annotation,
+        AnnotationResizeHandle handle,
+        LogicalPoint point) =>
+        annotation switch
+        {
+            ScreenshotRectangleAnnotation rectangle when handle == AnnotationResizeHandle.Start =>
+                rectangle with { Start = point },
+            ScreenshotRectangleAnnotation rectangle => rectangle with { End = point },
+            ScreenshotArrowAnnotation arrow when handle == AnnotationResizeHandle.Start =>
+                arrow with { Start = point },
+            ScreenshotArrowAnnotation arrow => arrow with { End = point },
+            _ => throw new InvalidOperationException("The selected annotation cannot be resized."),
+        };
+
+    private static IScreenshotAnnotation TranslateAnnotation(
+        IScreenshotAnnotation annotation,
+        LogicalPoint offset) =>
+        annotation switch
+        {
+            ScreenshotRectangleAnnotation rectangle => rectangle with
+            {
+                Start = Add(rectangle.Start, offset),
+                End = Add(rectangle.End, offset),
+            },
+            ScreenshotArrowAnnotation arrow => arrow with
+            {
+                Start = Add(arrow.Start, offset),
+                End = Add(arrow.End, offset),
+            },
+            ScreenshotTextAnnotation text => text with
+            {
+                Origin = Add(text.Origin, offset),
+            },
+            ScreenshotMosaicAnnotation mosaic => mosaic with
+            {
+                Points = mosaic.Points.Select(point => Add(point, offset)).ToArray(),
+            },
+            _ => throw new InvalidOperationException(
+                $"Unsupported screenshot annotation: {annotation.GetType().Name}."),
+        };
+
+    private static LogicalPoint Add(LogicalPoint point, LogicalPoint offset) =>
+        new(point.X + offset.X, point.Y + offset.Y);
+
+    private static bool ContainsPoint(
+        IScreenshotAnnotation annotation,
+        LogicalPoint point,
+        double tolerance) =>
+        annotation switch
+        {
+            ScreenshotRectangleAnnotation rectangle =>
+                DistanceToRectangleBorder(rectangle, point) <=
+                tolerance + (rectangle.Style.LineWidth / 2d),
+            ScreenshotArrowAnnotation arrow =>
+                DistanceToSegment(point, arrow.Start, arrow.End) <=
+                tolerance + (arrow.Style.LineWidth / 2d),
+            ScreenshotTextAnnotation text => ContainsText(text, point),
+            ScreenshotMosaicAnnotation mosaic => ContainsMosaic(mosaic, point, tolerance),
+            _ => false,
+        };
+
+    private static double DistanceToRectangleBorder(
+        ScreenshotRectangleAnnotation rectangle,
+        LogicalPoint point)
+    {
+        var left = Math.Min(rectangle.Start.X, rectangle.End.X);
+        var right = Math.Max(rectangle.Start.X, rectangle.End.X);
+        var top = Math.Min(rectangle.Start.Y, rectangle.End.Y);
+        var bottom = Math.Max(rectangle.Start.Y, rectangle.End.Y);
+        if (point.X >= left && point.X <= right && point.Y >= top && point.Y <= bottom)
+        {
+            return Math.Min(
+                Math.Min(point.X - left, right - point.X),
+                Math.Min(point.Y - top, bottom - point.Y));
+        }
+
+        var closestX = Math.Clamp(point.X, left, right);
+        var closestY = Math.Clamp(point.Y, top, bottom);
+        return Distance(point, new LogicalPoint(closestX, closestY));
+    }
+
+    private static bool ContainsText(ScreenshotTextAnnotation text, LogicalPoint point)
+    {
+        var lines = text.Text.Split('\n');
+        var width = Math.Min(
+            text.MaxWidth,
+            Math.Max(
+                text.Style.FontSize / 2d,
+                lines.Max(line => line.Length) * text.Style.FontSize * 0.6));
+        var height = Math.Max(1, lines.Length) * text.Style.FontSize * 1.25;
+        return point.X >= text.Origin.X && point.X <= text.Origin.X + width &&
+            point.Y >= text.Origin.Y && point.Y <= text.Origin.Y + height;
+    }
+
+    private static bool ContainsMosaic(
+        ScreenshotMosaicAnnotation mosaic,
+        LogicalPoint point,
+        double tolerance)
+    {
+        if (mosaic.Points.Count == 0)
+        {
+            return false;
+        }
+
+        var radius = (mosaic.Style.BrushSize / 2d) + tolerance;
+        if (mosaic.Points.Count == 1)
+        {
+            return Distance(point, mosaic.Points[0]) <= radius;
+        }
+
+        for (var index = 1; index < mosaic.Points.Count; index++)
+        {
+            if (DistanceToSegment(point, mosaic.Points[index - 1], mosaic.Points[index]) <= radius)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static double DistanceToSegment(
+        LogicalPoint point,
+        LogicalPoint start,
+        LogicalPoint end)
+    {
+        var deltaX = end.X - start.X;
+        var deltaY = end.Y - start.Y;
+        var lengthSquared = (deltaX * deltaX) + (deltaY * deltaY);
+        if (lengthSquared <= 0)
+        {
+            return Distance(point, start);
+        }
+
+        var progress = Math.Clamp(
+            (((point.X - start.X) * deltaX) + ((point.Y - start.Y) * deltaY)) /
+            lengthSquared,
+            0,
+            1);
+        return Distance(
+            point,
+            new LogicalPoint(start.X + (progress * deltaX), start.Y + (progress * deltaY)));
+    }
+
+    private static double Distance(LogicalPoint first, LogicalPoint second)
+    {
+        var deltaX = second.X - first.X;
+        var deltaY = second.Y - first.Y;
+        return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
+    }
+
+    private static void RebaseHistory(
+        Stack<AnnotationHistoryState> history,
+        LogicalPoint offset)
+    {
+        var rebased = history
+            .Reverse()
+            .Select(state => state with
+            {
+                Annotations = state.Annotations
+                    .Select(annotation => TranslateAnnotation(annotation, offset))
+                    .ToArray(),
+            })
+            .ToArray();
+        history.Clear();
+        foreach (var state in rebased)
+        {
+            history.Push(state);
+        }
+    }
+
     private static string NormalizeLineEndings(string text) =>
         text.Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n');
+
+    private sealed record AnnotationHistoryState(
+        IReadOnlyList<IScreenshotAnnotation> Annotations,
+        int? SelectedIndex);
 }
