@@ -139,6 +139,16 @@ public interface ISystemResumeService
     void StopMonitoring();
 }
 
+public interface ISystemNotificationService
+{
+    void ShowNotification(string title, string message);
+}
+
+public interface IFolderLauncher
+{
+    void OpenFolder(string path);
+}
+
 public interface IScreenCaptureService
 {
     Task<CapturedScreen> CaptureCurrentDisplayAsync(CancellationToken cancellationToken = default);

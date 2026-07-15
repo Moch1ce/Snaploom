@@ -35,6 +35,8 @@ public sealed class ScreenshotHotKeyManager : IDisposable
 
     public bool IsRegistered { get; private set; }
 
+    public event EventHandler? RegistrationFailed;
+
     public bool Start()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -96,5 +98,9 @@ public sealed class ScreenshotHotKeyManager : IDisposable
 
         _hotKeyService.UnregisterScreenshotHotKey();
         IsRegistered = _hotKeyService.TryRegisterScreenshotHotKey(CurrentHotKey, _callback);
+        if (!IsRegistered)
+        {
+            RegistrationFailed?.Invoke(this, EventArgs.Empty);
+        }
     }
 }

@@ -23,9 +23,13 @@ public sealed class App : Application, IDisposable
     private TrayMenuViewModel? _trayViewModel;
     private ApplicationLaunchPlan? _launchPlan;
     private NativeMenuItem? _autoStartMenuItem;
+    private PrivacyLog? _log;
+    private ISystemNotificationService? _notificationService;
+    private IFolderLauncher? _folderLauncher;
     private readonly CultureInfo _systemCulture = CultureInfo.CurrentUICulture;
 
     internal static Func<DesktopPlatformKind, AppSettingsService>? SettingsServiceFactory { get; set; }
+    internal static Func<PrivacyLog>? PrivacyLogFactory { get; set; }
 
     public override void Initialize()
     {
@@ -53,9 +57,20 @@ public sealed class App : Application, IDisposable
                 new AppSettingsService(
                     new JsonAppSettingsStore(AppSettingsService.GetDefaultPath(), defaults));
             ApplyAppearance();
+            _log = PrivacyLogFactory?.Invoke() ??
+                new PrivacyLog(PrivacyLog.GetDefaultDirectory());
+            _notificationService = platform as ISystemNotificationService;
+            _folderLauncher = platform as IFolderLauncher;
+            _log.Info(AppLogEvent.ApplicationStarted);
 
-            _screenshotController = ScreenshotController.TryCreate(platform, _settings);
+            _screenshotController = ScreenshotController.TryCreate(platform, _settings, _log);
             _launchPlan = ApplicationLaunchPlan.Create(_screenshotController is not null);
+            if (_screenshotController is null)
+            {
+                ReportBackgroundFailure(
+                    AppLogEvent.PlatformUnavailable,
+                    AppUiText.PlatformUnavailable);
+            }
             if (_screenshotController is not null &&
                 platform is IGlobalScreenshotHotKeyService hotKeyService &&
                 platform is ISystemResumeService resumeService)
@@ -66,7 +81,13 @@ public sealed class App : Application, IDisposable
                     _settings.Current.HotKey,
                     () => Dispatcher.UIThread.Post(
                         () => _ = _screenshotController.StartAsync()));
-                _hotKeyManager.Start();
+                _hotKeyManager.RegistrationFailed += HandleHotKeyReregistrationFailed;
+                if (!_hotKeyManager.Start())
+                {
+                    ReportBackgroundFailure(
+                        AppLogEvent.HotKeyConflict,
+                        AppUiText.HotKeyConflictNotification);
+                }
             }
 
             _trayViewModel = new TrayMenuViewModel(
@@ -74,7 +95,8 @@ public sealed class App : Application, IDisposable
                 ShowShortcutSettings,
                 platform as IAutoStartService,
                 () => desktop.Shutdown(),
-                _settings);
+                _settings,
+                HandleAutoStartFailure);
             _trayViewModel.PropertyChanged += HandleTrayViewModelChanged;
             _trayIcon = CreateTrayIcon(_trayViewModel, _launchPlan);
             TrayIcon.SetIcons(this, new TrayIcons { _trayIcon });
@@ -159,7 +181,10 @@ public sealed class App : Application, IDisposable
 
     private void ShowShortcutSettings()
     {
-        if (_hotKeyManager is null || _settings is null || _trayViewModel is null)
+        if (_hotKeyManager is null ||
+            _settings is null ||
+            _trayViewModel is null ||
+            _log is null)
         {
             return;
         }
@@ -174,7 +199,9 @@ public sealed class App : Application, IDisposable
             _hotKeyManager,
             _settings,
             _trayViewModel,
-            ApplyAppearance);
+            ApplyAppearance,
+            _log,
+            _folderLauncher);
         _shortcutSettingsWindow.Closed += (_, _) => _shortcutSettingsWindow = null;
         _shortcutSettingsWindow.Show();
     }
@@ -201,6 +228,45 @@ public sealed class App : Application, IDisposable
         Dispose();
     }
 
+    private void HandleHotKeyReregistrationFailed(object? sender, EventArgs e) =>
+        ReportBackgroundFailure(
+            AppLogEvent.HotKeyReregisterFailed,
+            AppUiText.HotKeyReregisterNotification);
+
+    private void HandleAutoStartFailure(Exception exception) =>
+        ReportBackgroundFailure(
+            AppLogEvent.AutoStartFailed,
+            AppUiText.AutoStartFailure,
+            exception);
+
+    private void ReportBackgroundFailure(
+        AppLogEvent logEvent,
+        string message,
+        Exception? exception = null)
+    {
+        _log?.Error(logEvent, exception);
+        try
+        {
+            _notificationService?.ShowNotification(AppUiText.BackgroundErrorTitle, message);
+        }
+        catch (InvalidOperationException notificationException)
+        {
+            _log?.Error(AppLogEvent.PlatformUnavailable, notificationException);
+        }
+        catch (PlatformNotSupportedException notificationException)
+        {
+            _log?.Error(AppLogEvent.PlatformUnavailable, notificationException);
+        }
+        catch (System.Runtime.InteropServices.COMException notificationException)
+        {
+            _log?.Error(AppLogEvent.PlatformUnavailable, notificationException);
+        }
+        catch (UnauthorizedAccessException notificationException)
+        {
+            _log?.Error(AppLogEvent.PlatformUnavailable, notificationException);
+        }
+    }
+
     private void HandleTrayViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(TrayMenuViewModel.IsAutoStartEnabled) &&
@@ -220,7 +286,12 @@ public sealed class App : Application, IDisposable
         _screenshotController = null;
         _shortcutSettingsWindow?.Close();
         _shortcutSettingsWindow = null;
-        _hotKeyManager?.Dispose();
+        if (_hotKeyManager is not null)
+        {
+            _hotKeyManager.RegistrationFailed -= HandleHotKeyReregistrationFailed;
+            _hotKeyManager.Dispose();
+        }
+
         _hotKeyManager = null;
         if (_trayViewModel is not null)
         {
@@ -229,6 +300,10 @@ public sealed class App : Application, IDisposable
         }
 
         _autoStartMenuItem = null;
+        _log?.Info(AppLogEvent.ApplicationStopped);
+        _log = null;
+        _notificationService = null;
+        _folderLauncher = null;
         _launchPlan = null;
         _settings = null;
         _desktopPlatform?.Dispose();

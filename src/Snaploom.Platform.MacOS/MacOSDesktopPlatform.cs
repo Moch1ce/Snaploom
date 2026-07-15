@@ -11,6 +11,8 @@ public sealed class MacOSDesktopPlatform :
     IGlobalScreenshotHotKeyService,
     IAutoStartService,
     ISystemResumeService,
+    ISystemNotificationService,
+    IFolderLauncher,
     IScreenCaptureService,
     IPngSaveDialogService,
     IScreenshotClipboardService,
@@ -111,6 +113,22 @@ public sealed class MacOSDesktopPlatform :
         }
 
         s_resumeCallback = null;
+    }
+
+    public void ShowNotification(string title, string message)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        MacOSNative.ShowSystemNotification(title, message);
+    }
+
+    public void OpenFolder(string path)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        Directory.CreateDirectory(path);
+        MacOSNative.OpenFolder(path);
     }
 
     public Task<CapturedScreen> CaptureCurrentDisplayAsync(CancellationToken cancellationToken = default) =>

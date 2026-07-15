@@ -78,6 +78,24 @@ public sealed class HotKeyLifecycleTests
         Assert.Equal(1, resume.StopCount);
     }
 
+    [Fact]
+    public void FailedRegistrationAfterWakeRaisesABackgroundFailure()
+    {
+        var service = new FakeHotKeyService();
+        var resume = new FakeResumeService();
+        var hotKey = ScreenshotHotKeyDefaults.For(DesktopPlatformKind.Windows);
+        using var manager = new ScreenshotHotKeyManager(service, resume, hotKey, () => { });
+        Assert.True(manager.Start());
+        var failureCount = 0;
+        manager.RegistrationFailed += (_, _) => failureCount++;
+        service.ConflictingHotKey = hotKey;
+
+        resume.RaiseResumed();
+
+        Assert.Equal(1, failureCount);
+        Assert.False(manager.IsRegistered);
+    }
+
     private sealed class FakeHotKeyService : IGlobalScreenshotHotKeyService
     {
         public List<ScreenshotHotKey> RegistrationAttempts { get; } = [];

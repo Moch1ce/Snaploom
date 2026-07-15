@@ -18,6 +18,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     private readonly IScreenshotClipboardService _clipboardService;
     private readonly IScreenshotOverlayConfigurator _overlayConfigurator;
     private readonly AppSettingsService? _settings;
+    private readonly PrivacyLog? _log;
     private readonly ScreenshotSelectionCanvas _selectionCanvas;
     private readonly TextBlock _sizeText;
     private readonly Border _sizeBadge;
@@ -59,7 +60,8 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         IPngSaveDialogService saveDialogService,
         IScreenshotClipboardService clipboardService,
         IScreenshotOverlayConfigurator overlayConfigurator,
-        AppSettingsService? settings = null)
+        AppSettingsService? settings = null,
+        PrivacyLog? log = null)
     {
         ArgumentNullException.ThrowIfNull(capturedScreen);
         ArgumentNullException.ThrowIfNull(saveDialogService);
@@ -70,6 +72,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _clipboardService = clipboardService;
         _overlayConfigurator = overlayConfigurator;
         _settings = settings;
+        _log = log;
         _availableUiBounds = new Rect(
             new Size(
                 capturedScreen.Frame.LogicalSize.Width,
@@ -305,8 +308,9 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             await File.WriteAllBytesAsync(path, EncodeSelection(selection));
             Close();
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            _log?.Error(AppLogEvent.SaveFailed, exception);
             if (_selectionCanvas.Session.State == ScreenshotSessionState.Saving)
             {
                 _selectionCanvas.Session.CancelSave();
@@ -346,8 +350,9 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
                 RestoreSelectedUi(selection);
             }
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            _log?.Error(AppLogEvent.ClipboardFailed, exception);
             _toolbar.SetSelectionActionsEnabled(isEnabled: true);
             _sizeText.Text = ScreenshotUiText.CopyImageFailed;
             ToolTip.SetTip(_sizeBadge, ScreenshotUiText.CopyImageFailed);

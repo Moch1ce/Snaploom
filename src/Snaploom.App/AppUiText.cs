@@ -50,4 +50,13 @@ public static class AppUiText
     public static string ModifierControl => Get(nameof(ModifierControl));
     public static string ModifierAlt => Get(nameof(ModifierAlt));
     public static string ModifierShift => Get(nameof(ModifierShift));
+    public static string OpenLogs => Get(nameof(OpenLogs));
+    public static string ClearLogs => Get(nameof(ClearLogs));
+    public static string LogsCleared => Get(nameof(LogsCleared));
+    public static string LogOperationFailed => Get(nameof(LogOperationFailed));
+    public static string BackgroundErrorTitle => Get(nameof(BackgroundErrorTitle));
+    public static string HotKeyConflictNotification => Get(nameof(HotKeyConflictNotification));
+    public static string HotKeyReregisterNotification => Get(nameof(HotKeyReregisterNotification));
+    public static string AutoStartFailure => Get(nameof(AutoStartFailure));
+    public static string PlatformUnavailable => Get(nameof(PlatformUnavailable));
 }

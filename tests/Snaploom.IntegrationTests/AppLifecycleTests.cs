@@ -11,8 +11,12 @@ public sealed class AppLifecycleTests
     [Fact]
     public void AppStartsInTheTrayAndTheExitMenuShutsItDown()
     {
+        var logDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"snaploom-app-test-{Guid.NewGuid():N}");
         Snaploom.App.App.SettingsServiceFactory = platform => AppSettingsService.CreateTransient(
             AppSettings.CreateDefault(platform));
+        Snaploom.App.App.PrivacyLogFactory = () => new PrivacyLog(logDirectory);
         var lifetime = new ClassicDesktopStyleApplicationLifetime
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown,
@@ -56,13 +60,23 @@ public sealed class AppLifecycleTests
 
             Assert.True(exitRaised);
             Assert.Null(TrayIcon.GetIcons(app));
+            var logContent = string.Concat(
+                Directory.EnumerateFiles(logDirectory).Select(File.ReadAllText));
+            Assert.Contains(nameof(AppLogEvent.ApplicationStarted), logContent);
+            Assert.Contains(nameof(AppLogEvent.ApplicationStopped), logContent);
         }
         finally
         {
             Snaploom.App.App.SettingsServiceFactory = null;
+            Snaploom.App.App.PrivacyLogFactory = null;
             if (!exitRaised)
             {
                 lifetime.Shutdown();
+            }
+
+            if (Directory.Exists(logDirectory))
+            {
+                Directory.Delete(logDirectory, recursive: true);
             }
         }
     }

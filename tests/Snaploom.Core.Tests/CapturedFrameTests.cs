@@ -51,4 +51,19 @@ public sealed class CapturedFrameTests
             new PhysicalPoint(247, 501),
             frame.ToPhysicalPoint(new LogicalPoint(123.5, 250.5)));
     }
+
+    [Fact]
+    public void DisposeZerosTheOriginalPixelBuffer()
+    {
+        var pixels = Enumerable.Repeat((byte)0xA5, 16).ToArray();
+        var frame = new CapturedFrame(
+            new PhysicalSize(2, 2),
+            new LogicalSize(2, 2),
+            stride: 8,
+            pixels);
+
+        frame.Dispose();
+
+        Assert.All(pixels, value => Assert.Equal(0, value));
+    }
 }

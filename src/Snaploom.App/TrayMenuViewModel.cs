@@ -11,6 +11,7 @@ public sealed partial class TrayMenuViewModel : ObservableObject
     private readonly Action _openShortcutSettings;
     private readonly IAutoStartService? _autoStartService;
     private readonly AppSettingsService? _settings;
+    private readonly Action<Exception>? _autoStartFailed;
     private readonly Action _requestShutdown;
 
     public TrayMenuViewModel(
@@ -18,7 +19,8 @@ public sealed partial class TrayMenuViewModel : ObservableObject
         Action openShortcutSettings,
         IAutoStartService? autoStartService,
         Action requestShutdown,
-        AppSettingsService? settings = null)
+        AppSettingsService? settings = null,
+        Action<Exception>? autoStartFailed = null)
     {
         ArgumentNullException.ThrowIfNull(startScreenshot);
         ArgumentNullException.ThrowIfNull(openShortcutSettings);
@@ -27,6 +29,7 @@ public sealed partial class TrayMenuViewModel : ObservableObject
         _openShortcutSettings = openShortcutSettings;
         _autoStartService = autoStartService;
         _settings = settings;
+        _autoStartFailed = autoStartFailed;
         _requestShutdown = requestShutdown;
         IsAutoStartEnabled = ReadAutoStartState(autoStartService);
         _settings?.Update(current => current with { AutoStart = IsAutoStartEnabled });
@@ -56,17 +59,21 @@ public sealed partial class TrayMenuViewModel : ObservableObject
             IsAutoStartEnabled = enabled;
             _settings?.Update(current => current with { AutoStart = enabled });
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException exception)
         {
+            _autoStartFailed?.Invoke(exception);
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException exception)
         {
+            _autoStartFailed?.Invoke(exception);
         }
-        catch (SecurityException)
+        catch (SecurityException exception)
         {
+            _autoStartFailed?.Invoke(exception);
         }
-        catch (IOException)
+        catch (IOException exception)
         {
+            _autoStartFailed?.Invoke(exception);
         }
     }
 

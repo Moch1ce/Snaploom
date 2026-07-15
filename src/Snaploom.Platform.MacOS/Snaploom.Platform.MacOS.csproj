@@ -27,6 +27,6 @@
     Outputs="$(_NativeBridgeOutput)"
     Condition="$([MSBuild]::IsOSPlatform('OSX'))">
     <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(_NativeBridgeOutput)'))" />
-    <Exec Command="xcrun swiftc &quot;$(_NativeBridgeSource)&quot; -parse-as-library -emit-library -module-name SnaploomMacOSBridge -swift-version 5 -target arm64-apple-macos14.0 -framework AppKit -framework Carbon -framework CoreGraphics -framework CoreVideo -framework ScreenCaptureKit -framework ServiceManagement -framework UniformTypeIdentifiers -o &quot;$(_NativeBridgeOutput)&quot;" />
+    <Exec Command="xcrun swiftc &quot;$(_NativeBridgeSource)&quot; -parse-as-library -emit-library -module-name SnaploomMacOSBridge -swift-version 5 -target arm64-apple-macos14.0 -framework AppKit -framework Carbon -framework CoreGraphics -framework CoreVideo -framework ScreenCaptureKit -framework ServiceManagement -framework UniformTypeIdentifiers -framework UserNotifications -o &quot;$(_NativeBridgeOutput)&quot;" />
   </Target>
 </Project>

@@ -29,7 +29,7 @@ public sealed class ApplicationLaunchPlan
         ReadOnlyCollection<TrayItemPlan> trayItems = Array.AsReadOnly(
         [
             new TrayItemPlan(TrayAction.StartScreenshot, IsEnabled: canStartScreenshot),
-            new TrayItemPlan(TrayAction.ShortcutSettings, IsEnabled: canStartScreenshot),
+            new TrayItemPlan(TrayAction.ShortcutSettings, IsEnabled: true),
             new TrayItemPlan(TrayAction.AutoStart, IsEnabled: true),
             new TrayItemPlan(TrayAction.Exit, IsEnabled: true),
         ]);

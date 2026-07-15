@@ -26,6 +26,8 @@ public sealed class DesktopPlatformTests
         Assert.IsAssignableFrom<IGlobalScreenshotHotKeyService>(platform);
         Assert.IsAssignableFrom<IAutoStartService>(platform);
         Assert.IsAssignableFrom<ISystemResumeService>(platform);
+        Assert.IsAssignableFrom<ISystemNotificationService>(platform);
+        Assert.IsAssignableFrom<IFolderLauncher>(platform);
         Assert.IsAssignableFrom<IScreenCaptureService>(platform);
         Assert.IsAssignableFrom<IPngSaveDialogService>(platform);
         Assert.IsAssignableFrom<IScreenshotClipboardService>(platform);
@@ -112,6 +114,8 @@ public sealed class DesktopPlatformTests
         Assert.IsAssignableFrom<IGlobalScreenshotHotKeyService>(platform);
         Assert.IsAssignableFrom<IAutoStartService>(platform);
         Assert.IsAssignableFrom<ISystemResumeService>(platform);
+        Assert.IsAssignableFrom<ISystemNotificationService>(platform);
+        Assert.IsAssignableFrom<IFolderLauncher>(platform);
     }
 
     [Fact]

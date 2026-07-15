@@ -14,6 +14,8 @@ public sealed class ShortcutSettingsWindow : Window
     private readonly AppSettingsService _settings;
     private readonly TrayMenuViewModel _trayViewModel;
     private readonly Action _appearanceChanged;
+    private readonly PrivacyLog _log;
+    private readonly IFolderLauncher? _folderLauncher;
     private readonly TextBlock _shortcutHeading = new();
     private readonly TextBlock _shortcutText = new();
     private readonly TextBlock _statusText = new();
@@ -24,6 +26,8 @@ public sealed class ShortcutSettingsWindow : Window
     private readonly CheckBox _autoStartCheckBox = new();
     private readonly ComboBox _languageComboBox = new();
     private readonly ComboBox _themeComboBox = new();
+    private readonly Button _openLogsButton = new();
+    private readonly Button _clearLogsButton = new();
     private ScreenshotHotKey _candidate;
     private ShortcutStatus _status;
     private bool _updatingControls;
@@ -32,23 +36,28 @@ public sealed class ShortcutSettingsWindow : Window
         ScreenshotHotKeyManager hotKeyManager,
         AppSettingsService settings,
         TrayMenuViewModel trayViewModel,
-        Action appearanceChanged)
+        Action appearanceChanged,
+        PrivacyLog log,
+        IFolderLauncher? folderLauncher)
     {
         ArgumentNullException.ThrowIfNull(hotKeyManager);
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(trayViewModel);
         ArgumentNullException.ThrowIfNull(appearanceChanged);
+        ArgumentNullException.ThrowIfNull(log);
         _hotKeyManager = hotKeyManager;
         _settings = settings;
         _trayViewModel = trayViewModel;
         _appearanceChanged = appearanceChanged;
+        _log = log;
+        _folderLauncher = folderLauncher;
         _candidate = hotKeyManager.CurrentHotKey;
         _status = hotKeyManager.IsRegistered
             ? ShortcutStatus.Instruction
             : ShortcutStatus.StartupConflict;
 
         Width = 480;
-        Height = 430;
+        Height = 480;
         CanResize = false;
         ShowInTaskbar = true;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -67,6 +76,8 @@ public sealed class ShortcutSettingsWindow : Window
         _languageComboBox.SelectionChanged += HandleLanguageChanged;
         _themeComboBox.MinWidth = 190;
         _themeComboBox.SelectionChanged += HandleThemeChanged;
+        _openLogsButton.Click += HandleOpenLogs;
+        _clearLogsButton.Click += HandleClearLogs;
 
         Content = new StackPanel
         {
@@ -84,6 +95,12 @@ public sealed class ShortcutSettingsWindow : Window
                 _autoStartCheckBox,
                 CreateSettingRow(_languageLabel, _languageComboBox),
                 CreateSettingRow(_themeLabel, _themeComboBox),
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 10,
+                    Children = { _openLogsButton, _clearLogsButton },
+                },
                 new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
@@ -129,6 +146,8 @@ public sealed class ShortcutSettingsWindow : Window
             _autoStartCheckBox.IsChecked = _trayViewModel.IsAutoStartEnabled;
             _languageLabel.Text = AppUiText.Language;
             _themeLabel.Text = AppUiText.Theme;
+            _openLogsButton.Content = AppUiText.OpenLogs;
+            _clearLogsButton.Content = AppUiText.ClearLogs;
             _languageComboBox.ItemsSource = new[]
             {
                 new Choice<AppLanguage>(AppLanguage.System, AppUiText.LanguageSystem),
@@ -206,6 +225,7 @@ public sealed class ShortcutSettingsWindow : Window
         }
         else
         {
+            _log.Error(AppLogEvent.HotKeyConflict);
             SetStatus(ShortcutStatus.Conflict);
         }
     }
@@ -246,6 +266,50 @@ public sealed class ShortcutSettingsWindow : Window
         _appearanceChanged();
     }
 
+    private void HandleOpenLogs(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_folderLauncher is null)
+        {
+            _log.Error(AppLogEvent.PlatformUnavailable);
+            SetStatus(ShortcutStatus.LogOperationFailed);
+            return;
+        }
+
+        try
+        {
+            _folderLauncher.OpenFolder(_log.DirectoryPath);
+        }
+        catch (InvalidOperationException exception)
+        {
+            HandleLogOperationFailure(exception);
+        }
+        catch (IOException exception)
+        {
+            HandleLogOperationFailure(exception);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            HandleLogOperationFailure(exception);
+        }
+        catch (Win32Exception exception)
+        {
+            HandleLogOperationFailure(exception);
+        }
+        catch (PlatformNotSupportedException exception)
+        {
+            HandleLogOperationFailure(exception);
+        }
+    }
+
+    private void HandleClearLogs(object? sender, Avalonia.Interactivity.RoutedEventArgs e) =>
+        SetStatus(_log.Clear() ? ShortcutStatus.LogsCleared : ShortcutStatus.LogOperationFailed);
+
+    private void HandleLogOperationFailure(Exception exception)
+    {
+        _log.Error(AppLogEvent.PlatformUnavailable, exception);
+        SetStatus(ShortcutStatus.LogOperationFailed);
+    }
+
     private void HandleTrayViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(TrayMenuViewModel.IsAutoStartEnabled))
@@ -268,6 +332,8 @@ public sealed class ShortcutSettingsWindow : Window
         ShortcutStatus.ApplyHint => AppUiText.ShortcutApplyHint,
         ShortcutStatus.Saved => AppUiText.ShortcutSaved,
         ShortcutStatus.Conflict => AppUiText.ShortcutConflict,
+        ShortcutStatus.LogsCleared => AppUiText.LogsCleared,
+        ShortcutStatus.LogOperationFailed => AppUiText.LogOperationFailed,
         _ => throw new ArgumentOutOfRangeException(nameof(status)),
     };
 
@@ -279,6 +345,8 @@ public sealed class ShortcutSettingsWindow : Window
         ApplyHint,
         Saved,
         Conflict,
+        LogsCleared,
+        LogOperationFailed,
     }
 
     private sealed record Choice<T>(T Value, string Label)

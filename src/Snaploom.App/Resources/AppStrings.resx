@@ -42,4 +42,13 @@
   <data name="ModifierControl" xml:space="preserve"><value>Control</value></data>
   <data name="ModifierAlt" xml:space="preserve"><value>Alt</value></data>
   <data name="ModifierShift" xml:space="preserve"><value>Shift</value></data>
+  <data name="OpenLogs" xml:space="preserve"><value>Open logs folder</value></data>
+  <data name="ClearLogs" xml:space="preserve"><value>Clear logs</value></data>
+  <data name="LogsCleared" xml:space="preserve"><value>Local logs were cleared.</value></data>
+  <data name="LogOperationFailed" xml:space="preserve"><value>The local log operation failed.</value></data>
+  <data name="BackgroundErrorTitle" xml:space="preserve"><value>Snaploom needs attention</value></data>
+  <data name="HotKeyConflictNotification" xml:space="preserve"><value>The screenshot shortcut is unavailable. Open Settings from the tray to choose another shortcut or inspect local logs.</value></data>
+  <data name="HotKeyReregisterNotification" xml:space="preserve"><value>The screenshot shortcut could not be restored after wake. Open Settings from the tray or inspect local logs.</value></data>
+  <data name="AutoStartFailure" xml:space="preserve"><value>The start-at-login setting could not be changed. Open Settings or inspect local logs.</value></data>
+  <data name="PlatformUnavailable" xml:space="preserve"><value>Screenshot support is unavailable on this system. Open Settings or inspect local logs.</value></data>
 </root>

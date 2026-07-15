@@ -28,6 +28,18 @@ internal static unsafe partial class MacOSNative
     [LibraryImport(LibraryName, EntryPoint = "snaploom_stop_resume_monitoring")]
     internal static partial void StopResumeMonitoring();
 
+    [LibraryImport(
+        LibraryName,
+        EntryPoint = "snaploom_show_system_notification",
+        StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial void ShowSystemNotification(string title, string message);
+
+    [LibraryImport(
+        LibraryName,
+        EntryPoint = "snaploom_open_folder",
+        StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial void OpenFolder(string path);
+
     [LibraryImport(LibraryName, EntryPoint = "snaploom_screen_capture_permission")]
     internal static partial int GetScreenCapturePermission();
 

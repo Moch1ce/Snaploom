@@ -12,6 +12,7 @@ public sealed class ScreenshotController : IDisposable
     private readonly IScreenshotClipboardService _clipboardService;
     private readonly IScreenshotOverlayConfigurator _overlayConfigurator;
     private readonly AppSettingsService _settings;
+    private readonly PrivacyLog _log;
     private readonly ScreenshotActivationGate _activationGate = new();
     private ScreenshotOverlayWindow? _overlay;
     private CaptureFailureOverlayWindow? _failureOverlay;
@@ -24,7 +25,8 @@ public sealed class ScreenshotController : IDisposable
         IPngSaveDialogService saveDialogService,
         IScreenshotClipboardService clipboardService,
         IScreenshotOverlayConfigurator overlayConfigurator,
-        AppSettingsService settings)
+        AppSettingsService settings,
+        PrivacyLog log)
     {
         _permissionService = permissionService;
         _captureService = captureService;
@@ -32,14 +34,17 @@ public sealed class ScreenshotController : IDisposable
         _clipboardService = clipboardService;
         _overlayConfigurator = overlayConfigurator;
         _settings = settings;
+        _log = log;
     }
 
     public static ScreenshotController? TryCreate(
         IDesktopPlatform platform,
-        AppSettingsService settings)
+        AppSettingsService settings,
+        PrivacyLog log)
     {
         ArgumentNullException.ThrowIfNull(platform);
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(log);
 
         return platform is IScreenCapturePermissionService permissionService &&
                platform is IScreenCaptureService captureService &&
@@ -52,7 +57,8 @@ public sealed class ScreenshotController : IDisposable
                 saveDialogService,
                 clipboardService,
                 overlayConfigurator,
-                settings)
+                settings,
+                log)
             : null;
     }
 
@@ -69,6 +75,7 @@ public sealed class ScreenshotController : IDisposable
         {
             if (_permissionService.GetPermissionStatus() != ScreenCapturePermissionStatus.Granted)
             {
+                _log.Error(AppLogEvent.PermissionMissing);
                 ShowPermissionGuide();
                 _activationGate.End();
                 return;
@@ -90,12 +97,14 @@ public sealed class ScreenshotController : IDisposable
                     }
                     else
                     {
+                        _log.Error(AppLogEvent.CaptureFailed, exception);
                         ShowCaptureFailure(AppUiText.CaptureSystemFailure);
                     }
                 });
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            _log.Error(AppLogEvent.UnexpectedCaptureFailure, exception);
             await Dispatcher.UIThread.InvokeAsync(
                 () => ShowCaptureFailure(AppUiText.CaptureUnexpectedFailure));
         }
@@ -147,7 +156,8 @@ public sealed class ScreenshotController : IDisposable
             _saveDialogService,
             _clipboardService,
             _overlayConfigurator,
-            _settings);
+            _settings,
+            _log);
         _overlay.Closed += (_, _) =>
         {
             _overlay = null;

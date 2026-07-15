@@ -5,6 +5,7 @@ import CoreVideo
 import ScreenCaptureKit
 import ServiceManagement
 import UniformTypeIdentifiers
+import UserNotifications
 
 private typealias HotKeyCallback = @convention(c) () -> Void
 private typealias ResumeCallback = @convention(c) () -> Void
@@ -365,6 +366,34 @@ public func stopResumeMonitoring() {
 
     wakeObserver = nil
     resumeCallback = nil
+}
+
+@_cdecl("snaploom_show_system_notification")
+public func showSystemNotification(
+    _ title: UnsafePointer<CChar>,
+    _ message: UnsafePointer<CChar>
+) {
+    let content = UNMutableNotificationContent()
+    content.title = String(cString: title)
+    content.body = String(cString: message)
+    let center = UNUserNotificationCenter.current()
+    center.requestAuthorization(options: [.alert]) { granted, _ in
+        guard granted else { return }
+        center.add(
+            UNNotificationRequest(
+                identifier: UUID().uuidString,
+                content: content,
+                trigger: nil
+            )
+        )
+    }
+}
+
+@_cdecl("snaploom_open_folder")
+public func openFolder(_ path: UnsafePointer<CChar>) {
+    NSWorkspace.shared.open(
+        URL(fileURLWithPath: String(cString: path), isDirectory: true)
+    )
 }
 
 @_cdecl("snaploom_screen_capture_permission")

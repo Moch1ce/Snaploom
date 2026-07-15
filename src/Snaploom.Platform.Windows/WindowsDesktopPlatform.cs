@@ -12,6 +12,8 @@ public sealed partial class WindowsDesktopPlatform :
     IGlobalScreenshotHotKeyService,
     IAutoStartService,
     ISystemResumeService,
+    ISystemNotificationService,
+    IFolderLauncher,
     IScreenCaptureService,
     IPngSaveDialogService,
     IScreenshotClipboardService,
@@ -85,6 +87,27 @@ public sealed partial class WindowsDesktopPlatform :
     }
 
     public void StopMonitoring() => _systemResume.Stop();
+
+    public void ShowNotification(string title, string message)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        EnsureWindows();
+        WindowsSystemNotification.Show(title, message);
+    }
+
+    public void OpenFolder(string path)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        EnsureWindows();
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        Directory.CreateDirectory(path);
+        _ = System.Diagnostics.Process.Start(
+            new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true,
+            });
+    }
 
     public Task<CapturedScreen> CaptureCurrentDisplayAsync(CancellationToken cancellationToken = default)
     {
