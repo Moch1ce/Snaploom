@@ -1,6 +1,6 @@
 # Snaploom 依赖许可证审计
 
-- 审计日期：2026-07-14
+- 审计日期：2026-07-15
 - 审计范围：`Snaploom.sln` 当前的直接依赖与传递依赖
 - 目标：确认依赖允许 Snaploom 未来以闭源商业软件形式分发
 
@@ -30,7 +30,7 @@ Avalonia 的其他传递包（FreeDesktop、HarfBuzz、Native、Remote.Protocol�
 | 依赖 | 当前版本 | 许可证 |
 | --- | --- | --- |
 | xunit.v3 | 3.2.2 | Apache-2.0 |
-| Avalonia.Headless | 12.1.0 | MIT |
+| Avalonia.Headless、Avalonia.Headless.XUnit | 12.1.0 | MIT |
 | Microsoft.Testing.Platform 及 Microsoft 测试宿主组件 | 1.9.1 | MIT |
 | Microsoft.ApplicationInsights、Microsoft.Bcl.AsyncInterfaces、Microsoft.Win32.Registry | 2.23.0、6.0.0、5.0.0 | MIT |
 | xunit.analyzers | 1.27.0 | Apache-2.0 |

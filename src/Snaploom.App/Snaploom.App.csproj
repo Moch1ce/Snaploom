@@ -15,6 +15,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Snaploom.App.HeadlessTests" />
     <InternalsVisibleTo Include="Snaploom.IntegrationTests" />
   </ItemGroup>
   <ItemGroup>

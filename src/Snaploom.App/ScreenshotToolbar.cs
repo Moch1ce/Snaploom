@@ -187,6 +187,12 @@ internal sealed class ScreenshotToolbarButton : Border
     protected override void OnPointerExited(PointerEventArgs e)
     {
         base.OnPointerExited(e);
+        UpdateVisualState();
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
         _isPressed = false;
         UpdateVisualState();
     }
