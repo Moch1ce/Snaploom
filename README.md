@@ -8,7 +8,7 @@ v1 聚焦窗口吸附、矩形框选、矩形、箭头、文字、马赛克、�
 
 ## 当前状态
 
-项目目前处于基础骨架阶段。应用启动后仅显示系统托盘/菜单栏图标，不创建主窗口；“开始截图”入口暂时禁用，“退出”可正常结束进程。
+项目已打通 Windows 与 macOS 的最小截图链路。应用启动后仅显示系统托盘/菜单栏图标，不创建主窗口；可通过默认全局快捷键或菜单进入当前显示器截图，框选后复制或保存 PNG。
 
 ## 项目结构
 
@@ -45,5 +45,17 @@ dotnet publish src/Snaploom.App/Snaploom.App.csproj \
 ```
 
 应用包位于 `bin/Release/net10.0/osx-arm64/publish/bundle/Snaploom.app`。
+
+在非 Windows 开发机上交叉验证 Windows x64 目标时，需要显式启用 Windows TFM：
+
+```bash
+dotnet publish src/Snaploom.App/Snaploom.App.csproj \
+  --configuration Release \
+  --runtime win-x64 \
+  --self-contained true \
+  -p:SnaploomTargetWindows=true
+```
+
+Windows 主机与 Windows CI 会自动选择 `net10.0-windows10.0.19041.0`。
 
 依赖许可证审计见 [`docs/licenses/dependency-licenses.md`](docs/licenses/dependency-licenses.md)。

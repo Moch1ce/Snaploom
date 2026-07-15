@@ -16,6 +16,7 @@
 | --- | --- | --- | --- |
 | Avalonia、Avalonia.Desktop、Avalonia.Skia、Avalonia.Themes.Fluent | 12.1.0 | MIT | 跨平台桌面 UI、桌面后端与渲染 |
 | CommunityToolkit.Mvvm | 8.4.2 | MIT | MVVM 命令生成 |
+| Vortice.Direct3D11（含 Vortice.DXGI、Vortice.DirectX、Vortice.Mathematics、SharpGen.Runtime 传递依赖） | 3.8.3 | MIT | Windows Graphics Capture 的 D3D11 互操作 |
 | Avalonia.Angle.Windows.Natives | 2.1.27548.20260419 | BSD 3-Clause | Windows ANGLE 原生运行库 |
 | Avalonia.BuildServices | 11.3.2 | MIT | Avalonia 构建支持 |
 | HarfBuzzSharp | 8.3.1.3 | MIT | 文本塑形 |

@@ -84,7 +84,7 @@ public sealed class ScreenshotController : IDisposable
                     else
                     {
                         ShowCaptureFailure(
-                            "macOS 未能读取显示器画面。请退出截图后重试；若问题持续，请检查屏幕录制权限并重新启动 Snaploom。");
+                            $"系统未能读取显示器画面。请退出截图后重试。{exception.Message}");
                     }
                 });
         }

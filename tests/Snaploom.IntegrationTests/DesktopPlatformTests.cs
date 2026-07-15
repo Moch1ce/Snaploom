@@ -1,3 +1,4 @@
+using Snaploom.Core;
 using Snaploom.Platform.Abstractions;
 using Snaploom.Platform.MacOS;
 using Snaploom.Platform.Windows;
@@ -14,6 +15,57 @@ public sealed class DesktopPlatformTests
 
         Assert.Equal(DesktopPlatformKind.Windows, platform.Kind);
         Assert.Equal("Snaploom.Desktop", platform.ApplicationId);
+    }
+
+    [Fact]
+    public void WindowsPlatformProvidesTheScreenshotVerticalSlice()
+    {
+        using var platform = new WindowsDesktopPlatform();
+
+        Assert.IsAssignableFrom<IScreenCapturePermissionService>(platform);
+        Assert.IsAssignableFrom<IGlobalScreenshotHotKeyService>(platform);
+        Assert.IsAssignableFrom<IScreenCaptureService>(platform);
+        Assert.IsAssignableFrom<IPngSaveDialogService>(platform);
+        Assert.IsAssignableFrom<IScreenshotClipboardService>(platform);
+        Assert.IsAssignableFrom<IScreenshotOverlayConfigurator>(platform);
+    }
+
+    [Fact]
+    public void WindowsDesktopCaptureDoesNotRequireElevatedPermission()
+    {
+        using var platform = new WindowsDesktopPlatform();
+        var permissionService = Assert.IsAssignableFrom<IScreenCapturePermissionService>(platform);
+
+        Assert.Equal(ScreenCapturePermissionStatus.Granted, permissionService.GetPermissionStatus());
+        Assert.True(permissionService.RequestPermission());
+    }
+
+    [Fact]
+    public async Task WindowsNativeBridgeReturnsAUnifiedFrame()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var platform = new WindowsDesktopPlatform();
+        using var capturedScreen = await platform.CaptureCurrentDisplayAsync(
+            TestContext.Current.CancellationToken);
+
+        Assert.True(capturedScreen.Frame.PhysicalSize.Width > 0);
+        Assert.True(capturedScreen.Frame.PhysicalSize.Height > 0);
+        Assert.Equal(
+            capturedScreen.Frame.Stride * capturedScreen.Frame.PhysicalSize.Height,
+            capturedScreen.Frame.Pixels.Length);
+        Assert.Equal(CapturedPixelFormat.Bgra8888PremultipliedSrgb, capturedScreen.Frame.PixelFormat);
+        Assert.InRange(
+            capturedScreen.CursorPosition.X,
+            0,
+            capturedScreen.Frame.PhysicalSize.Width);
+        Assert.InRange(
+            capturedScreen.CursorPosition.Y,
+            0,
+            capturedScreen.Frame.PhysicalSize.Height);
     }
 
     [Fact]
