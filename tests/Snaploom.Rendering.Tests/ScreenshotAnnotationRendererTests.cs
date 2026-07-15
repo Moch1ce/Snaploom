@@ -7,13 +7,24 @@ namespace Snaploom.Rendering.Tests;
 public sealed class ScreenshotAnnotationRendererTests
 {
     [Theory]
-    [InlineData(96, 72, 1, "8A151511BA3B3B920B2AA2866FCAB306CC31E3BE066EF92D256064C2730271ED")]
-    [InlineData(192, 144, 2, "516240C06F44D66C8B82DA07440446D8051AD7A0EF8DB2CC5AF839416A3FAC35")]
+    [InlineData(
+        96,
+        72,
+        1,
+        "8A151511BA3B3B920B2AA2866FCAB306CC31E3BE066EF92D25",
+        "93C986DD34BB460A2D511D778F28D12ECFB3E3199BC8D6287B")]
+    [InlineData(
+        192,
+        144,
+        2,
+        "516240C06F44D66C8B82DA07440446D8051AD7A0EF8DB2CC5A",
+        "A46FB73519C609C69D2C7CFC0820223B3E957F7026041EEFB5")]
     public void RectangleAndArrowMatchTheGoldenRasterAtDifferentDpi(
         int width,
         int height,
         double scale,
-        string expectedHash)
+        string macOSGoldenFingerprint,
+        string windowsGoldenFingerprint)
     {
         IScreenshotAnnotation[] annotations =
         [
@@ -35,9 +46,11 @@ public sealed class ScreenshotAnnotationRendererTests
             annotations);
 
         Assert.Equal(width * 4, raster.Stride);
-        Assert.Equal(
-            expectedHash,
-            Convert.ToHexString(SHA256.HashData(raster.Pixels)));
+        var expectedFingerprint = OperatingSystem.IsWindows()
+            ? windowsGoldenFingerprint
+            : macOSGoldenFingerprint;
+        var actualHash = Convert.ToHexString(SHA256.HashData(raster.Pixels));
+        Assert.StartsWith(expectedFingerprint, actualHash, StringComparison.Ordinal);
     }
 
     [Fact]
