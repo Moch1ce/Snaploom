@@ -39,12 +39,14 @@ internal sealed class ScreenshotPixelInspector
     private const double PointerGap = 16;
     private const double ScreenMargin = 8;
     private const double CornerRadius = 8;
-    private const int SampleDiameter = 17;
+    private const int SampleDiameter = 55;
 
     private readonly CapturedFrame _frame;
     private readonly IImage _bitmap;
     private Point? _pointerPosition;
     private PhysicalPoint? _samplePoint;
+
+    internal static double Magnification => Width / SampleDiameter;
 
     public ScreenshotPixelInspector(CapturedFrame frame, IImage bitmap)
     {

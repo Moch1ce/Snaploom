@@ -15,6 +15,9 @@
     <PackageReference Include="CommunityToolkit.Mvvm" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Snaploom.IntegrationTests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../Snaploom.Core/Snaploom.Core.csproj" />
     <ProjectReference Include="../Snaploom.Rendering/Snaploom.Rendering.csproj" />
     <ProjectReference Include="../Snaploom.Platform.Abstractions/Snaploom.Platform.Abstractions.csproj" />
