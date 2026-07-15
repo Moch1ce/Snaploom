@@ -15,6 +15,19 @@ internal static unsafe partial class MacOSNative
     [LibraryImport(LibraryName, EntryPoint = "snaploom_unregister_screenshot_hot_key")]
     internal static partial void UnregisterScreenshotHotKey();
 
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_set_auto_start_enabled")]
+    internal static partial int SetAutoStartEnabled(int enabled);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_is_auto_start_enabled")]
+    internal static partial int IsAutoStartEnabled();
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_start_resume_monitoring")]
+    internal static partial void StartResumeMonitoring(
+        delegate* unmanaged[Cdecl]<void> callback);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_stop_resume_monitoring")]
+    internal static partial void StopResumeMonitoring();
+
     [LibraryImport(LibraryName, EntryPoint = "snaploom_screen_capture_permission")]
     internal static partial int GetScreenCapturePermission();
 

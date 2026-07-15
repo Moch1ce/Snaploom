@@ -24,6 +24,8 @@ public sealed class DesktopPlatformTests
 
         Assert.IsAssignableFrom<IScreenCapturePermissionService>(platform);
         Assert.IsAssignableFrom<IGlobalScreenshotHotKeyService>(platform);
+        Assert.IsAssignableFrom<IAutoStartService>(platform);
+        Assert.IsAssignableFrom<ISystemResumeService>(platform);
         Assert.IsAssignableFrom<IScreenCaptureService>(platform);
         Assert.IsAssignableFrom<IPngSaveDialogService>(platform);
         Assert.IsAssignableFrom<IScreenshotClipboardService>(platform);
@@ -38,6 +40,23 @@ public sealed class DesktopPlatformTests
 
         Assert.Equal(ScreenCapturePermissionStatus.Granted, permissionService.GetPermissionStatus());
         Assert.True(permissionService.RequestPermission());
+    }
+
+    [Fact]
+    public void WindowsLongRunningServicesCanBeStartedAndStopped()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var platform = new WindowsDesktopPlatform();
+        var autoStartService = Assert.IsAssignableFrom<IAutoStartService>(platform);
+        var resumeService = Assert.IsAssignableFrom<ISystemResumeService>(platform);
+
+        _ = autoStartService.IsAutoStartEnabled();
+        resumeService.StartMonitoring(() => { });
+        resumeService.StopMonitoring();
     }
 
     [Fact]
@@ -83,6 +102,16 @@ public sealed class DesktopPlatformTests
 
         Assert.Equal(DesktopPlatformKind.MacOS, platform.Kind);
         Assert.Equal("com.snaploom.app", platform.ApplicationId);
+    }
+
+    [Fact]
+    public void MacOSPlatformProvidesTheLongRunningApplicationServices()
+    {
+        using var platform = new MacOSDesktopPlatform();
+
+        Assert.IsAssignableFrom<IGlobalScreenshotHotKeyService>(platform);
+        Assert.IsAssignableFrom<IAutoStartService>(platform);
+        Assert.IsAssignableFrom<ISystemResumeService>(platform);
     }
 
     [Fact]

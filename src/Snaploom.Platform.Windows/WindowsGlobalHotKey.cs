@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Snaploom.Platform.Abstractions;
 
 namespace Snaploom.Platform.Windows;
 
@@ -6,7 +7,9 @@ internal sealed partial class WindowsGlobalHotKey : IDisposable
 {
     private const int HotKeyId = 1;
     private const uint ModAlt = 0x0001;
+    private const uint ModControl = 0x0002;
     private const uint ModShift = 0x0004;
+    private const uint ModWin = 0x0008;
     private const uint ModNoRepeat = 0x4000;
     private const uint VirtualKeyA = 0x41;
     private const uint WmHotKey = 0x0312;
@@ -17,16 +20,18 @@ internal sealed partial class WindowsGlobalHotKey : IDisposable
     private Thread? _thread;
     private ManualResetEventSlim? _ready;
     private Action? _callback;
+    private ScreenshotHotKey _hotKey;
     private uint _threadId;
     private bool _registered;
 
-    internal bool TryRegister(Action callback)
+    internal bool TryRegister(ScreenshotHotKey hotKey, Action callback)
     {
         ArgumentNullException.ThrowIfNull(callback);
         Unregister();
 
         lock (_sync)
         {
+            _hotKey = hotKey;
             _callback = callback;
             _ready = new ManualResetEventSlim();
             _thread = new Thread(RunMessageLoop)
@@ -82,8 +87,8 @@ internal sealed partial class WindowsGlobalHotKey : IDisposable
         _registered = RegisterHotKey(
             0,
             HotKeyId,
-            ModAlt | ModShift | ModNoRepeat,
-            VirtualKeyA) != 0;
+            GetNativeModifiers(_hotKey) | ModNoRepeat,
+            GetVirtualKey(_hotKey.Key)) != 0;
         _ready?.Set();
         if (!_registered)
         {
@@ -105,6 +110,35 @@ internal sealed partial class WindowsGlobalHotKey : IDisposable
             _ = UnregisterHotKey(0, HotKeyId);
         }
     }
+
+    private static uint GetNativeModifiers(ScreenshotHotKey hotKey)
+    {
+        var modifiers = 0U;
+        if (hotKey.Modifiers.HasFlag(ScreenshotHotKeyModifiers.Alt))
+        {
+            modifiers |= ModAlt;
+        }
+
+        if (hotKey.Modifiers.HasFlag(ScreenshotHotKeyModifiers.Control))
+        {
+            modifiers |= ModControl;
+        }
+
+        if (hotKey.Modifiers.HasFlag(ScreenshotHotKeyModifiers.Shift))
+        {
+            modifiers |= ModShift;
+        }
+
+        if (hotKey.Modifiers.HasFlag(ScreenshotHotKeyModifiers.Command))
+        {
+            modifiers |= ModWin;
+        }
+
+        return modifiers;
+    }
+
+    private static uint GetVirtualKey(ScreenshotHotKeyKey key) =>
+        checked(VirtualKeyA + (uint)key);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Point

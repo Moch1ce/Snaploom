@@ -34,10 +34,17 @@ public sealed class AppLifecycleTests
 
             var menu = Assert.IsType<NativeMenu>(trayIcon.Menu);
             var startScreenshotItem = Assert.IsType<NativeMenuItem>(menu.Items[0]);
-            var exitItem = Assert.IsType<NativeMenuItem>(menu.Items[1]);
+            var shortcutSettingsItem = Assert.IsType<NativeMenuItem>(menu.Items[1]);
+            var autoStartItem = Assert.IsType<NativeMenuItem>(menu.Items[2]);
+            var exitItem = Assert.IsType<NativeMenuItem>(menu.Items[3]);
 
             Assert.True(startScreenshotItem.IsEnabled);
             Assert.NotNull(startScreenshotItem.Command);
+            Assert.True(shortcutSettingsItem.IsEnabled);
+            Assert.NotNull(shortcutSettingsItem.Command);
+            Assert.True(autoStartItem.IsEnabled);
+            Assert.NotNull(autoStartItem.Command);
+            Assert.Equal(MenuItemToggleType.CheckBox, autoStartItem.ToggleType);
             Assert.True(exitItem.IsEnabled);
             Assert.NotNull(exitItem.Command);
 

@@ -9,18 +9,24 @@ public sealed class MacOSDesktopPlatform :
     IDesktopPlatform,
     IScreenCapturePermissionService,
     IGlobalScreenshotHotKeyService,
+    IAutoStartService,
+    ISystemResumeService,
     IScreenCaptureService,
     IPngSaveDialogService,
     IScreenshotClipboardService,
     IScreenshotOverlayConfigurator,
     IDisposable
 {
-    private const uint AKeyCode = 0;
     private const uint CommandModifier = 1 << 8;
     private const uint ShiftModifier = 1 << 9;
+    private const uint OptionModifier = 1 << 11;
+    private const uint ControlModifier = 1 << 12;
 
     private static Action? s_hotKeyCallback;
+    private static Action? s_resumeCallback;
     private bool _hotKeyRegistered;
+    private bool _resumeMonitoring;
+    private bool _disposed;
 
     public DesktopPlatformKind Kind => DesktopPlatformKind.MacOS;
 
@@ -41,15 +47,16 @@ public sealed class MacOSDesktopPlatform :
         MacOSNative.ConfigureCaptureOverlay(nativeWindowHandle);
     }
 
-    public unsafe bool TryRegisterScreenshotHotKey(Action callback)
+    public unsafe bool TryRegisterScreenshotHotKey(ScreenshotHotKey hotKey, Action callback)
     {
         ArgumentNullException.ThrowIfNull(callback);
+        ObjectDisposedException.ThrowIf(_disposed, this);
 
         UnregisterScreenshotHotKey();
         s_hotKeyCallback = callback;
         _hotKeyRegistered = MacOSNative.RegisterScreenshotHotKey(
-            AKeyCode,
-            CommandModifier | ShiftModifier,
+            GetKeyCode(hotKey.Key),
+            GetModifiers(hotKey.Modifiers),
             &HandleHotKey) == 0;
         if (!_hotKeyRegistered)
         {
@@ -68,6 +75,42 @@ public sealed class MacOSDesktopPlatform :
         }
 
         s_hotKeyCallback = null;
+    }
+
+    public bool IsAutoStartEnabled()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return MacOSNative.IsAutoStartEnabled() == 1;
+    }
+
+    public void SetAutoStartEnabled(bool enabled)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (MacOSNative.SetAutoStartEnabled(enabled ? 1 : 0) != 1)
+        {
+            throw new InvalidOperationException("macOS rejected the login item update.");
+        }
+    }
+
+    public unsafe void StartMonitoring(Action callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        StopMonitoring();
+        s_resumeCallback = callback;
+        MacOSNative.StartResumeMonitoring(&HandleResume);
+        _resumeMonitoring = true;
+    }
+
+    public void StopMonitoring()
+    {
+        if (_resumeMonitoring)
+        {
+            MacOSNative.StopResumeMonitoring();
+            _resumeMonitoring = false;
+        }
+
+        s_resumeCallback = null;
     }
 
     public Task<CapturedScreen> CaptureCurrentDisplayAsync(CancellationToken cancellationToken = default) =>
@@ -114,10 +157,80 @@ public sealed class MacOSDesktopPlatform :
         }
     }
 
-    public void Dispose() => UnregisterScreenshotHotKey();
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        UnregisterScreenshotHotKey();
+        StopMonitoring();
+        _disposed = true;
+    }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void HandleHotKey() => s_hotKeyCallback?.Invoke();
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static void HandleResume() => s_resumeCallback?.Invoke();
+
+    private static uint GetModifiers(ScreenshotHotKeyModifiers modifiers)
+    {
+        var result = 0U;
+        if (modifiers.HasFlag(ScreenshotHotKeyModifiers.Command))
+        {
+            result |= CommandModifier;
+        }
+
+        if (modifiers.HasFlag(ScreenshotHotKeyModifiers.Shift))
+        {
+            result |= ShiftModifier;
+        }
+
+        if (modifiers.HasFlag(ScreenshotHotKeyModifiers.Alt))
+        {
+            result |= OptionModifier;
+        }
+
+        if (modifiers.HasFlag(ScreenshotHotKeyModifiers.Control))
+        {
+            result |= ControlModifier;
+        }
+
+        return result;
+    }
+
+    private static uint GetKeyCode(ScreenshotHotKeyKey key) => key switch
+    {
+        ScreenshotHotKeyKey.A => 0,
+        ScreenshotHotKeyKey.B => 11,
+        ScreenshotHotKeyKey.C => 8,
+        ScreenshotHotKeyKey.D => 2,
+        ScreenshotHotKeyKey.E => 14,
+        ScreenshotHotKeyKey.F => 3,
+        ScreenshotHotKeyKey.G => 5,
+        ScreenshotHotKeyKey.H => 4,
+        ScreenshotHotKeyKey.I => 34,
+        ScreenshotHotKeyKey.J => 38,
+        ScreenshotHotKeyKey.K => 40,
+        ScreenshotHotKeyKey.L => 37,
+        ScreenshotHotKeyKey.M => 46,
+        ScreenshotHotKeyKey.N => 45,
+        ScreenshotHotKeyKey.O => 31,
+        ScreenshotHotKeyKey.P => 35,
+        ScreenshotHotKeyKey.Q => 12,
+        ScreenshotHotKeyKey.R => 15,
+        ScreenshotHotKeyKey.S => 1,
+        ScreenshotHotKeyKey.T => 17,
+        ScreenshotHotKeyKey.U => 32,
+        ScreenshotHotKeyKey.V => 9,
+        ScreenshotHotKeyKey.W => 13,
+        ScreenshotHotKeyKey.X => 7,
+        ScreenshotHotKeyKey.Y => 16,
+        ScreenshotHotKeyKey.Z => 6,
+        _ => throw new ArgumentOutOfRangeException(nameof(key)),
+    };
 
     private static CapturedScreen CaptureCurrentDisplay()
     {

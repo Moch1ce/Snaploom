@@ -10,6 +10,8 @@ public sealed partial class WindowsDesktopPlatform :
     IPlatformProcessInitializer,
     IScreenCapturePermissionService,
     IGlobalScreenshotHotKeyService,
+    IAutoStartService,
+    ISystemResumeService,
     IScreenCaptureService,
     IPngSaveDialogService,
     IScreenshotClipboardService,
@@ -22,6 +24,7 @@ public sealed partial class WindowsDesktopPlatform :
     private static readonly nint HwndTopmost = new(-1);
 
     private readonly WindowsGlobalHotKey _globalHotKey = new();
+    private readonly WindowsSystemResume _systemResume = new();
     private bool _disposed;
 
     public DesktopPlatformKind Kind => DesktopPlatformKind.Windows;
@@ -43,14 +46,45 @@ public sealed partial class WindowsDesktopPlatform :
     {
     }
 
-    public bool TryRegisterScreenshotHotKey(Action callback)
+    public bool TryRegisterScreenshotHotKey(ScreenshotHotKey hotKey, Action callback)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureWindows();
-        return _globalHotKey.TryRegister(callback);
+        return _globalHotKey.TryRegister(hotKey, callback);
     }
 
     public void UnregisterScreenshotHotKey() => _globalHotKey.Unregister();
+
+    public bool IsAutoStartEnabled()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("Windows auto-start is only available on Windows.");
+        }
+
+        return WindowsAutoStart.IsEnabled();
+    }
+
+    public void SetAutoStartEnabled(bool enabled)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("Windows auto-start is only available on Windows.");
+        }
+
+        WindowsAutoStart.SetEnabled(enabled);
+    }
+
+    public void StartMonitoring(Action callback)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        EnsureWindows();
+        _systemResume.Start(callback);
+    }
+
+    public void StopMonitoring() => _systemResume.Stop();
 
     public Task<CapturedScreen> CaptureCurrentDisplayAsync(CancellationToken cancellationToken = default)
     {
@@ -116,6 +150,7 @@ public sealed partial class WindowsDesktopPlatform :
 
         _disposed = true;
         _globalHotKey.Dispose();
+        _systemResume.Dispose();
     }
 
     private static void EnsureWindows()

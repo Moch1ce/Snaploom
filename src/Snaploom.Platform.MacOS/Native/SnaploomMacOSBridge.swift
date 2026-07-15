@@ -3,13 +3,17 @@ import Carbon
 import CoreGraphics
 import CoreVideo
 import ScreenCaptureKit
+import ServiceManagement
 import UniformTypeIdentifiers
 
 private typealias HotKeyCallback = @convention(c) () -> Void
+private typealias ResumeCallback = @convention(c) () -> Void
 
 private var hotKeyCallback: HotKeyCallback?
 private var hotKeyReference: EventHotKeyRef?
 private var hotKeyHandlerReference: EventHandlerRef?
+private var resumeCallback: ResumeCallback?
+private var wakeObserver: NSObjectProtocol?
 
 private let hotKeyEventHandler: EventHandlerUPP = { _, _, _ in
     hotKeyCallback?()
@@ -309,6 +313,58 @@ public func unregisterScreenshotHotKey() {
     hotKeyReference = nil
     hotKeyHandlerReference = nil
     hotKeyCallback = nil
+}
+
+@_cdecl("snaploom_set_auto_start_enabled")
+public func setAutoStartEnabled(_ enabled: Int32) -> Int32 {
+    if #available(macOS 13.0, *) {
+        do {
+            if enabled == 1 {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            return 1
+        } catch {
+            return 0
+        }
+    }
+
+    return 0
+}
+
+@_cdecl("snaploom_is_auto_start_enabled")
+public func isAutoStartEnabled() -> Int32 {
+    if #available(macOS 13.0, *) {
+        return SMAppService.mainApp.status == .enabled ? 1 : 0
+    }
+
+    return 0
+}
+
+@_cdecl("snaploom_start_resume_monitoring")
+public func startResumeMonitoring(
+    _ callback: @escaping @convention(c) () -> Void
+) {
+    stopResumeMonitoring()
+    resumeCallback = callback
+    wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+        forName: NSWorkspace.didWakeNotification,
+        object: nil,
+        queue: .main
+    ) { _ in
+        resumeCallback?()
+    }
+}
+
+@_cdecl("snaploom_stop_resume_monitoring")
+public func stopResumeMonitoring() {
+    if let wakeObserver {
+        NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+    }
+
+    wakeObserver = nil
+    resumeCallback = nil
 }
 
 @_cdecl("snaploom_screen_capture_permission")

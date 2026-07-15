@@ -65,4 +65,21 @@ public sealed class MacOSNativeBridgeTests
             Assert.InRange(candidate.Bounds.Y, 0, capturedScreen.Frame.PhysicalSize.Height - 1);
         });
     }
+
+    [Fact]
+    public void NativeBridgeExposesLoginItemAndWakeMonitoringServices()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            return;
+        }
+
+        using var platform = new MacOSDesktopPlatform();
+        var autoStartService = Assert.IsAssignableFrom<IAutoStartService>(platform);
+        var resumeService = Assert.IsAssignableFrom<ISystemResumeService>(platform);
+
+        _ = autoStartService.IsAutoStartEnabled();
+        resumeService.StartMonitoring(() => { });
+        resumeService.StopMonitoring();
+    }
 }

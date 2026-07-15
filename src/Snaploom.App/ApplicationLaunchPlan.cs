@@ -5,6 +5,8 @@ namespace Snaploom.App;
 public enum TrayAction
 {
     StartScreenshot,
+    ShortcutSettings,
+    AutoStart,
     Exit,
 }
 
@@ -27,6 +29,8 @@ public sealed class ApplicationLaunchPlan
         ReadOnlyCollection<TrayItemPlan> trayItems = Array.AsReadOnly(
         [
             new TrayItemPlan(TrayAction.StartScreenshot, IsEnabled: canStartScreenshot),
+            new TrayItemPlan(TrayAction.ShortcutSettings, IsEnabled: canStartScreenshot),
+            new TrayItemPlan(TrayAction.AutoStart, IsEnabled: true),
             new TrayItemPlan(TrayAction.Exit, IsEnabled: true),
         ]);
 
