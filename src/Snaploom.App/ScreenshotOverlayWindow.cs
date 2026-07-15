@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Snaploom.Core;
 using Snaploom.Platform.Abstractions;
 using Snaploom.Rendering;
@@ -16,9 +17,12 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     private readonly IPngSaveDialogService _saveDialogService;
     private readonly IScreenshotOverlayConfigurator _overlayConfigurator;
     private readonly ScreenshotSelectionCanvas _selectionCanvas;
-    private readonly Button _saveButton;
-    private readonly TextBlock _statusText;
-    private readonly Border _toolbar;
+    private readonly TextBlock _sizeText;
+    private readonly Border _sizeBadge;
+    private readonly ScreenshotToolbar _toolbar;
+    private readonly TranslateTransform _sizeBadgeTransform = new();
+    private readonly TranslateTransform _toolbarTransform = new();
+    private Rect _availableUiBounds;
     private bool _resourcesDisposed;
 
     public ScreenshotOverlayWindow(
@@ -32,8 +36,12 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _capturedScreen = capturedScreen;
         _saveDialogService = saveDialogService;
         _overlayConfigurator = overlayConfigurator;
+        _availableUiBounds = new Rect(
+            new Size(
+                capturedScreen.Frame.LogicalSize.Width,
+                capturedScreen.Frame.LogicalSize.Height));
 
-        Title = "Snaploom 截图";
+        Title = ScreenshotUiText.WindowTitle;
         Width = capturedScreen.Frame.LogicalSize.Width;
         Height = capturedScreen.Frame.LogicalSize.Height;
         CanResize = false;
@@ -46,47 +54,37 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _selectionCanvas = new ScreenshotSelectionCanvas(capturedScreen.Frame);
         _selectionCanvas.SelectionChanged += HandleSelectionChanged;
 
-        _statusText = new TextBlock
+        _sizeText = new TextBlock
         {
-            Text = "拖动鼠标选择截图区域，按 Esc 退出",
             Foreground = Brushes.White,
+            FontSize = 12,
+            FontWeight = FontWeight.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
         };
-
-        _saveButton = new Button
+        _sizeBadge = new Border
         {
-            Content = "保存 PNG",
-            IsEnabled = false,
-            MinWidth = 92,
-        };
-        _saveButton.Click += HandleSave;
-
-        var cancelButton = new Button
-        {
-            Content = "退出",
-            MinWidth = 68,
-        };
-        cancelButton.Click += (_, _) => Close();
-
-        _toolbar = new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(230, 30, 30, 30)),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(14, 9),
-            Margin = new Thickness(24),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Bottom,
+            Background = ScreenshotUiTheme.SizeBadgeBrush,
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(7, 3),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            IsHitTestVisible = false,
             IsVisible = false,
-            Child = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 12,
-                Children = { _statusText, cancelButton, _saveButton },
-            },
+            RenderTransform = _sizeBadgeTransform,
+            Child = _sizeText,
         };
+
+        _toolbar = new ScreenshotToolbar
+        {
+            RenderTransform = _toolbarTransform,
+        };
+        _toolbar.SaveRequested += HandleSave;
+        _toolbar.ConfirmRequested += HandleConfirm;
+        _toolbar.CancelRequested += HandleCancel;
 
         var root = new Grid();
         root.Children.Add(_selectionCanvas);
+        root.Children.Add(_sizeBadge);
         root.Children.Add(_toolbar);
         Content = root;
 
@@ -119,37 +117,69 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         if (screen is not null)
         {
             Position = screen.Bounds.Position;
+            var screenBounds = screen.Bounds;
+            var workingArea = screen.WorkingArea;
+            var logicalPerPhysicalX = _capturedScreen.Frame.LogicalSize.Width / screenBounds.Width;
+            var logicalPerPhysicalY = _capturedScreen.Frame.LogicalSize.Height / screenBounds.Height;
+            _availableUiBounds = new Rect(
+                (workingArea.X - screenBounds.X) * logicalPerPhysicalX,
+                (workingArea.Y - screenBounds.Y) * logicalPerPhysicalY,
+                workingArea.Width * logicalPerPhysicalX,
+                workingArea.Height * logicalPerPhysicalY);
         }
 
+        Activate();
         var platformHandle = TryGetPlatformHandle();
         if (platformHandle is not null)
         {
             _overlayConfigurator.ConfigureScreenshotOverlay(platformHandle.Handle);
         }
 
-        Activate();
         _selectionCanvas.Focus();
+        if (_selectionCanvas.LogicalSelection is { } logicalSelection)
+        {
+            PositionFloatingUi(logicalSelection);
+        }
+
     }
 
     private void HandleSelectionChanged(object? sender, EventArgs e)
     {
         if (_selectionCanvas.Session.Selection is { } selection &&
-            _selectionCanvas.Session.State == ScreenshotSessionState.Selected)
+            _selectionCanvas.LogicalSelection is { } logicalSelection)
         {
-            _toolbar.IsVisible = true;
-            _saveButton.IsEnabled = true;
-            _statusText.Text = $"{selection.Width} × {selection.Height} 像素";
+            _sizeBadge.IsVisible = true;
+            _sizeText.Text = $"{selection.Width} × {selection.Height}";
+            var isSelected = _selectionCanvas.Session.State == ScreenshotSessionState.Selected;
+            _toolbar.IsVisible = isSelected;
+            _toolbar.SetSelectionActionsEnabled(isSelected);
+            PositionFloatingUi(logicalSelection);
             return;
         }
 
+        _sizeBadge.IsVisible = false;
         _toolbar.IsVisible = false;
-        _saveButton.IsEnabled = false;
-        _statusText.Text = _selectionCanvas.Session.State == ScreenshotSessionState.Selecting
-            ? "松开鼠标完成选区"
-            : $"选区至少需要 {ScreenshotSession.MinimumSelectionSize} × {ScreenshotSession.MinimumSelectionSize} 像素";
+        _toolbar.SetSelectionActionsEnabled(isEnabled: false);
     }
 
-    private async void HandleSave(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void PositionFloatingUi(Rect selection)
+    {
+        var availableSize = _selectionCanvas.Bounds.Size;
+        _sizeBadge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        _toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+
+        var placement = ScreenshotFloatingUiLayout.Place(
+            selection,
+            _availableUiBounds.Intersect(new Rect(availableSize)),
+            _sizeBadge.DesiredSize,
+            _toolbar.DesiredSize);
+        _sizeBadgeTransform.X = placement.BadgeOrigin.X;
+        _sizeBadgeTransform.Y = placement.BadgeOrigin.Y;
+        _toolbarTransform.X = placement.ToolbarOrigin.X;
+        _toolbarTransform.Y = placement.ToolbarOrigin.Y;
+    }
+
+    private async void HandleSave(object? sender, EventArgs e)
     {
         if (_selectionCanvas.Session.Selection is not { } selection ||
             _selectionCanvas.Session.State != ScreenshotSessionState.Selected)
@@ -158,8 +188,12 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         }
 
         _selectionCanvas.Session.BeginSave();
-        _saveButton.IsEnabled = false;
-        _statusText.Text = "选择保存位置…";
+        _toolbar.SetSelectionActionsEnabled(isEnabled: false);
+        _sizeText.Text = ScreenshotUiText.ChoosingSaveLocation;
+        if (_selectionCanvas.LogicalSelection is { } logicalSelection)
+        {
+            PositionFloatingUi(logicalSelection);
+        }
 
         try
         {
@@ -168,8 +202,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             if (path is null)
             {
                 _selectionCanvas.Session.CancelSave();
-                _saveButton.IsEnabled = true;
-                _statusText.Text = $"{selection.Width} × {selection.Height} 像素";
+                RestoreSelectedUi(selection);
                 return;
             }
 
@@ -184,10 +217,59 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
                 _selectionCanvas.Session.CancelSave();
             }
 
-            _saveButton.IsEnabled = true;
-            _statusText.Text = $"保存失败：{exception.Message}";
+            _toolbar.SetSelectionActionsEnabled(isEnabled: true);
+            _sizeText.Text = ScreenshotUiText.SaveFailed;
+            ToolTip.SetTip(_sizeBadge, exception.Message);
         }
     }
+
+    private async void HandleConfirm(object? sender, EventArgs e)
+    {
+        if (_selectionCanvas.Session.Selection is not { } selection ||
+            _selectionCanvas.Session.State != ScreenshotSessionState.Selected)
+        {
+            return;
+        }
+
+        var clipboard = Clipboard;
+        if (clipboard is null)
+        {
+            _sizeText.Text = ScreenshotUiText.CopyImageFailed;
+            ToolTip.SetTip(_sizeBadge, ScreenshotUiText.ClipboardUnavailable);
+            return;
+        }
+
+        _toolbar.SetSelectionActionsEnabled(isEnabled: false);
+        _sizeText.Text = ScreenshotUiText.CopyingImage;
+        try
+        {
+            var png = SelectionPngEncoder.Encode(_capturedScreen.Frame, selection);
+            using var stream = new MemoryStream(png, writable: false);
+            using var bitmap = new Bitmap(stream);
+            await clipboard.SetBitmapAsync(bitmap);
+            await clipboard.FlushAsync();
+            Close();
+        }
+        catch (Exception exception)
+        {
+            _toolbar.SetSelectionActionsEnabled(isEnabled: true);
+            _sizeText.Text = ScreenshotUiText.CopyImageFailed;
+            ToolTip.SetTip(_sizeBadge, exception.Message);
+        }
+    }
+
+    private void RestoreSelectedUi(PhysicalRect selection)
+    {
+        _toolbar.SetSelectionActionsEnabled(isEnabled: true);
+        _sizeText.Text = $"{selection.Width} × {selection.Height}";
+        ToolTip.SetTip(_sizeBadge, value: null);
+        if (_selectionCanvas.LogicalSelection is { } logicalSelection)
+        {
+            PositionFloatingUi(logicalSelection);
+        }
+    }
+
+    private void HandleCancel(object? sender, EventArgs e) => Close();
 
     private async void HandleKeyDown(object? sender, KeyEventArgs e)
     {
@@ -220,7 +302,8 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         }
         catch (Exception exception)
         {
-            _statusText.Text = $"复制色值失败：{exception.Message}";
+            _sizeText.Text = ScreenshotUiText.CopyColorFailed;
+            ToolTip.SetTip(_sizeBadge, exception.Message);
         }
     }
 
@@ -232,6 +315,9 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         }
 
         _resourcesDisposed = true;
+        _toolbar.SaveRequested -= HandleSave;
+        _toolbar.ConfirmRequested -= HandleConfirm;
+        _toolbar.CancelRequested -= HandleCancel;
         _selectionCanvas.SelectionChanged -= HandleSelectionChanged;
         _selectionCanvas.Dispose();
         _capturedScreen.Dispose();

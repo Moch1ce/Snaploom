@@ -8,13 +8,8 @@ namespace Snaploom.App;
 
 internal sealed class ScreenshotPixelInspector
 {
-    private static readonly IBrush AccentBrush = new SolidColorBrush(Color.Parse("#07C977"));
-    private static readonly IBrush BackgroundBrush = new SolidColorBrush(Color.Parse("#FAFAFB"));
-    private static readonly IBrush BorderBrush = new SolidColorBrush(Color.Parse("#D8DADF"));
-    private static readonly IBrush TextBrush = new SolidColorBrush(Color.Parse("#202124"));
-    private static readonly IBrush MutedTextBrush = new SolidColorBrush(Color.Parse("#96999F"));
-    private static readonly Pen BorderPen = new(BorderBrush, 1);
-    private static readonly Pen CrosshairPen = new(AccentBrush, 1);
+    private static readonly Pen BorderPen = new(ScreenshotUiTheme.FloatingBorderBrush, 1);
+    private static readonly Pen CrosshairPen = new(ScreenshotUiTheme.AccentBrush, 1);
     private static readonly Typeface NormalTypeface = new(
         FontFamily.Default,
         FontStyle.Normal,
@@ -25,14 +20,6 @@ internal sealed class ScreenshotPixelInspector
         FontStyle.Normal,
         FontWeight.SemiBold,
         FontStretch.Normal);
-    private static readonly BoxShadows Shadow = new(
-        new BoxShadow
-        {
-            OffsetY = 4,
-            Blur = 14,
-            Color = Color.FromArgb(48, 0, 0, 0),
-        });
-
     private const double Width = 132;
     private const double PreviewHeight = 132;
     private const double DetailsHeight = 76;
@@ -90,17 +77,17 @@ internal sealed class ScreenshotPixelInspector
         var details = new Rect(card.X, preview.Bottom, card.Width, DetailsHeight);
 
         context.DrawRectangle(
-            BackgroundBrush,
+            ScreenshotUiTheme.FloatingSurfaceBrush,
             BorderPen,
             card,
             CornerRadius,
             CornerRadius,
-            Shadow);
+            ScreenshotUiTheme.FloatingShadow);
 
         using (context.PushClip(new RoundedRect(card, CornerRadius)))
         {
             DrawMagnifiedPixels(context, preview, samplePoint);
-            context.DrawRectangle(BackgroundBrush, pen: null, details);
+            context.DrawRectangle(ScreenshotUiTheme.FloatingSurfaceBrush, pen: null, details);
         }
 
         context.DrawLine(
@@ -109,28 +96,38 @@ internal sealed class ScreenshotPixelInspector
             new Point(details.Right, details.Top));
 
         var color = _frame.SamplePixel(samplePoint);
-        DrawText(context, "坐标", details.X + 10, details.Y + 8, TextBrush);
+        DrawText(
+            context,
+            ScreenshotUiText.CoordinateLabel,
+            details.X + 10,
+            details.Y + 8,
+            ScreenshotUiTheme.PrimaryTextBrush);
         DrawText(
             context,
             $"{samplePoint.X}, {samplePoint.Y}",
             details.X + 58,
             details.Y + 8,
-            TextBrush,
+            ScreenshotUiTheme.PrimaryTextBrush,
             ValueTypeface);
-        DrawText(context, "色值", details.X + 10, details.Y + 29, TextBrush);
+        DrawText(
+            context,
+            ScreenshotUiText.ColorLabel,
+            details.X + 10,
+            details.Y + 29,
+            ScreenshotUiTheme.PrimaryTextBrush);
         DrawText(
             context,
             color.Hex,
             details.X + 58,
             details.Y + 29,
-            TextBrush,
+            ScreenshotUiTheme.PrimaryTextBrush,
             ValueTypeface);
         DrawText(
             context,
-            OperatingSystem.IsMacOS() ? "按 ⌘+C 复制色值" : "按 Ctrl+C 复制色值",
+            ScreenshotUiText.CopyColorHint,
             details.X + 10,
             details.Y + 52,
-            MutedTextBrush,
+            ScreenshotUiTheme.MutedTextBrush,
             fontSize: 11);
     }
 

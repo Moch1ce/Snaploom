@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="WindowTitle" xml:space="preserve"><value>Snaploom 截图</value></data>
+  <data name="RectangleUnavailable" xml:space="preserve"><value>矩形标注（即将支持）</value></data>
+  <data name="ArrowUnavailable" xml:space="preserve"><value>箭头标注（即将支持）</value></data>
+  <data name="TextUnavailable" xml:space="preserve"><value>文字标注（即将支持）</value></data>
+  <data name="MosaicUnavailable" xml:space="preserve"><value>马赛克（即将支持）</value></data>
+  <data name="UndoUnavailable" xml:space="preserve"><value>撤销（即将支持）</value></data>
+  <data name="SavePng" xml:space="preserve"><value>保存 PNG</value></data>
+  <data name="ExitScreenshot" xml:space="preserve"><value>退出截图</value></data>
+  <data name="CompleteAndCopy" xml:space="preserve"><value>复制并完成</value></data>
+  <data name="ChoosingSaveLocation" xml:space="preserve"><value>选择保存位置…</value></data>
+  <data name="CopyingImage" xml:space="preserve"><value>正在复制…</value></data>
+  <data name="SaveFailed" xml:space="preserve"><value>保存失败</value></data>
+  <data name="CopyImageFailed" xml:space="preserve"><value>复制失败</value></data>
+  <data name="CopyColorFailed" xml:space="preserve"><value>复制色值失败</value></data>
+  <data name="ClipboardUnavailable" xml:space="preserve"><value>系统剪贴板不可用。</value></data>
+  <data name="CoordinateLabel" xml:space="preserve"><value>坐标</value></data>
+  <data name="ColorLabel" xml:space="preserve"><value>色值</value></data>
+  <data name="CopyColorHintMacOS" xml:space="preserve"><value>按 ⌘+C 复制色值</value></data>
+  <data name="CopyColorHintWindows" xml:space="preserve"><value>按 Ctrl+C 复制色值</value></data>
+</root>

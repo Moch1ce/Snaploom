@@ -10,11 +10,7 @@ namespace Snaploom.App;
 
 public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 {
-    private static readonly IBrush DimBrush = new SolidColorBrush(Color.FromArgb(115, 0, 0, 0));
-    private static readonly IBrush AccentBrush = new SolidColorBrush(Color.Parse("#07C977"));
-    private static readonly Pen SelectionPen = new(AccentBrush, 2);
-
-    private const double SelectionHandleSize = 8;
+    private static readonly Pen SelectionPen = new(ScreenshotUiTheme.AccentBrush, 2);
 
     private readonly CapturedFrame _frame;
     private readonly ScreenshotSession _session;
@@ -38,6 +34,9 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
     public ScreenshotSession Session => _session;
 
+    internal Rect? LogicalSelection =>
+        _session.Selection is { } selection ? ToLogicalRect(selection) : null;
+
     public CapturedColor? SampledColor =>
         _session.State is ScreenshotSessionState.Ready or ScreenshotSessionState.Selecting
             ? _pixelInspector.SampledColor
@@ -54,7 +53,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
             _frame.PhysicalSize.Width,
             _frame.PhysicalSize.Height);
         context.DrawImage(_bitmap, fullSource, destination);
-        context.DrawRectangle(DimBrush, pen: null, destination);
+        context.DrawRectangle(ScreenshotUiTheme.DimBrush, pen: null, destination);
 
         if (_session.Selection is not { } selection)
         {
@@ -165,19 +164,23 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     private static void DrawSelectionHandles(DrawingContext context, Rect selection)
     {
         DrawSelectionHandle(context, selection.TopLeft);
+        DrawSelectionHandle(context, new Point(selection.Center.X, selection.Top));
         DrawSelectionHandle(context, selection.TopRight);
+        DrawSelectionHandle(context, new Point(selection.Right, selection.Center.Y));
         DrawSelectionHandle(context, selection.BottomRight);
+        DrawSelectionHandle(context, new Point(selection.Center.X, selection.Bottom));
         DrawSelectionHandle(context, selection.BottomLeft);
+        DrawSelectionHandle(context, new Point(selection.Left, selection.Center.Y));
     }
 
     private static void DrawSelectionHandle(DrawingContext context, Point center)
     {
         var handle = new Rect(
-            center.X - (SelectionHandleSize / 2),
-            center.Y - (SelectionHandleSize / 2),
-            SelectionHandleSize,
-            SelectionHandleSize);
-        context.DrawRectangle(AccentBrush, pen: null, handle, 1, 1);
+            center.X - (ScreenshotUiTheme.SelectionHandleSize / 2),
+            center.Y - (ScreenshotUiTheme.SelectionHandleSize / 2),
+            ScreenshotUiTheme.SelectionHandleSize,
+            ScreenshotUiTheme.SelectionHandleSize);
+        context.DrawRectangle(ScreenshotUiTheme.AccentBrush, pen: null, handle, 1, 1);
     }
 
     private Rect ToLogicalRect(PhysicalRect rect) =>
