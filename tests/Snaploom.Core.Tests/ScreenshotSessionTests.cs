@@ -48,4 +48,35 @@ public sealed class ScreenshotSessionTests
         Assert.Equal(ScreenshotSessionState.Selected, session.State);
         Assert.Equal(new PhysicalRect(40, 50, 30, 25), session.Selection);
     }
+
+    [Fact]
+    public void ACompletedSelectionCanBeMovedByDraggingInsideIt()
+    {
+        var session = new ScreenshotSession(new PhysicalSize(100, 80));
+        session.BeginSelection(new PhysicalPoint(10, 10));
+        session.UpdateSelection(new PhysicalPoint(40, 35));
+        Assert.True(session.CompleteSelection());
+
+        session.BeginMoveSelection(new PhysicalPoint(20, 20));
+        session.UpdateMoveSelection(new PhysicalPoint(45, 50));
+        session.CompleteMoveSelection();
+
+        Assert.Equal(ScreenshotSessionState.Selected, session.State);
+        Assert.Equal(new PhysicalRect(35, 40, 30, 25), session.Selection);
+    }
+
+    [Fact]
+    public void MovingASelectionKeepsItInsideTheCapturedFrame()
+    {
+        var session = new ScreenshotSession(new PhysicalSize(100, 80));
+        session.BeginSelection(new PhysicalPoint(10, 10));
+        session.UpdateSelection(new PhysicalPoint(40, 35));
+        Assert.True(session.CompleteSelection());
+
+        session.BeginMoveSelection(new PhysicalPoint(20, 20));
+        session.UpdateMoveSelection(new PhysicalPoint(200, 200));
+        session.CompleteMoveSelection();
+
+        Assert.Equal(new PhysicalRect(70, 55, 30, 25), session.Selection);
+    }
 }

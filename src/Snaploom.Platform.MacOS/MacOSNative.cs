@@ -72,6 +72,15 @@ internal static unsafe partial class MacOSNative
         StringMarshalling = StringMarshalling.Utf8)]
     internal static partial nint ShowPngSavePanel(string suggestedName);
 
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_copy_png_to_clipboard")]
+    internal static partial int CopyPngToClipboard(byte* png, nuint length);
+
+    [LibraryImport(
+        LibraryName,
+        EntryPoint = "snaploom_copy_text_to_clipboard",
+        StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial int CopyTextToClipboard(string text);
+
     [LibraryImport(LibraryName, EntryPoint = "snaploom_release_string")]
     internal static partial void ReleaseString(nint value);
 }

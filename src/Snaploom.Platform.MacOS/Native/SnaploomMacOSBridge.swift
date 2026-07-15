@@ -250,6 +250,39 @@ public func configureCaptureOverlay(_ pointer: UnsafeMutableRawPointer) {
     }
 }
 
+@_cdecl("snaploom_copy_png_to_clipboard")
+public func copyPngToClipboard(
+    _ bytes: UnsafePointer<UInt8>?,
+    _ length: Int
+) -> Int32 {
+    guard let bytes, length > 0 else {
+        return 0
+    }
+
+    let data = Data(bytes: bytes, count: length)
+    let write = {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.setData(data, forType: .png) ? Int32(1) : Int32(0)
+    }
+    return Thread.isMainThread ? write() : DispatchQueue.main.sync(execute: write)
+}
+
+@_cdecl("snaploom_copy_text_to_clipboard")
+public func copyTextToClipboard(_ text: UnsafePointer<CChar>?) -> Int32 {
+    guard let text else {
+        return 0
+    }
+
+    let value = String(cString: text)
+    let write = {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.setString(value, forType: .string) ? Int32(1) : Int32(0)
+    }
+    return Thread.isMainThread ? write() : DispatchQueue.main.sync(execute: write)
+}
+
 @available(macOS 14.0, *)
 private func captureCurrentDisplay() async throws -> CapturedFrameHandle {
     guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main else {

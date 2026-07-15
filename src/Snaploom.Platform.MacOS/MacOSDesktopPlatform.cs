@@ -11,6 +11,7 @@ public sealed class MacOSDesktopPlatform :
     IGlobalScreenshotHotKeyService,
     IScreenCaptureService,
     IPngSaveDialogService,
+    IScreenshotClipboardService,
     IScreenshotOverlayConfigurator,
     IDisposable
 {
@@ -89,6 +90,27 @@ public sealed class MacOSDesktopPlatform :
         finally
         {
             MacOSNative.ReleaseString(pathPointer);
+        }
+    }
+
+    public unsafe void CopyPng(ReadOnlySpan<byte> png)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(png.Length);
+        fixed (byte* pngPointer = png)
+        {
+            if (MacOSNative.CopyPngToClipboard(pngPointer, (nuint)png.Length) != 1)
+            {
+                throw new InvalidOperationException("macOS rejected the PNG clipboard data.");
+            }
+        }
+    }
+
+    public void CopyText(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        if (MacOSNative.CopyTextToClipboard(text) != 1)
+        {
+            throw new InvalidOperationException("macOS rejected the text clipboard data.");
         }
     }
 

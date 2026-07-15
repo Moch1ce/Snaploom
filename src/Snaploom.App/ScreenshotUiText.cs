@@ -37,8 +37,6 @@ internal static class ScreenshotUiText
 
     internal static string CopyColorFailed => Get(nameof(CopyColorFailed));
 
-    internal static string ClipboardUnavailable => Get(nameof(ClipboardUnavailable));
-
     internal static string CoordinateLabel => Get(nameof(CoordinateLabel));
 
     internal static string ColorLabel => Get(nameof(ColorLabel));

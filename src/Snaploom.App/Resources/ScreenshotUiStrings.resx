@@ -26,7 +26,6 @@
   <data name="SaveFailed" xml:space="preserve"><value>Save failed</value></data>
   <data name="CopyImageFailed" xml:space="preserve"><value>Copy failed</value></data>
   <data name="CopyColorFailed" xml:space="preserve"><value>Color copy failed</value></data>
-  <data name="ClipboardUnavailable" xml:space="preserve"><value>The system clipboard is unavailable.</value></data>
   <data name="CoordinateLabel" xml:space="preserve"><value>Position</value></data>
   <data name="ColorLabel" xml:space="preserve"><value>Color</value></data>
   <data name="CopyColorHintMacOS" xml:space="preserve"><value>Press ⌘+C to copy color</value></data>

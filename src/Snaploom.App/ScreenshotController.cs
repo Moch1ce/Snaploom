@@ -9,6 +9,7 @@ public sealed class ScreenshotController : IDisposable
     private readonly IScreenCapturePermissionService _permissionService;
     private readonly IScreenCaptureService _captureService;
     private readonly IPngSaveDialogService _saveDialogService;
+    private readonly IScreenshotClipboardService _clipboardService;
     private readonly IScreenshotOverlayConfigurator _overlayConfigurator;
     private readonly ScreenshotActivationGate _activationGate = new();
     private ScreenshotOverlayWindow? _overlay;
@@ -20,11 +21,13 @@ public sealed class ScreenshotController : IDisposable
         IScreenCapturePermissionService permissionService,
         IScreenCaptureService captureService,
         IPngSaveDialogService saveDialogService,
+        IScreenshotClipboardService clipboardService,
         IScreenshotOverlayConfigurator overlayConfigurator)
     {
         _permissionService = permissionService;
         _captureService = captureService;
         _saveDialogService = saveDialogService;
+        _clipboardService = clipboardService;
         _overlayConfigurator = overlayConfigurator;
     }
 
@@ -35,11 +38,13 @@ public sealed class ScreenshotController : IDisposable
         return platform is IScreenCapturePermissionService permissionService &&
                platform is IScreenCaptureService captureService &&
                platform is IPngSaveDialogService saveDialogService &&
+               platform is IScreenshotClipboardService clipboardService &&
                platform is IScreenshotOverlayConfigurator overlayConfigurator
             ? new ScreenshotController(
                 permissionService,
                 captureService,
                 saveDialogService,
+                clipboardService,
                 overlayConfigurator)
             : null;
     }
@@ -135,6 +140,7 @@ public sealed class ScreenshotController : IDisposable
         _overlay = new ScreenshotOverlayWindow(
             capturedScreen,
             _saveDialogService,
+            _clipboardService,
             _overlayConfigurator);
         _overlay.Closed += (_, _) =>
         {

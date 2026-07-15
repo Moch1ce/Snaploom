@@ -10,7 +10,7 @@ internal static class ScreenshotFloatingUiLayout
 {
     private const double EdgeMargin = 8;
     private const double BadgeGap = 4;
-    private const double ToolbarGap = 12;
+    private const double ToolbarGap = 8;
 
     internal static ScreenshotFloatingUiPlacement Place(
         Rect selection,
@@ -41,7 +41,22 @@ internal static class ScreenshotFloatingUiLayout
         var toolbarY = selection.Bottom + ToolbarGap;
         if (toolbarY + toolbarSize.Height + EdgeMargin > availableBounds.Bottom)
         {
-            toolbarY = selection.Top - toolbarSize.Height - ToolbarGap;
+            var visibleSelection = selection.Intersect(availableBounds);
+            var insideX = visibleSelection.Right - toolbarSize.Width - ToolbarGap;
+            var insideY = visibleSelection.Bottom - toolbarSize.Height - ToolbarGap;
+            var canPlaceInside = visibleSelection.Width >= toolbarSize.Width + ToolbarGap &&
+                                 visibleSelection.Height >= toolbarSize.Height + ToolbarGap &&
+                                 insideX >= availableBounds.Left + EdgeMargin &&
+                                 insideY >= availableBounds.Top + EdgeMargin;
+            if (canPlaceInside)
+            {
+                toolbarX = insideX;
+                toolbarY = insideY;
+            }
+            else
+            {
+                toolbarY = selection.Top - toolbarSize.Height - ToolbarGap;
+            }
         }
 
         toolbarY = Math.Clamp(

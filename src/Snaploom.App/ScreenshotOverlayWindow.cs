@@ -1,10 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
 using Snaploom.Core;
 using Snaploom.Platform.Abstractions;
 using Snaploom.Rendering;
@@ -15,6 +13,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 {
     private readonly CapturedScreen _capturedScreen;
     private readonly IPngSaveDialogService _saveDialogService;
+    private readonly IScreenshotClipboardService _clipboardService;
     private readonly IScreenshotOverlayConfigurator _overlayConfigurator;
     private readonly ScreenshotSelectionCanvas _selectionCanvas;
     private readonly TextBlock _sizeText;
@@ -28,13 +27,16 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     public ScreenshotOverlayWindow(
         CapturedScreen capturedScreen,
         IPngSaveDialogService saveDialogService,
+        IScreenshotClipboardService clipboardService,
         IScreenshotOverlayConfigurator overlayConfigurator)
     {
         ArgumentNullException.ThrowIfNull(capturedScreen);
         ArgumentNullException.ThrowIfNull(saveDialogService);
+        ArgumentNullException.ThrowIfNull(clipboardService);
         ArgumentNullException.ThrowIfNull(overlayConfigurator);
         _capturedScreen = capturedScreen;
         _saveDialogService = saveDialogService;
+        _clipboardService = clipboardService;
         _overlayConfigurator = overlayConfigurator;
         _availableUiBounds = new Rect(
             new Size(
@@ -53,6 +55,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
         _selectionCanvas = new ScreenshotSelectionCanvas(capturedScreen.Frame);
         _selectionCanvas.SelectionChanged += HandleSelectionChanged;
+        _selectionCanvas.SelectionDoubleClicked += HandleConfirm;
 
         _sizeText = new TextBlock
         {
@@ -206,8 +209,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
                 return;
             }
 
-            var png = SelectionPngEncoder.Encode(_capturedScreen.Frame, selection);
-            await File.WriteAllBytesAsync(path, png);
+            await File.WriteAllBytesAsync(path, EncodeSelection(selection));
             Close();
         }
         catch (Exception exception)
@@ -223,7 +225,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         }
     }
 
-    private async void HandleConfirm(object? sender, EventArgs e)
+    private void HandleConfirm(object? sender, EventArgs e)
     {
         if (_selectionCanvas.Session.Selection is not { } selection ||
             _selectionCanvas.Session.State != ScreenshotSessionState.Selected)
@@ -231,24 +233,24 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             return;
         }
 
-        var clipboard = Clipboard;
-        if (clipboard is null)
-        {
-            _sizeText.Text = ScreenshotUiText.CopyImageFailed;
-            ToolTip.SetTip(_sizeBadge, ScreenshotUiText.ClipboardUnavailable);
-            return;
-        }
+        CopySelection(selection, closeAfterCopy: true);
+    }
 
+    private void CopySelection(PhysicalRect selection, bool closeAfterCopy)
+    {
         _toolbar.SetSelectionActionsEnabled(isEnabled: false);
         _sizeText.Text = ScreenshotUiText.CopyingImage;
         try
         {
-            var png = SelectionPngEncoder.Encode(_capturedScreen.Frame, selection);
-            using var stream = new MemoryStream(png, writable: false);
-            using var bitmap = new Bitmap(stream);
-            await clipboard.SetBitmapAsync(bitmap);
-            await clipboard.FlushAsync();
-            Close();
+            _clipboardService.CopyPng(EncodeSelection(selection));
+            if (closeAfterCopy)
+            {
+                Close();
+            }
+            else
+            {
+                RestoreSelectedUi(selection);
+            }
         }
         catch (Exception exception)
         {
@@ -271,7 +273,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     private void HandleCancel(object? sender, EventArgs e) => Close();
 
-    private async void HandleKeyDown(object? sender, KeyEventArgs e)
+    private void HandleKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
         {
@@ -280,25 +282,39 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             return;
         }
 
-        var copyModifierPressed = OperatingSystem.IsMacOS()
-            ? e.KeyModifiers.HasFlag(KeyModifiers.Meta)
-            : e.KeyModifiers.HasFlag(KeyModifiers.Control);
-        if (e.Key != Key.C || !copyModifierPressed ||
-            _selectionCanvas.SampledColor is not { } color)
+        if (e.Key == Key.Enter &&
+            _selectionCanvas.Session.State == ScreenshotSessionState.Selected &&
+            _selectionCanvas.Session.Selection is { } enterSelection)
         {
+            e.Handled = true;
+            CopySelection(enterSelection, closeAfterCopy: true);
             return;
         }
 
-        var clipboard = Clipboard;
-        if (clipboard is null)
+        var copyModifierPressed = OperatingSystem.IsMacOS()
+            ? e.KeyModifiers.HasFlag(KeyModifiers.Meta)
+            : e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        if (e.Key != Key.C || !copyModifierPressed)
         {
             return;
         }
 
         e.Handled = true;
+        if (_selectionCanvas.Session.State == ScreenshotSessionState.Selected &&
+            _selectionCanvas.Session.Selection is { } copySelection)
+        {
+            CopySelection(copySelection, closeAfterCopy: false);
+            return;
+        }
+
+        if (_selectionCanvas.SampledColor is not { } color)
+        {
+            return;
+        }
+
         try
         {
-            await clipboard.SetTextAsync(color.Hex);
+            _clipboardService.CopyText(color.Hex);
         }
         catch (Exception exception)
         {
@@ -306,6 +322,9 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             ToolTip.SetTip(_sizeBadge, exception.Message);
         }
     }
+
+    private byte[] EncodeSelection(PhysicalRect selection) =>
+        SelectionPngEncoder.Encode(_capturedScreen.Frame, selection);
 
     private void DisposeResources()
     {
@@ -319,6 +338,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _toolbar.ConfirmRequested -= HandleConfirm;
         _toolbar.CancelRequested -= HandleCancel;
         _selectionCanvas.SelectionChanged -= HandleSelectionChanged;
+        _selectionCanvas.SelectionDoubleClicked -= HandleConfirm;
         _selectionCanvas.Dispose();
         _capturedScreen.Dispose();
     }

@@ -16,6 +16,8 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     private readonly ScreenshotSession _session;
     private readonly WriteableBitmap _bitmap;
     private readonly ScreenshotPixelInspector _pixelInspector;
+    private readonly Cursor _crosshairCursor = new(StandardCursorType.Cross);
+    private readonly Cursor _moveCursor = new(StandardCursorType.SizeAll);
     private bool _disposed;
 
     public ScreenshotSelectionCanvas(CapturedFrame frame)
@@ -26,11 +28,13 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         _bitmap = CreateBitmap(frame);
         _pixelInspector = new ScreenshotPixelInspector(frame, _bitmap);
         ClipToBounds = true;
-        Cursor = new Cursor(StandardCursorType.Cross);
+        Cursor = _crosshairCursor;
         Focusable = true;
     }
 
     public event EventHandler? SelectionChanged;
+
+    public event EventHandler? SelectionDoubleClicked;
 
     public ScreenshotSession Session => _session;
 
@@ -84,7 +88,8 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         }
 
         _disposed = true;
-        Cursor?.Dispose();
+        _crosshairCursor.Dispose();
+        _moveCursor.Dispose();
         _bitmap.Dispose();
     }
 
@@ -98,7 +103,27 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         }
 
         Focus();
-        var position = _pixelInspector.UpdatePointer(e.GetPosition(this), Bounds.Size);
+        var position = e.GetPosition(this);
+        var physicalPoint = ToPhysicalPoint(position);
+        if (_session.State == ScreenshotSessionState.Selected &&
+            _session.SelectionContains(physicalPoint))
+        {
+            if (e.ClickCount >= 2)
+            {
+                SelectionDoubleClicked?.Invoke(this, EventArgs.Empty);
+                e.Handled = true;
+                return;
+            }
+
+            _session.BeginMoveSelection(physicalPoint);
+            e.Pointer.Capture(this);
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
+        position = _pixelInspector.UpdatePointer(position, Bounds.Size);
         _session.BeginSelection(ToPhysicalPoint(position));
         e.Pointer.Capture(this);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -109,12 +134,30 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (_session.State is ScreenshotSessionState.Selected or ScreenshotSessionState.Saving)
+        if (_session.State == ScreenshotSessionState.Saving)
         {
             return;
         }
 
-        var position = _pixelInspector.UpdatePointer(e.GetPosition(this), Bounds.Size);
+        var rawPosition = e.GetPosition(this);
+        if (_session.State == ScreenshotSessionState.Selected)
+        {
+            Cursor = _session.SelectionContains(ToPhysicalPoint(rawPosition))
+                ? _moveCursor
+                : _crosshairCursor;
+            return;
+        }
+
+        if (_session.State == ScreenshotSessionState.MovingSelection)
+        {
+            _session.UpdateMoveSelection(ToPhysicalPoint(rawPosition));
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
+        var position = _pixelInspector.UpdatePointer(rawPosition, Bounds.Size);
         if (_session.State == ScreenshotSessionState.Selecting)
         {
             _session.UpdateSelection(ToPhysicalPoint(position));
@@ -128,6 +171,18 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_session.State == ScreenshotSessionState.MovingSelection)
+        {
+            _session.UpdateMoveSelection(ToPhysicalPoint(e.GetPosition(this)));
+            _session.CompleteMoveSelection();
+            e.Pointer.Capture(control: null);
+            Cursor = _moveCursor;
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         if (_session.State != ScreenshotSessionState.Selecting)
         {
             return;

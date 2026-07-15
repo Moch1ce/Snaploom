@@ -31,6 +31,7 @@ internal static class ScreenshotUiTheme
     internal const double ToolbarButtonSize = 40;
     internal const double ToolbarHorizontalPadding = 14;
     internal const double ToolbarSeparatorMargin = 10;
+    internal const double HoveredToolBackgroundSize = 28;
     internal const double SelectedToolBackgroundSize = 24;
     internal const double SelectionHandleSize = 8;
     internal const double IconSize = 18;

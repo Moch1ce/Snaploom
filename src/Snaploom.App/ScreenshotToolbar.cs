@@ -223,9 +223,14 @@ internal sealed class ScreenshotToolbarButton : Border
 
     private void UpdateVisualState()
     {
+        var isHovered = IsEnabled && IsPointerOver;
+        _selectedBackground.Width = isHovered && !_isSelected
+            ? ScreenshotUiTheme.HoveredToolBackgroundSize
+            : ScreenshotUiTheme.SelectedToolBackgroundSize;
+        _selectedBackground.Height = _selectedBackground.Width;
         _selectedBackground.Background = _isSelected
             ? ScreenshotUiTheme.SelectedToolBrush
-            : IsEnabled && IsPointerOver
+            : isHovered
                 ? ScreenshotUiTheme.HoveredToolBrush
                 : Brushes.Transparent;
     }

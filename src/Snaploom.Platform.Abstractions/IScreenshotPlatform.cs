@@ -34,6 +34,13 @@ public interface IPngSaveDialogService
     string? ShowSaveDialog(string suggestedFileName);
 }
 
+public interface IScreenshotClipboardService
+{
+    void CopyPng(ReadOnlySpan<byte> png);
+
+    void CopyText(string text);
+}
+
 public interface IScreenshotOverlayConfigurator
 {
     void ConfigureScreenshotOverlay(nint nativeWindowHandle);

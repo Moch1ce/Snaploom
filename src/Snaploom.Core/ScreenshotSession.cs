@@ -4,6 +4,7 @@ public enum ScreenshotSessionState
 {
     Ready,
     Selecting,
+    MovingSelection,
     Selected,
     Saving,
 }
@@ -15,6 +16,8 @@ public sealed class ScreenshotSession
     private readonly PhysicalSize _frameSize;
     private PhysicalPoint _selectionStart;
     private PhysicalPoint _selectionEnd;
+    private PhysicalPoint _moveStart;
+    private PhysicalRect _selectionBeforeMove;
 
     public ScreenshotSession(PhysicalSize frameSize)
     {
@@ -62,6 +65,56 @@ public sealed class ScreenshotSession
         Selection = selection;
         State = ScreenshotSessionState.Selected;
         return true;
+    }
+
+    public bool SelectionContains(PhysicalPoint point) =>
+        Selection is { } selection &&
+        point.X >= selection.X &&
+        point.X <= selection.X + selection.Width &&
+        point.Y >= selection.Y &&
+        point.Y <= selection.Y + selection.Height;
+
+    public void BeginMoveSelection(PhysicalPoint point)
+    {
+        if (State != ScreenshotSessionState.Selected ||
+            Selection is not { } selection ||
+            !SelectionContains(point))
+        {
+            throw new InvalidOperationException("A completed selection must be dragged from inside its bounds.");
+        }
+
+        _moveStart = Clamp(point);
+        _selectionBeforeMove = selection;
+        State = ScreenshotSessionState.MovingSelection;
+    }
+
+    public void UpdateMoveSelection(PhysicalPoint point)
+    {
+        if (State != ScreenshotSessionState.MovingSelection)
+        {
+            throw new InvalidOperationException("The selection is not being moved.");
+        }
+
+        var current = Clamp(point);
+        var x = Math.Clamp(
+            _selectionBeforeMove.X + current.X - _moveStart.X,
+            0,
+            _frameSize.Width - _selectionBeforeMove.Width);
+        var y = Math.Clamp(
+            _selectionBeforeMove.Y + current.Y - _moveStart.Y,
+            0,
+            _frameSize.Height - _selectionBeforeMove.Height);
+        Selection = _selectionBeforeMove with { X = x, Y = y };
+    }
+
+    public void CompleteMoveSelection()
+    {
+        if (State != ScreenshotSessionState.MovingSelection)
+        {
+            throw new InvalidOperationException("The selection is not being moved.");
+        }
+
+        State = ScreenshotSessionState.Selected;
     }
 
     public void BeginSave()

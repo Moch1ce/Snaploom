@@ -26,7 +26,6 @@
   <data name="SaveFailed" xml:space="preserve"><value>保存失败</value></data>
   <data name="CopyImageFailed" xml:space="preserve"><value>复制失败</value></data>
   <data name="CopyColorFailed" xml:space="preserve"><value>复制色值失败</value></data>
-  <data name="ClipboardUnavailable" xml:space="preserve"><value>系统剪贴板不可用。</value></data>
   <data name="CoordinateLabel" xml:space="preserve"><value>坐标</value></data>
   <data name="ColorLabel" xml:space="preserve"><value>色值</value></data>
   <data name="CopyColorHintMacOS" xml:space="preserve"><value>按 ⌘+C 复制色值</value></data>
