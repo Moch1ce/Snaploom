@@ -16,7 +16,7 @@ private let hotKeyEventHandler: EventHandlerUPP = { _, _, _ in
     return noErr
 }
 
-private final class CapturedFrameHandle: @unchecked Sendable {
+final class CapturedFrameHandle: @unchecked Sendable {
     let status: Int32
     let width: Int32
     let height: Int32
@@ -74,8 +74,6 @@ private final class CapturedFrameHandle: @unchecked Sendable {
             throw BridgeError.bitmapContextUnavailable
         }
 
-        context.translateBy(x: 0, y: CGFloat(height))
-        context.scaleBy(x: 1, y: -1)
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
 
         let cursor = CGEvent(source: nil)?.location ?? .zero

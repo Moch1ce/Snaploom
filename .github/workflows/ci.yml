@@ -41,5 +41,9 @@ jobs:
       - name: Build
         run: dotnet build Snaploom.sln --configuration Release --no-restore
 
+      - name: Test macOS native frame orientation
+        if: runner.os == 'macOS'
+        run: bash tests/native/macos/run-frame-orientation-test.sh
+
       - name: Test
         run: dotnet test Snaploom.sln --configuration Release --no-build
