@@ -228,6 +228,28 @@ public func openScreenCaptureSettings() {
     }
 }
 
+@_cdecl("snaploom_configure_capture_overlay")
+public func configureCaptureOverlay(_ pointer: UnsafeMutableRawPointer) {
+    let configureWindow = {
+        let window = Unmanaged<NSWindow>.fromOpaque(pointer).takeUnretainedValue()
+        window.level = NSWindow.Level(
+            rawValue: Int(CGWindowLevelForKey(.screenSaverWindow))
+        )
+        window.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
+        window.hidesOnDeactivate = false
+
+        if let screen = window.screen ?? NSScreen.main {
+            window.setFrame(screen.frame, display: true)
+        }
+    }
+
+    if Thread.isMainThread {
+        configureWindow()
+    } else {
+        DispatchQueue.main.sync(execute: configureWindow)
+    }
+}
+
 @available(macOS 14.0, *)
 private func captureCurrentDisplay() async throws -> CapturedFrameHandle {
     guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main else {

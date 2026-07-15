@@ -11,6 +11,7 @@ public sealed class MacOSDesktopPlatform :
     IGlobalScreenshotHotKeyService,
     IScreenCaptureService,
     IPngSaveDialogService,
+    IScreenshotOverlayConfigurator,
     IDisposable
 {
     private const uint AKeyCode = 0;
@@ -32,6 +33,12 @@ public sealed class MacOSDesktopPlatform :
     public bool RequestPermission() => MacOSNative.RequestScreenCapturePermission() == 1;
 
     public void OpenPermissionSettings() => MacOSNative.OpenScreenCaptureSettings();
+
+    public void ConfigureScreenshotOverlay(nint nativeWindowHandle)
+    {
+        ArgumentOutOfRangeException.ThrowIfEqual(nativeWindowHandle, 0);
+        MacOSNative.ConfigureCaptureOverlay(nativeWindowHandle);
+    }
 
     public unsafe bool TryRegisterScreenshotHotKey(Action callback)
     {

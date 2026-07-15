@@ -24,6 +24,9 @@ internal static unsafe partial class MacOSNative
     [LibraryImport(LibraryName, EntryPoint = "snaploom_open_screen_capture_settings")]
     internal static partial void OpenScreenCaptureSettings();
 
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_configure_capture_overlay")]
+    internal static partial void ConfigureCaptureOverlay(nint nativeWindowHandle);
+
     [LibraryImport(LibraryName, EntryPoint = "snaploom_capture_current_display")]
     internal static partial nint CaptureCurrentDisplay();
 

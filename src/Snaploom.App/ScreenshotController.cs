@@ -9,6 +9,7 @@ public sealed class ScreenshotController : IDisposable
     private readonly IScreenCapturePermissionService _permissionService;
     private readonly IScreenCaptureService _captureService;
     private readonly IPngSaveDialogService _saveDialogService;
+    private readonly IScreenshotOverlayConfigurator _overlayConfigurator;
     private readonly ScreenshotActivationGate _activationGate = new();
     private ScreenshotOverlayWindow? _overlay;
     private CaptureFailureOverlayWindow? _failureOverlay;
@@ -18,11 +19,13 @@ public sealed class ScreenshotController : IDisposable
     private ScreenshotController(
         IScreenCapturePermissionService permissionService,
         IScreenCaptureService captureService,
-        IPngSaveDialogService saveDialogService)
+        IPngSaveDialogService saveDialogService,
+        IScreenshotOverlayConfigurator overlayConfigurator)
     {
         _permissionService = permissionService;
         _captureService = captureService;
         _saveDialogService = saveDialogService;
+        _overlayConfigurator = overlayConfigurator;
     }
 
     public static ScreenshotController? TryCreate(IDesktopPlatform platform)
@@ -31,8 +34,13 @@ public sealed class ScreenshotController : IDisposable
 
         return platform is IScreenCapturePermissionService permissionService &&
                platform is IScreenCaptureService captureService &&
-               platform is IPngSaveDialogService saveDialogService
-            ? new ScreenshotController(permissionService, captureService, saveDialogService)
+               platform is IPngSaveDialogService saveDialogService &&
+               platform is IScreenshotOverlayConfigurator overlayConfigurator
+            ? new ScreenshotController(
+                permissionService,
+                captureService,
+                saveDialogService,
+                overlayConfigurator)
             : null;
     }
 
@@ -124,7 +132,10 @@ public sealed class ScreenshotController : IDisposable
             return;
         }
 
-        _overlay = new ScreenshotOverlayWindow(capturedScreen, _saveDialogService);
+        _overlay = new ScreenshotOverlayWindow(
+            capturedScreen,
+            _saveDialogService,
+            _overlayConfigurator);
         _overlay.Closed += (_, _) =>
         {
             _overlay = null;

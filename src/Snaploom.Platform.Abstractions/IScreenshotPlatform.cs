@@ -34,6 +34,11 @@ public interface IPngSaveDialogService
     string? ShowSaveDialog(string suggestedFileName);
 }
 
+public interface IScreenshotOverlayConfigurator
+{
+    void ConfigureScreenshotOverlay(nint nativeWindowHandle);
+}
+
 public sealed class CapturedScreen : IDisposable
 {
     public CapturedScreen(CapturedFrame frame, PhysicalPoint cursorPosition)

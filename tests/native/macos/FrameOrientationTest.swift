@@ -28,6 +28,8 @@ struct FrameOrientationTest {
         guard secondRow == [255, 0, 0, 255] else {
             throw TestFailure("第二行应为蓝色 BGRA，实际为 \(secondRow)")
         }
+
+        try verifyCaptureOverlayWindow(on: screen)
     }
 
     private static func makeVerticalOrientationTestImage() throws -> CGImage {
@@ -59,6 +61,30 @@ struct FrameOrientationTest {
         }
 
         return image
+    }
+
+    private static func verifyCaptureOverlayWindow(on screen: NSScreen) throws {
+        let window = NSWindow(
+            contentRect: screen.visibleFrame,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false,
+            screen: screen
+        )
+
+        configureCaptureOverlay(Unmanaged.passUnretained(window).toOpaque())
+
+        let dockLevel = Int(CGWindowLevelForKey(.dockWindow))
+        guard window.level.rawValue > dockLevel else {
+            throw TestFailure(
+                "截图浮层层级 \(window.level.rawValue) 必须高于 Dock 层级 \(dockLevel)"
+            )
+        }
+        guard window.frame == screen.frame else {
+            throw TestFailure(
+                "截图浮层边界 \(window.frame) 必须覆盖完整显示器 \(screen.frame)"
+            )
+        }
     }
 }
 

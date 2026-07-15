@@ -13,6 +13,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 {
     private readonly CapturedScreen _capturedScreen;
     private readonly IPngSaveDialogService _saveDialogService;
+    private readonly IScreenshotOverlayConfigurator _overlayConfigurator;
     private readonly ScreenshotSelectionCanvas _selectionCanvas;
     private readonly Button _saveButton;
     private readonly TextBlock _statusText;
@@ -20,12 +21,15 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     public ScreenshotOverlayWindow(
         CapturedScreen capturedScreen,
-        IPngSaveDialogService saveDialogService)
+        IPngSaveDialogService saveDialogService,
+        IScreenshotOverlayConfigurator overlayConfigurator)
     {
         ArgumentNullException.ThrowIfNull(capturedScreen);
         ArgumentNullException.ThrowIfNull(saveDialogService);
+        ArgumentNullException.ThrowIfNull(overlayConfigurator);
         _capturedScreen = capturedScreen;
         _saveDialogService = saveDialogService;
+        _overlayConfigurator = overlayConfigurator;
 
         Title = "Snaploom 截图";
         Width = capturedScreen.Frame.LogicalSize.Width;
@@ -112,6 +116,12 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         if (screen is not null)
         {
             Position = screen.Bounds.Position;
+        }
+
+        var platformHandle = TryGetPlatformHandle();
+        if (platformHandle is not null)
+        {
+            _overlayConfigurator.ConfigureScreenshotOverlay(platformHandle.Handle);
         }
 
         Activate();
