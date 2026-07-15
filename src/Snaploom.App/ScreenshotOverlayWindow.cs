@@ -303,7 +303,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         if (_selectionCanvas.Session.State == ScreenshotSessionState.Selected &&
             _selectionCanvas.Session.Selection is { } copySelection)
         {
-            CopySelection(copySelection, closeAfterCopy: false);
+            CopySelection(copySelection, closeAfterCopy: true);
             return;
         }
 
