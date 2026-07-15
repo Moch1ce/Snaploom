@@ -2,6 +2,8 @@ namespace Snaploom.Core;
 
 public readonly record struct PhysicalPoint(int X, int Y);
 
+public readonly record struct LogicalPoint(double X, double Y);
+
 public readonly record struct PhysicalSize
 {
     public PhysicalSize(int width, int height)

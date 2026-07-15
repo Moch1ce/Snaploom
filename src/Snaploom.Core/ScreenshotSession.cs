@@ -5,8 +5,28 @@ public enum ScreenshotSessionState
     Ready,
     Selecting,
     MovingSelection,
+    ResizingSelection,
     Selected,
     Saving,
+}
+
+public enum SelectionResizeHandle
+{
+    TopLeft,
+    Top,
+    TopRight,
+    Right,
+    BottomRight,
+    Bottom,
+    BottomLeft,
+    Left,
+}
+
+public enum ScreenshotCancelResult
+{
+    ActionCanceled,
+    SelectionCleared,
+    ExitRequested,
 }
 
 public sealed class ScreenshotSession
@@ -18,6 +38,8 @@ public sealed class ScreenshotSession
     private PhysicalPoint _selectionEnd;
     private PhysicalPoint _moveStart;
     private PhysicalRect _selectionBeforeMove;
+    private PhysicalRect _selectionBeforeResize;
+    private SelectionResizeHandle _resizeHandle;
 
     public ScreenshotSession(PhysicalSize frameSize)
     {
@@ -117,6 +139,72 @@ public sealed class ScreenshotSession
         State = ScreenshotSessionState.Selected;
     }
 
+    public void BeginResizeSelection(SelectionResizeHandle handle)
+    {
+        if (State != ScreenshotSessionState.Selected || Selection is not { } selection)
+        {
+            throw new InvalidOperationException("A completed selection is required before resizing.");
+        }
+
+        _selectionBeforeResize = selection;
+        _resizeHandle = handle;
+        State = ScreenshotSessionState.ResizingSelection;
+    }
+
+    public void UpdateResizeSelection(PhysicalPoint point)
+    {
+        if (State != ScreenshotSessionState.ResizingSelection)
+        {
+            throw new InvalidOperationException("The selection is not being resized.");
+        }
+
+        var current = Clamp(point);
+        var left = _selectionBeforeResize.X;
+        var top = _selectionBeforeResize.Y;
+        var right = left + _selectionBeforeResize.Width;
+        var bottom = top + _selectionBeforeResize.Height;
+
+        if (_resizeHandle is SelectionResizeHandle.TopLeft or
+            SelectionResizeHandle.BottomLeft or
+            SelectionResizeHandle.Left)
+        {
+            left = Math.Clamp(current.X, 0, right - MinimumSelectionSize);
+        }
+
+        if (_resizeHandle is SelectionResizeHandle.TopRight or
+            SelectionResizeHandle.Right or
+            SelectionResizeHandle.BottomRight)
+        {
+            right = Math.Clamp(current.X, left + MinimumSelectionSize, _frameSize.Width);
+        }
+
+        if (_resizeHandle is SelectionResizeHandle.TopLeft or
+            SelectionResizeHandle.Top or
+            SelectionResizeHandle.TopRight)
+        {
+            top = Math.Clamp(current.Y, 0, bottom - MinimumSelectionSize);
+        }
+
+        if (_resizeHandle is SelectionResizeHandle.BottomLeft or
+            SelectionResizeHandle.Bottom or
+            SelectionResizeHandle.BottomRight)
+        {
+            bottom = Math.Clamp(current.Y, top + MinimumSelectionSize, _frameSize.Height);
+        }
+
+        Selection = new PhysicalRect(left, top, right - left, bottom - top);
+    }
+
+    public void CompleteResizeSelection()
+    {
+        if (State != ScreenshotSessionState.ResizingSelection)
+        {
+            throw new InvalidOperationException("The selection is not being resized.");
+        }
+
+        State = ScreenshotSessionState.Selected;
+    }
+
     public void BeginSave()
     {
         if (State != ScreenshotSessionState.Selected)
@@ -135,6 +223,42 @@ public sealed class ScreenshotSession
         }
 
         State = ScreenshotSessionState.Selected;
+    }
+
+    public ScreenshotCancelResult Cancel()
+    {
+        switch (State)
+        {
+            case ScreenshotSessionState.Selecting:
+                Selection = null;
+                State = ScreenshotSessionState.Ready;
+                return ScreenshotCancelResult.ActionCanceled;
+
+            case ScreenshotSessionState.MovingSelection:
+                Selection = _selectionBeforeMove;
+                State = ScreenshotSessionState.Selected;
+                return ScreenshotCancelResult.ActionCanceled;
+
+            case ScreenshotSessionState.ResizingSelection:
+                Selection = _selectionBeforeResize;
+                State = ScreenshotSessionState.Selected;
+                return ScreenshotCancelResult.ActionCanceled;
+
+            case ScreenshotSessionState.Saving:
+                State = ScreenshotSessionState.Selected;
+                return ScreenshotCancelResult.ActionCanceled;
+
+            case ScreenshotSessionState.Selected:
+                Selection = null;
+                State = ScreenshotSessionState.Ready;
+                return ScreenshotCancelResult.SelectionCleared;
+
+            case ScreenshotSessionState.Ready:
+                return ScreenshotCancelResult.ExitRequested;
+
+            default:
+                throw new InvalidOperationException("The screenshot session is in an unknown state.");
+        }
     }
 
     private PhysicalPoint Clamp(PhysicalPoint point) =>

@@ -18,6 +18,8 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     private readonly ScreenshotPixelInspector _pixelInspector;
     private readonly Cursor _crosshairCursor = new(StandardCursorType.Cross);
     private readonly Cursor _moveCursor = new(StandardCursorType.SizeAll);
+    private Point? _pendingSelectionStart;
+    private IPointer? _capturedPointer;
     private bool _disposed;
 
     public ScreenshotSelectionCanvas(CapturedFrame frame)
@@ -40,11 +42,6 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
     internal Rect? LogicalSelection =>
         _session.Selection is { } selection ? ToLogicalRect(selection) : null;
-
-    public CapturedColor? SampledColor =>
-        _session.State is ScreenshotSessionState.Ready or ScreenshotSessionState.Selecting
-            ? _pixelInspector.SampledColor
-            : null;
 
     public override void Render(DrawingContext context)
     {
@@ -93,6 +90,32 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         _bitmap.Dispose();
     }
 
+    public ScreenshotCancelResult CancelCurrentLayer()
+    {
+        ScreenshotCancelResult result;
+        if (_pendingSelectionStart is not null)
+        {
+            _pendingSelectionStart = null;
+            result = ScreenshotCancelResult.ActionCanceled;
+        }
+        else
+        {
+            result = _session.Cancel();
+        }
+
+        if (result != ScreenshotCancelResult.ExitRequested)
+        {
+            ReleasePointerCapture();
+            Cursor = _session.State == ScreenshotSessionState.Selected
+                ? _moveCursor
+                : _crosshairCursor;
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+        }
+
+        return result;
+    }
+
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
@@ -105,28 +128,40 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         Focus();
         var position = e.GetPosition(this);
         var physicalPoint = ToPhysicalPoint(position);
-        if (_session.State == ScreenshotSessionState.Selected &&
-            _session.SelectionContains(physicalPoint))
+        if (_session.State == ScreenshotSessionState.Selected)
         {
-            if (e.ClickCount >= 2)
+            if (_session.SelectionContains(physicalPoint) && e.ClickCount >= 2)
             {
                 SelectionDoubleClicked?.Invoke(this, EventArgs.Empty);
                 e.Handled = true;
                 return;
             }
 
-            _session.BeginMoveSelection(physicalPoint);
-            e.Pointer.Capture(this);
-            SelectionChanged?.Invoke(this, EventArgs.Empty);
-            InvalidateVisual();
-            e.Handled = true;
-            return;
+            if (_session.Selection is { } selection &&
+                HitTestResizeHandle(position, ToLogicalRect(selection)) is { } handle)
+            {
+                _session.BeginResizeSelection(handle);
+                CapturePointer(e.Pointer);
+                SelectionChanged?.Invoke(this, EventArgs.Empty);
+                InvalidateVisual();
+                e.Handled = true;
+                return;
+            }
+
+            if (_session.SelectionContains(physicalPoint))
+            {
+                _session.BeginMoveSelection(physicalPoint);
+                CapturePointer(e.Pointer);
+                SelectionChanged?.Invoke(this, EventArgs.Empty);
+                InvalidateVisual();
+                e.Handled = true;
+                return;
+            }
         }
 
         position = _pixelInspector.UpdatePointer(position, Bounds.Size);
-        _session.BeginSelection(ToPhysicalPoint(position));
-        e.Pointer.Capture(this);
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        _pendingSelectionStart = position;
+        CapturePointer(e.Pointer);
         InvalidateVisual();
         e.Handled = true;
     }
@@ -140,11 +175,38 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         }
 
         var rawPosition = e.GetPosition(this);
+        if (_pendingSelectionStart is { } start)
+        {
+            var clampedPosition = _pixelInspector.UpdatePointer(rawPosition, Bounds.Size);
+            if (ScreenshotPointerGesture.HasExceededDragThreshold(
+                    new LogicalPoint(start.X, start.Y),
+                    new LogicalPoint(clampedPosition.X, clampedPosition.Y)))
+            {
+                _pendingSelectionStart = null;
+                _session.BeginSelection(ToPhysicalPoint(start));
+                _session.UpdateSelection(ToPhysicalPoint(clampedPosition));
+                SelectionChanged?.Invoke(this, EventArgs.Empty);
+            }
+
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         if (_session.State == ScreenshotSessionState.Selected)
         {
             Cursor = _session.SelectionContains(ToPhysicalPoint(rawPosition))
                 ? _moveCursor
                 : _crosshairCursor;
+            return;
+        }
+
+        if (_session.State == ScreenshotSessionState.ResizingSelection)
+        {
+            _session.UpdateResizeSelection(ToPhysicalPoint(rawPosition));
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+            e.Handled = true;
             return;
         }
 
@@ -171,11 +233,32 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_pendingSelectionStart is not null)
+        {
+            _pendingSelectionStart = null;
+            ReleasePointerCapture();
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         if (_session.State == ScreenshotSessionState.MovingSelection)
         {
             _session.UpdateMoveSelection(ToPhysicalPoint(e.GetPosition(this)));
             _session.CompleteMoveSelection();
-            e.Pointer.Capture(control: null);
+            ReleasePointerCapture();
+            Cursor = _moveCursor;
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
+        if (_session.State == ScreenshotSessionState.ResizingSelection)
+        {
+            _session.UpdateResizeSelection(ToPhysicalPoint(e.GetPosition(this)));
+            _session.CompleteResizeSelection();
+            ReleasePointerCapture();
             Cursor = _moveCursor;
             SelectionChanged?.Invoke(this, EventArgs.Empty);
             InvalidateVisual();
@@ -191,7 +274,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         var position = _pixelInspector.UpdatePointer(e.GetPosition(this), Bounds.Size);
         _session.UpdateSelection(ToPhysicalPoint(position));
         _session.CompleteSelection();
-        e.Pointer.Capture(control: null);
+        ReleasePointerCapture();
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
         e.Handled = true;
@@ -212,9 +295,50 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     }
 
     private PhysicalPoint ToPhysicalPoint(Point point) =>
-        new(
-            checked((int)Math.Round(point.X * _frame.ScaleX)),
-            checked((int)Math.Round(point.Y * _frame.ScaleY)));
+        _frame.ToPhysicalPoint(new LogicalPoint(point.X, point.Y));
+
+    private void CapturePointer(IPointer pointer)
+    {
+        _capturedPointer = pointer;
+        pointer.Capture(this);
+    }
+
+    private void ReleasePointerCapture()
+    {
+        _capturedPointer?.Capture(control: null);
+        _capturedPointer = null;
+    }
+
+    private static SelectionResizeHandle? HitTestResizeHandle(Point point, Rect selection)
+    {
+        var hitRadius = Math.Max(6, ScreenshotUiTheme.SelectionHandleSize / 2 + 3);
+        var handles = new (SelectionResizeHandle Handle, Point Center)[]
+        {
+            (SelectionResizeHandle.TopLeft, selection.TopLeft),
+            (SelectionResizeHandle.Top, new Point(selection.Center.X, selection.Top)),
+            (SelectionResizeHandle.TopRight, selection.TopRight),
+            (SelectionResizeHandle.Right, new Point(selection.Right, selection.Center.Y)),
+            (SelectionResizeHandle.BottomRight, selection.BottomRight),
+            (SelectionResizeHandle.Bottom, new Point(selection.Center.X, selection.Bottom)),
+            (SelectionResizeHandle.BottomLeft, selection.BottomLeft),
+            (SelectionResizeHandle.Left, new Point(selection.Left, selection.Center.Y)),
+        };
+
+        foreach (var handle in handles)
+        {
+            var hitBounds = new Rect(
+                handle.Center.X - hitRadius,
+                handle.Center.Y - hitRadius,
+                hitRadius * 2,
+                hitRadius * 2);
+            if (hitBounds.Contains(point))
+            {
+                return handle.Handle;
+            }
+        }
+
+        return null;
+    }
 
     private static void DrawSelectionHandles(DrawingContext context, Rect selection)
     {

@@ -278,7 +278,11 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         if (e.Key == Key.Escape)
         {
             e.Handled = true;
-            Close();
+            if (_selectionCanvas.CancelCurrentLayer() == ScreenshotCancelResult.ExitRequested)
+            {
+                Close();
+            }
+
             return;
         }
 
@@ -304,22 +308,6 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             _selectionCanvas.Session.Selection is { } copySelection)
         {
             CopySelection(copySelection, closeAfterCopy: true);
-            return;
-        }
-
-        if (_selectionCanvas.SampledColor is not { } color)
-        {
-            return;
-        }
-
-        try
-        {
-            _clipboardService.CopyText(color.Hex);
-        }
-        catch (Exception exception)
-        {
-            _sizeText.Text = ScreenshotUiText.CopyColorFailed;
-            ToolTip.SetTip(_sizeBadge, exception.Message);
         }
     }
 

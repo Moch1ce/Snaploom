@@ -54,6 +54,11 @@ public sealed class CapturedFrame : IDisposable
 
     public double DpiY => 96 * ScaleY;
 
+    public PhysicalPoint ToPhysicalPoint(LogicalPoint point) =>
+        new(
+            checked((int)Math.Round(point.X * ScaleX)),
+            checked((int)Math.Round(point.Y * ScaleY)));
+
     public ReadOnlyMemory<byte> Pixels =>
         _pixels ?? throw new ObjectDisposedException(nameof(CapturedFrame));
 

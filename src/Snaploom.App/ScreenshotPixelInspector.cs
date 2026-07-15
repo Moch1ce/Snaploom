@@ -1,4 +1,3 @@
-using System.Globalization;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -10,19 +9,8 @@ internal sealed class ScreenshotPixelInspector
 {
     private static readonly Pen BorderPen = new(ScreenshotUiTheme.FloatingBorderBrush, 1);
     private static readonly Pen CrosshairPen = new(ScreenshotUiTheme.AccentBrush, 1);
-    private static readonly Typeface NormalTypeface = new(
-        FontFamily.Default,
-        FontStyle.Normal,
-        FontWeight.Normal,
-        FontStretch.Normal);
-    private static readonly Typeface ValueTypeface = new(
-        FontFamily.Default,
-        FontStyle.Normal,
-        FontWeight.SemiBold,
-        FontStretch.Normal);
     private const double Width = 132;
     private const double PreviewHeight = 132;
-    private const double DetailsHeight = 76;
     private const double PointerGap = 16;
     private const double ScreenMargin = 8;
     private const double CornerRadius = 8;
@@ -42,9 +30,6 @@ internal sealed class ScreenshotPixelInspector
         _frame = frame;
         _bitmap = bitmap;
     }
-
-    public CapturedColor? SampledColor =>
-        _samplePoint is { } point ? _frame.SamplePixel(point) : null;
 
     public Point UpdatePointer(Point point, Size bounds)
     {
@@ -73,8 +58,6 @@ internal sealed class ScreenshotPixelInspector
         }
 
         var card = PlaceCard(pointer, bounds);
-        var preview = new Rect(card.X, card.Y, card.Width, PreviewHeight);
-        var details = new Rect(card.X, preview.Bottom, card.Width, DetailsHeight);
 
         context.DrawRectangle(
             ScreenshotUiTheme.FloatingSurfaceBrush,
@@ -86,49 +69,8 @@ internal sealed class ScreenshotPixelInspector
 
         using (context.PushClip(new RoundedRect(card, CornerRadius)))
         {
-            DrawMagnifiedPixels(context, preview, samplePoint);
-            context.DrawRectangle(ScreenshotUiTheme.FloatingSurfaceBrush, pen: null, details);
+            DrawMagnifiedPixels(context, card, samplePoint);
         }
-
-        context.DrawLine(
-            BorderPen,
-            new Point(details.Left, details.Top),
-            new Point(details.Right, details.Top));
-
-        var color = _frame.SamplePixel(samplePoint);
-        DrawText(
-            context,
-            ScreenshotUiText.CoordinateLabel,
-            details.X + 10,
-            details.Y + 8,
-            ScreenshotUiTheme.PrimaryTextBrush);
-        DrawText(
-            context,
-            $"{samplePoint.X}, {samplePoint.Y}",
-            details.X + 58,
-            details.Y + 8,
-            ScreenshotUiTheme.PrimaryTextBrush,
-            ValueTypeface);
-        DrawText(
-            context,
-            ScreenshotUiText.ColorLabel,
-            details.X + 10,
-            details.Y + 29,
-            ScreenshotUiTheme.PrimaryTextBrush);
-        DrawText(
-            context,
-            color.Hex,
-            details.X + 58,
-            details.Y + 29,
-            ScreenshotUiTheme.PrimaryTextBrush,
-            ValueTypeface);
-        DrawText(
-            context,
-            ScreenshotUiText.CopyColorHint,
-            details.X + 10,
-            details.Y + 52,
-            ScreenshotUiTheme.MutedTextBrush,
-            fontSize: 11);
     }
 
     private void DrawMagnifiedPixels(
@@ -173,7 +115,7 @@ internal sealed class ScreenshotPixelInspector
 
     private static Rect PlaceCard(Point pointer, Size bounds)
     {
-        var totalHeight = PreviewHeight + DetailsHeight;
+        const double totalHeight = PreviewHeight;
         var x = pointer.X + PointerGap;
         var y = pointer.Y + PointerGap;
 
@@ -198,24 +140,5 @@ internal sealed class ScreenshotPixelInspector
                 Math.Max(ScreenMargin, bounds.Height - totalHeight - ScreenMargin)),
             Width,
             totalHeight);
-    }
-
-    private static void DrawText(
-        DrawingContext context,
-        string text,
-        double x,
-        double y,
-        IBrush brush,
-        Typeface? typeface = null,
-        double fontSize = 12)
-    {
-        var formattedText = new FormattedText(
-            text,
-            CultureInfo.GetCultureInfo("zh-CN"),
-            FlowDirection.LeftToRight,
-            typeface ?? NormalTypeface,
-            fontSize,
-            brush);
-        context.DrawText(formattedText, new Point(x, y));
     }
 }
