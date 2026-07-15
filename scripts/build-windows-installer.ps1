@@ -18,6 +18,7 @@ $publishDirectory = Join-Path $artifactRoot 'publish'
 $installerDirectory = Join-Path $artifactRoot 'installer'
 $iconPath = Join-Path $repoRoot 'src/Snaploom.App/Assets/Snaploom.ico'
 $installerDefinition = Join-Path $repoRoot 'packaging/windows/Snaploom.iss'
+$chineseLanguagePath = Join-Path $repoRoot 'packaging/windows/Languages/ChineseSimplified.isl'
 $maxInstallerBytes = 50000000
 
 if (Test-Path $artifactRoot) {
@@ -72,6 +73,7 @@ $compilerArguments = @(
     "/DPublishDir=$publishDirectory",
     "/DOutputDir=$installerDirectory",
     "/DIconPath=$iconPath",
+    "/DChineseLanguagePath=$chineseLanguagePath",
     $installerDefinition
 )
 & $InnoCompiler @compilerArguments

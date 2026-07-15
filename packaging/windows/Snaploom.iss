@@ -10,6 +10,9 @@
 #ifndef IconPath
   #error IconPath must be supplied by the build script.
 #endif
+#ifndef ChineseLanguagePath
+  #error ChineseLanguagePath must be supplied by the build script.
+#endif
 
 #define AppExeName "Snaploom.App.exe"
 
@@ -51,7 +54,7 @@ VersionInfoProductVersion={#AppVersion}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
-Name: "chinesesimplified"; MessagesFile: "compiler:Languages\Unofficial\ChineseSimplified.isl"
+Name: "chinesesimplified"; MessagesFile: "{#ChineseLanguagePath}"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked

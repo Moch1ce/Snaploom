@@ -39,7 +39,7 @@ Avalonia 的其他传递包（FreeDesktop、HarfBuzz、Native、Remote.Protocol�
 
 Headless 测试引入的 Avalonia 字体、HarfBuzzSharp 和 SkiaSharp 平台原生资源包均为 MIT。
 
-Inno Setup 只在 Windows 安装包构建阶段使用。其安装程序运行时保留上游版权与网站信息，Snaploom 不修改或冒充该组件来源。
+Inno Setup 只在 Windows 安装包构建阶段使用。其安装程序运行时保留上游版权与网站信息，Snaploom 不修改或冒充该组件来源。仓库内固定保存的简体中文消息文件来自 Inno Setup 6.7.1 上游源码，文件头保留译者与来源说明。
 
 ## 复核方法
 
