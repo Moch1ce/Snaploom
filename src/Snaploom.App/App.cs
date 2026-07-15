@@ -4,6 +4,8 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using Avalonia.Styling;
 using Avalonia.Themes.Fluent;
+using System.Globalization;
+using System.ComponentModel;
 using Snaploom.Core;
 using Snaploom.Platform.Abstractions;
 using Snaploom.Rendering;
@@ -17,6 +19,13 @@ public sealed class App : Application, IDisposable
     private ScreenshotController? _screenshotController;
     private ScreenshotHotKeyManager? _hotKeyManager;
     private ShortcutSettingsWindow? _shortcutSettingsWindow;
+    private AppSettingsService? _settings;
+    private TrayMenuViewModel? _trayViewModel;
+    private ApplicationLaunchPlan? _launchPlan;
+    private NativeMenuItem? _autoStartMenuItem;
+    private readonly CultureInfo _systemCulture = CultureInfo.CurrentUICulture;
+
+    internal static Func<DesktopPlatformKind, AppSettingsService>? SettingsServiceFactory { get; set; }
 
     public override void Initialize()
     {
@@ -39,8 +48,14 @@ public sealed class App : Application, IDisposable
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             desktop.Exit += HandleDesktopExit;
 
-            _screenshotController = ScreenshotController.TryCreate(platform);
-            var launchPlan = ApplicationLaunchPlan.Create(_screenshotController is not null);
+            var defaults = AppSettings.CreateDefault(platform.Kind);
+            _settings = SettingsServiceFactory?.Invoke(platform.Kind) ??
+                new AppSettingsService(
+                    new JsonAppSettingsStore(AppSettingsService.GetDefaultPath(), defaults));
+            ApplyAppearance();
+
+            _screenshotController = ScreenshotController.TryCreate(platform, _settings);
+            _launchPlan = ApplicationLaunchPlan.Create(_screenshotController is not null);
             if (_screenshotController is not null &&
                 platform is IGlobalScreenshotHotKeyService hotKeyService &&
                 platform is ISystemResumeService resumeService)
@@ -48,18 +63,20 @@ public sealed class App : Application, IDisposable
                 _hotKeyManager = new ScreenshotHotKeyManager(
                     hotKeyService,
                     resumeService,
-                    ScreenshotHotKeyDefaults.For(platform.Kind),
+                    _settings.Current.HotKey,
                     () => Dispatcher.UIThread.Post(
                         () => _ = _screenshotController.StartAsync()));
                 _hotKeyManager.Start();
             }
 
-            var viewModel = new TrayMenuViewModel(
+            _trayViewModel = new TrayMenuViewModel(
                 () => _screenshotController?.StartAsync() ?? Task.CompletedTask,
                 ShowShortcutSettings,
                 platform as IAutoStartService,
-                () => desktop.Shutdown());
-            _trayIcon = CreateTrayIcon(viewModel, launchPlan);
+                () => desktop.Shutdown(),
+                _settings);
+            _trayViewModel.PropertyChanged += HandleTrayViewModelChanged;
+            _trayIcon = CreateTrayIcon(_trayViewModel, _launchPlan);
             TrayIcon.SetIcons(this, new TrayIcons { _trayIcon });
 
             Program.PrimaryInstance?.StartListening(
@@ -70,7 +87,22 @@ public sealed class App : Application, IDisposable
         base.OnFrameworkInitializationCompleted();
     }
 
-    private static TrayIcon CreateTrayIcon(
+    private TrayIcon CreateTrayIcon(
+        TrayMenuViewModel viewModel,
+        ApplicationLaunchPlan launchPlan)
+    {
+        var menu = CreateTrayMenu(viewModel, launchPlan);
+        using var iconStream = new MemoryStream(TrayIconRenderer.RenderPng(size: 32), writable: false);
+        return new TrayIcon
+        {
+            Icon = new WindowIcon(iconStream),
+            IsVisible = launchPlan.ShowTrayIcon,
+            Menu = menu,
+            ToolTipText = ProductIdentity.Name,
+        };
+    }
+
+    private NativeMenu CreateTrayMenu(
         TrayMenuViewModel viewModel,
         ApplicationLaunchPlan launchPlan)
     {
@@ -81,7 +113,7 @@ public sealed class App : Application, IDisposable
             {
                 case TrayAction.StartScreenshot:
                     menu.Add(
-                        new NativeMenuItem("开始截图")
+                        new NativeMenuItem(AppUiText.StartScreenshot)
                         {
                             Command = viewModel.StartScreenshotCommand,
                             IsEnabled = item.IsEnabled,
@@ -90,7 +122,7 @@ public sealed class App : Application, IDisposable
 
                 case TrayAction.ShortcutSettings:
                     menu.Add(
-                        new NativeMenuItem("快捷键设置…")
+                        new NativeMenuItem(AppUiText.SettingsMenu)
                         {
                             Command = viewModel.OpenShortcutSettingsCommand,
                             IsEnabled = item.IsEnabled,
@@ -98,26 +130,19 @@ public sealed class App : Application, IDisposable
                     break;
 
                 case TrayAction.AutoStart:
-                    var autoStartItem = new NativeMenuItem("开机启动")
+                    _autoStartMenuItem = new NativeMenuItem(AppUiText.AutoStart)
                     {
                         Command = viewModel.ToggleAutoStartCommand,
                         IsEnabled = item.IsEnabled,
                         ToggleType = MenuItemToggleType.CheckBox,
                         IsChecked = viewModel.IsAutoStartEnabled,
                     };
-                    viewModel.PropertyChanged += (_, args) =>
-                    {
-                        if (args.PropertyName == nameof(viewModel.IsAutoStartEnabled))
-                        {
-                            autoStartItem.IsChecked = viewModel.IsAutoStartEnabled;
-                        }
-                    };
-                    menu.Add(autoStartItem);
+                    menu.Add(_autoStartMenuItem);
                     break;
 
                 case TrayAction.Exit:
                     menu.Add(
-                        new NativeMenuItem("退出")
+                        new NativeMenuItem(AppUiText.Exit)
                         {
                             Command = viewModel.ExitCommand,
                             IsEnabled = item.IsEnabled,
@@ -129,19 +154,12 @@ public sealed class App : Application, IDisposable
             }
         }
 
-        using var iconStream = new MemoryStream(TrayIconRenderer.RenderPng(size: 32), writable: false);
-        return new TrayIcon
-        {
-            Icon = new WindowIcon(iconStream),
-            IsVisible = launchPlan.ShowTrayIcon,
-            Menu = menu,
-            ToolTipText = ProductIdentity.Name,
-        };
+        return menu;
     }
 
     private void ShowShortcutSettings()
     {
-        if (_hotKeyManager is null)
+        if (_hotKeyManager is null || _settings is null || _trayViewModel is null)
         {
             return;
         }
@@ -152,14 +170,45 @@ public sealed class App : Application, IDisposable
             return;
         }
 
-        _shortcutSettingsWindow = new ShortcutSettingsWindow(_hotKeyManager);
+        _shortcutSettingsWindow = new ShortcutSettingsWindow(
+            _hotKeyManager,
+            _settings,
+            _trayViewModel,
+            ApplyAppearance);
         _shortcutSettingsWindow.Closed += (_, _) => _shortcutSettingsWindow = null;
         _shortcutSettingsWindow.Show();
+    }
+
+    private void ApplyAppearance()
+    {
+        if (_settings is null)
+        {
+            return;
+        }
+
+        var culture = AppAppearance.GetCulture(_settings.Current.Language, _systemCulture);
+        CultureInfo.CurrentUICulture = culture;
+        CultureInfo.DefaultThreadCurrentUICulture = culture;
+        RequestedThemeVariant = AppAppearance.GetThemeVariant(_settings.Current.Theme);
+        if (_trayIcon is not null && _trayViewModel is not null && _launchPlan is not null)
+        {
+            _trayIcon.Menu = CreateTrayMenu(_trayViewModel, _launchPlan);
+        }
     }
 
     private void HandleDesktopExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
         Dispose();
+    }
+
+    private void HandleTrayViewModelChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TrayMenuViewModel.IsAutoStartEnabled) &&
+            _autoStartMenuItem is not null &&
+            _trayViewModel is not null)
+        {
+            _autoStartMenuItem.IsChecked = _trayViewModel.IsAutoStartEnabled;
+        }
     }
 
     public void Dispose()
@@ -173,6 +222,15 @@ public sealed class App : Application, IDisposable
         _shortcutSettingsWindow = null;
         _hotKeyManager?.Dispose();
         _hotKeyManager = null;
+        if (_trayViewModel is not null)
+        {
+            _trayViewModel.PropertyChanged -= HandleTrayViewModelChanged;
+            _trayViewModel = null;
+        }
+
+        _autoStartMenuItem = null;
+        _launchPlan = null;
+        _settings = null;
         _desktopPlatform?.Dispose();
         _desktopPlatform = null;
     }

@@ -9,11 +9,14 @@ public sealed class TrayMenuViewModelTests
     public void AutoStartIsOffUntilTheUserEnablesIt()
     {
         var autoStart = new FakeAutoStartService();
+        var settings = AppSettingsService.CreateTransient(
+            AppSettings.CreateDefault(DesktopPlatformKind.Windows));
         var viewModel = new TrayMenuViewModel(
             () => Task.CompletedTask,
             () => { },
             autoStart,
-            () => { });
+            () => { },
+            settings);
 
         Assert.False(viewModel.IsAutoStartEnabled);
 
@@ -21,6 +24,7 @@ public sealed class TrayMenuViewModelTests
 
         Assert.True(viewModel.IsAutoStartEnabled);
         Assert.True(autoStart.Enabled);
+        Assert.True(settings.Current.AutoStart);
     }
 
     private sealed class FakeAutoStartService : IAutoStartService

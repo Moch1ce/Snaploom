@@ -44,8 +44,14 @@ internal sealed class ScreenshotToolbar : Border
     private readonly Dictionary<int, ScreenshotToolbarButton> _mosaicBrushButtons = [];
     private ScreenshotAnnotationTool? _selectedObjectTool;
 
-    internal ScreenshotToolbar()
+    internal ScreenshotToolbar(
+        ScreenshotAnnotationStyle? annotationStyle = null,
+        ScreenshotTextStyle? textStyle = null,
+        ScreenshotMosaicStyle? mosaicStyle = null)
     {
+        AnnotationStyle = annotationStyle ?? ScreenshotAnnotationStyle.Default;
+        TextStyle = textStyle ?? ScreenshotTextStyle.Default;
+        MosaicStyle = mosaicStyle ?? ScreenshotMosaicStyle.Default;
         Height = ScreenshotUiTheme.ToolbarHeight;
         Background = ScreenshotUiTheme.FloatingSurfaceBrush;
         BorderBrush = ScreenshotUiTheme.FloatingBorderBrush;
@@ -323,10 +329,7 @@ internal sealed class ScreenshotToolbar : Border
         _mosaicBrushOptions.IsVisible = false;
         options.Children.Add(_mosaicBrushOptions);
 
-        _colorButtons[ScreenshotAnnotationColor.Red].IsSelected = true;
-        _lineWidthButtons[4].IsSelected = true;
-        _fontSizeButtons[24].IsSelected = true;
-        _mosaicBrushButtons[32].IsSelected = true;
+        UpdateStyleSelection();
         return options;
     }
 

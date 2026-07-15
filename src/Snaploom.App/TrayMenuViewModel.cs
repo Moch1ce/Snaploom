@@ -10,13 +10,15 @@ public sealed partial class TrayMenuViewModel : ObservableObject
     private readonly Func<Task> _startScreenshot;
     private readonly Action _openShortcutSettings;
     private readonly IAutoStartService? _autoStartService;
+    private readonly AppSettingsService? _settings;
     private readonly Action _requestShutdown;
 
     public TrayMenuViewModel(
         Func<Task> startScreenshot,
         Action openShortcutSettings,
         IAutoStartService? autoStartService,
-        Action requestShutdown)
+        Action requestShutdown,
+        AppSettingsService? settings = null)
     {
         ArgumentNullException.ThrowIfNull(startScreenshot);
         ArgumentNullException.ThrowIfNull(openShortcutSettings);
@@ -24,8 +26,10 @@ public sealed partial class TrayMenuViewModel : ObservableObject
         _startScreenshot = startScreenshot;
         _openShortcutSettings = openShortcutSettings;
         _autoStartService = autoStartService;
+        _settings = settings;
         _requestShutdown = requestShutdown;
         IsAutoStartEnabled = ReadAutoStartState(autoStartService);
+        _settings?.Update(current => current with { AutoStart = IsAutoStartEnabled });
     }
 
     [ObservableProperty]
@@ -50,6 +54,7 @@ public sealed partial class TrayMenuViewModel : ObservableObject
         {
             _autoStartService.SetAutoStartEnabled(enabled);
             IsAutoStartEnabled = enabled;
+            _settings?.Update(current => current with { AutoStart = enabled });
         }
         catch (InvalidOperationException)
         {
@@ -58,6 +63,9 @@ public sealed partial class TrayMenuViewModel : ObservableObject
         {
         }
         catch (SecurityException)
+        {
+        }
+        catch (IOException)
         {
         }
     }
@@ -80,6 +88,10 @@ public sealed partial class TrayMenuViewModel : ObservableObject
             return false;
         }
         catch (SecurityException)
+        {
+            return false;
+        }
+        catch (IOException)
         {
             return false;
         }

@@ -17,6 +17,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     private readonly IPngSaveDialogService _saveDialogService;
     private readonly IScreenshotClipboardService _clipboardService;
     private readonly IScreenshotOverlayConfigurator _overlayConfigurator;
+    private readonly AppSettingsService? _settings;
     private readonly ScreenshotSelectionCanvas _selectionCanvas;
     private readonly TextBlock _sizeText;
     private readonly Border _sizeBadge;
@@ -57,7 +58,8 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         CapturedScreen capturedScreen,
         IPngSaveDialogService saveDialogService,
         IScreenshotClipboardService clipboardService,
-        IScreenshotOverlayConfigurator overlayConfigurator)
+        IScreenshotOverlayConfigurator overlayConfigurator,
+        AppSettingsService? settings = null)
     {
         ArgumentNullException.ThrowIfNull(capturedScreen);
         ArgumentNullException.ThrowIfNull(saveDialogService);
@@ -67,6 +69,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _saveDialogService = saveDialogService;
         _clipboardService = clipboardService;
         _overlayConfigurator = overlayConfigurator;
+        _settings = settings;
         _availableUiBounds = new Rect(
             new Size(
                 capturedScreen.Frame.LogicalSize.Width,
@@ -113,7 +116,10 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             Child = _sizeText,
         };
 
-        _toolbar = new ScreenshotToolbar
+        _toolbar = new ScreenshotToolbar(
+            settings?.Current.AnnotationStyle,
+            settings?.Current.TextStyle,
+            settings?.Current.MosaicStyle)
         {
             RenderTransform = _toolbarTransform,
         };
@@ -124,6 +130,9 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _toolbar.AnnotationStyleChanged += HandleAnnotationStyleChanged;
         _toolbar.UndoRequested += HandleUndo;
         _toolbar.RedoRequested += HandleRedo;
+        _selectionCanvas.SetAnnotationStyle(_toolbar.AnnotationStyle);
+        _selectionCanvas.SetTextStyle(_toolbar.TextStyle);
+        _selectionCanvas.SetMosaicStyle(_toolbar.MosaicStyle);
 
         _textEditor = new TextBox
         {
@@ -278,7 +287,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             var suggestedName = $"Snaploom_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.png";
             var path = _saveDialogService.ShowSaveDialog(
                 suggestedName,
-                s_rememberedSaveDirectory);
+                _settings?.Current.LastSaveDirectory ?? s_rememberedSaveDirectory);
             if (path is null)
             {
                 _selectionCanvas.Session.CancelSave();
@@ -288,11 +297,15 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
             path = Path.ChangeExtension(path, ".png");
             s_rememberedSaveDirectory = Path.GetDirectoryName(path);
+            _settings?.Update(current => current with
+            {
+                LastSaveDirectory = s_rememberedSaveDirectory,
+            });
 
             await File.WriteAllBytesAsync(path, EncodeSelection(selection));
             Close();
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             if (_selectionCanvas.Session.State == ScreenshotSessionState.Saving)
             {
@@ -301,7 +314,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
             _toolbar.SetSelectionActionsEnabled(isEnabled: true);
             _sizeText.Text = ScreenshotUiText.SaveFailed;
-            ToolTip.SetTip(_sizeBadge, exception.Message);
+            ToolTip.SetTip(_sizeBadge, ScreenshotUiText.SaveFailed);
         }
     }
 
@@ -333,11 +346,11 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
                 RestoreSelectedUi(selection);
             }
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             _toolbar.SetSelectionActionsEnabled(isEnabled: true);
             _sizeText.Text = ScreenshotUiText.CopyImageFailed;
-            ToolTip.SetTip(_sizeBadge, exception.Message);
+            ToolTip.SetTip(_sizeBadge, ScreenshotUiText.CopyImageFailed);
         }
     }
 
@@ -375,6 +388,14 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _selectionCanvas.SetAnnotationStyle(_toolbar.AnnotationStyle);
         _selectionCanvas.SetTextStyle(_toolbar.TextStyle);
         _selectionCanvas.SetMosaicStyle(_toolbar.MosaicStyle);
+        _settings?.Update(current => current with
+        {
+            AnnotationColor = _toolbar.AnnotationStyle.Color,
+            AnnotationLineWidth = _toolbar.AnnotationStyle.LineWidth,
+            TextColor = _toolbar.TextStyle.Color,
+            TextFontSize = _toolbar.TextStyle.FontSize,
+            MosaicBrushSize = _toolbar.MosaicStyle.BrushSize,
+        });
     }
 
     private void HandleAnnotationSelectionChanged(object? sender, EventArgs e)

@@ -15,7 +15,7 @@ public sealed class ScreenCapturePermissionWindow : Window
         ArgumentNullException.ThrowIfNull(permissionService);
         _permissionService = permissionService;
 
-        Title = "允许 Snaploom 录制屏幕";
+        Title = AppUiText.PermissionTitle;
         Width = 480;
         Height = 235;
         CanResize = false;
@@ -25,32 +25,32 @@ public sealed class ScreenCapturePermissionWindow : Window
 
         _statusText = new TextBlock
         {
-            Text = "截图需要 macOS 的“屏幕与系统音频录制”权限。Snaploom 只在你主动截图时读取屏幕。",
+            Text = AppUiText.PermissionDescription,
             TextWrapping = Avalonia.Media.TextWrapping.Wrap,
             FontSize = 14,
         };
 
         var requestButton = new Button
         {
-            Content = "继续授权",
+            Content = AppUiText.ContinueAuthorization,
             MinWidth = 96,
         };
         requestButton.Click += HandleRequestPermission;
 
         var settingsButton = new Button
         {
-            Content = "打开系统设置",
+            Content = AppUiText.OpenSystemSettings,
             MinWidth = 110,
         };
         settingsButton.Click += (_, _) =>
         {
             _permissionService.OpenPermissionSettings();
-            _statusText.Text = "授权后若仍无法截图，请退出并重新打开 Snaploom，再按 Command+Shift+A。";
+            _statusText.Text = AppUiText.PermissionRestartHint;
         };
 
         var cancelButton = new Button
         {
-            Content = "稍后",
+            Content = AppUiText.Later,
             MinWidth = 76,
         };
         cancelButton.Click += (_, _) => Close();
@@ -82,6 +82,6 @@ public sealed class ScreenCapturePermissionWindow : Window
             return;
         }
 
-        _statusText.Text = "权限尚未开启。请点击“打开系统设置”，允许 Snaploom 录制屏幕后重新启动应用。";
+        _statusText.Text = AppUiText.PermissionNotGranted;
     }
 }

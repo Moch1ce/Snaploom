@@ -11,6 +11,7 @@ public sealed class ScreenshotController : IDisposable
     private readonly IPngSaveDialogService _saveDialogService;
     private readonly IScreenshotClipboardService _clipboardService;
     private readonly IScreenshotOverlayConfigurator _overlayConfigurator;
+    private readonly AppSettingsService _settings;
     private readonly ScreenshotActivationGate _activationGate = new();
     private ScreenshotOverlayWindow? _overlay;
     private CaptureFailureOverlayWindow? _failureOverlay;
@@ -22,18 +23,23 @@ public sealed class ScreenshotController : IDisposable
         IScreenCaptureService captureService,
         IPngSaveDialogService saveDialogService,
         IScreenshotClipboardService clipboardService,
-        IScreenshotOverlayConfigurator overlayConfigurator)
+        IScreenshotOverlayConfigurator overlayConfigurator,
+        AppSettingsService settings)
     {
         _permissionService = permissionService;
         _captureService = captureService;
         _saveDialogService = saveDialogService;
         _clipboardService = clipboardService;
         _overlayConfigurator = overlayConfigurator;
+        _settings = settings;
     }
 
-    public static ScreenshotController? TryCreate(IDesktopPlatform platform)
+    public static ScreenshotController? TryCreate(
+        IDesktopPlatform platform,
+        AppSettingsService settings)
     {
         ArgumentNullException.ThrowIfNull(platform);
+        ArgumentNullException.ThrowIfNull(settings);
 
         return platform is IScreenCapturePermissionService permissionService &&
                platform is IScreenCaptureService captureService &&
@@ -45,7 +51,8 @@ public sealed class ScreenshotController : IDisposable
                 captureService,
                 saveDialogService,
                 clipboardService,
-                overlayConfigurator)
+                overlayConfigurator,
+                settings)
             : null;
     }
 
@@ -83,16 +90,14 @@ public sealed class ScreenshotController : IDisposable
                     }
                     else
                     {
-                        ShowCaptureFailure(
-                            $"系统未能读取显示器画面。请退出截图后重试。{exception.Message}");
+                        ShowCaptureFailure(AppUiText.CaptureSystemFailure);
                     }
                 });
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             await Dispatcher.UIThread.InvokeAsync(
-                () => ShowCaptureFailure(
-                    $"截图过程中发生错误。请退出后重试。错误类型：{exception.GetType().Name}"));
+                () => ShowCaptureFailure(AppUiText.CaptureUnexpectedFailure));
         }
         finally
         {
@@ -141,7 +146,8 @@ public sealed class ScreenshotController : IDisposable
             capturedScreen,
             _saveDialogService,
             _clipboardService,
-            _overlayConfigurator);
+            _overlayConfigurator,
+            _settings);
         _overlay.Closed += (_, _) =>
         {
             _overlay = null;

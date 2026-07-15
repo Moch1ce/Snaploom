@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Headless;
+using Snaploom.App;
 
 namespace Snaploom.IntegrationTests;
 
@@ -10,6 +11,8 @@ public sealed class AppLifecycleTests
     [Fact]
     public void AppStartsInTheTrayAndTheExitMenuShutsItDown()
     {
+        Snaploom.App.App.SettingsServiceFactory = platform => AppSettingsService.CreateTransient(
+            AppSettings.CreateDefault(platform));
         var lifetime = new ClassicDesktopStyleApplicationLifetime
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown,
@@ -39,6 +42,7 @@ public sealed class AppLifecycleTests
             var exitItem = Assert.IsType<NativeMenuItem>(menu.Items[3]);
 
             Assert.True(startScreenshotItem.IsEnabled);
+            Assert.Equal(AppUiText.StartScreenshot, startScreenshotItem.Header);
             Assert.NotNull(startScreenshotItem.Command);
             Assert.True(shortcutSettingsItem.IsEnabled);
             Assert.NotNull(shortcutSettingsItem.Command);
@@ -55,6 +59,7 @@ public sealed class AppLifecycleTests
         }
         finally
         {
+            Snaploom.App.App.SettingsServiceFactory = null;
             if (!exitRaised)
             {
                 lifetime.Shutdown();

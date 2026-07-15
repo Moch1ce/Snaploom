@@ -21,6 +21,11 @@ public sealed class ScreenshotCompletionWorkflowTests
         var finalPath = Path.ChangeExtension(requestedPath, ".png");
         var saveDialog = new RecordingSaveDialog(requestedPath);
         var clipboard = new CapturingClipboard();
+        var settings = AppSettingsService.CreateTransient(
+            AppSettings.CreateDefault(
+                OperatingSystem.IsMacOS()
+                    ? DesktopPlatformKind.MacOS
+                    : DesktopPlatformKind.Windows));
         var frame = CreateFrame(600, 400);
         try
         {
@@ -29,7 +34,8 @@ public sealed class ScreenshotCompletionWorkflowTests
                 capturedScreen,
                 saveDialog,
                 clipboard,
-                new NullOverlayConfigurator());
+                new NullOverlayConfigurator(),
+                settings);
             window.Show();
             Drag(window, new Point(50, 50), new Point(500, 300));
             window.KeyPress(Key.R, RawInputModifiers.None, PhysicalKey.R, "r");
@@ -59,6 +65,7 @@ public sealed class ScreenshotCompletionWorkflowTests
                 saveDialog.SuggestedFileName);
             Assert.Null(saveDialog.InitialDirectory);
             Assert.Equal(directory, ScreenshotOverlayWindow.RememberedSaveDirectory);
+            Assert.Equal(directory, settings.Current.LastSaveDirectory);
             Assert.Equal(clipboard.Png, await File.ReadAllBytesAsync(finalPath));
             Assert.Throws<ObjectDisposedException>(() => _ = frame.Pixels);
         }

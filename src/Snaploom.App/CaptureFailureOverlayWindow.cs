@@ -12,7 +12,7 @@ public sealed class CaptureFailureOverlayWindow : Window
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
 
-        Title = "Snaploom 截图失败";
+        Title = AppUiText.CaptureFailureTitle;
         Width = 640;
         Height = 360;
         CanResize = false;
@@ -24,7 +24,7 @@ public sealed class CaptureFailureOverlayWindow : Window
 
         var exitButton = new Button
         {
-            Content = "退出截图",
+            Content = AppUiText.ExitScreenshot,
             HorizontalAlignment = HorizontalAlignment.Center,
             MinWidth = 96,
         };
@@ -44,7 +44,7 @@ public sealed class CaptureFailureOverlayWindow : Window
                     {
                         new TextBlock
                         {
-                            Text = "无法截取当前屏幕",
+                            Text = AppUiText.CaptureFailureHeading,
                             Foreground = Brushes.White,
                             FontSize = 22,
                             FontWeight = FontWeight.SemiBold,
