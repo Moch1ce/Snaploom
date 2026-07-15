@@ -44,7 +44,7 @@ public sealed class ScreenshotFloatingUiLayoutTests
     }
 
     [Fact]
-    public void KeepsFloatingUiInsideTheDisplayWorkingArea()
+    public void PlacesToolbarInSelectionBottomRightEvenWhenSelectionCrossesDock()
     {
         var placement = Snaploom.App.ScreenshotFloatingUiLayout.Place(
             new Rect(20, 600, 500, 80),
@@ -53,7 +53,7 @@ public sealed class ScreenshotFloatingUiLayoutTests
             new Size(392, 44));
 
         Assert.Equal(new Point(20, 572), placement.BadgeOrigin);
-        Assert.Equal(new Point(128, 548), placement.ToolbarOrigin);
+        Assert.Equal(new Point(112, 620), placement.ToolbarOrigin);
     }
 
     [Fact]

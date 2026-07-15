@@ -40,19 +40,18 @@ internal static class ScreenshotFloatingUiLayout
             availableBounds.Left,
             availableBounds.Right);
         var toolbarY = selection.Bottom + ToolbarGap;
+        var toolbarIsInsideSelection = false;
         if (toolbarY + toolbarSize.Height + EdgeMargin > availableBounds.Bottom)
         {
-            var visibleSelection = selection.Intersect(availableBounds);
-            var insideX = visibleSelection.Right - toolbarSize.Width - ToolbarInsideInset;
-            var insideY = visibleSelection.Bottom - toolbarSize.Height - ToolbarInsideInset;
-            var canPlaceInside = visibleSelection.Width >= toolbarSize.Width + ToolbarInsideInset &&
-                                 visibleSelection.Height >= toolbarSize.Height + ToolbarInsideInset &&
-                                 insideX >= availableBounds.Left + EdgeMargin &&
-                                 insideY >= availableBounds.Top + EdgeMargin;
+            var insideX = selection.Right - toolbarSize.Width - ToolbarInsideInset;
+            var insideY = selection.Bottom - toolbarSize.Height - ToolbarInsideInset;
+            var canPlaceInside = selection.Width >= toolbarSize.Width + ToolbarInsideInset &&
+                                 selection.Height >= toolbarSize.Height + ToolbarInsideInset;
             if (canPlaceInside)
             {
                 toolbarX = insideX;
                 toolbarY = insideY;
+                toolbarIsInsideSelection = true;
             }
             else
             {
@@ -60,12 +59,15 @@ internal static class ScreenshotFloatingUiLayout
             }
         }
 
-        toolbarY = Math.Clamp(
-            toolbarY,
-            availableBounds.Top + EdgeMargin,
-            Math.Max(
+        if (!toolbarIsInsideSelection)
+        {
+            toolbarY = Math.Clamp(
+                toolbarY,
                 availableBounds.Top + EdgeMargin,
-                availableBounds.Bottom - toolbarSize.Height - EdgeMargin));
+                Math.Max(
+                    availableBounds.Top + EdgeMargin,
+                    availableBounds.Bottom - toolbarSize.Height - EdgeMargin));
+        }
 
         return new ScreenshotFloatingUiPlacement(
             new Point(badgeX, badgeY),
