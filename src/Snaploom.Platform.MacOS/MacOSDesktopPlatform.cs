@@ -73,11 +73,11 @@ public sealed class MacOSDesktopPlatform :
     public Task<CapturedScreen> CaptureCurrentDisplayAsync(CancellationToken cancellationToken = default) =>
         Task.Run(CaptureCurrentDisplay, cancellationToken);
 
-    public string? ShowSaveDialog(string suggestedFileName)
+    public string? ShowSaveDialog(string suggestedFileName, string? initialDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(suggestedFileName);
 
-        var pathPointer = MacOSNative.ShowPngSavePanel(suggestedFileName);
+        var pathPointer = MacOSNative.ShowPngSavePanel(suggestedFileName, initialDirectory);
         if (pathPointer == 0)
         {
             return null;

@@ -100,7 +100,9 @@ internal static unsafe partial class MacOSNative
         LibraryName,
         EntryPoint = "snaploom_show_png_save_panel",
         StringMarshalling = StringMarshalling.Utf8)]
-    internal static partial nint ShowPngSavePanel(string suggestedName);
+    internal static partial nint ShowPngSavePanel(
+        string suggestedName,
+        string? initialDirectory);
 
     [LibraryImport(LibraryName, EntryPoint = "snaploom_copy_png_to_clipboard")]
     internal static partial int CopyPngToClipboard(byte* png, nuint length);

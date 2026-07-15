@@ -224,7 +224,7 @@ public sealed class ScreenshotAnnotationShortcutTests
 
     private sealed class NullSaveDialog : IPngSaveDialogService
     {
-        public string? ShowSaveDialog(string suggestedFileName) => null;
+        public string? ShowSaveDialog(string suggestedFileName, string? initialDirectory) => null;
     }
 
     private sealed class NullClipboard : IScreenshotClipboardService

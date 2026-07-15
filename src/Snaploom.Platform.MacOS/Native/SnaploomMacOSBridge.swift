@@ -589,7 +589,10 @@ public func releaseFrame(_ pointer: UnsafeMutableRawPointer) {
 }
 
 @_cdecl("snaploom_show_png_save_panel")
-public func showPngSavePanel(_ suggestedName: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
+public func showPngSavePanel(
+    _ suggestedName: UnsafePointer<CChar>,
+    _ initialDirectory: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>? {
     let name = String(cString: suggestedName)
     var selectedPath: UnsafeMutablePointer<CChar>?
 
@@ -600,6 +603,10 @@ public func showPngSavePanel(_ suggestedName: UnsafePointer<CChar>) -> UnsafeMut
         panel.allowedContentTypes = [.png]
         panel.allowsOtherFileTypes = false
         panel.canCreateDirectories = true
+        if let initialDirectory {
+            let directory = String(cString: initialDirectory)
+            panel.directoryURL = URL(fileURLWithPath: directory, isDirectory: true)
+        }
 
         if panel.runModal() == .OK, let url = panel.url {
             selectedPath = strdup(url.path)

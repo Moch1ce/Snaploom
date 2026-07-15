@@ -23,7 +23,7 @@ public sealed class ScreenshotMosaicTileCacheTests
                 new LogicalPoint(180, 50),
             ],
             style);
-        var cache = new ScreenshotMosaicTileCache(
+        using var cache = new ScreenshotMosaicTileCache(
             width,
             height,
             width * 4,
@@ -46,7 +46,7 @@ public sealed class ScreenshotMosaicTileCacheTests
         const int width = 128;
         const int height = 128;
         var source = CreateGradient(width, height);
-        var cache = new ScreenshotMosaicTileCache(
+        using var cache = new ScreenshotMosaicTileCache(
             width,
             height,
             width * 4,
@@ -74,7 +74,7 @@ public sealed class ScreenshotMosaicTileCacheTests
         const int width = 160;
         const int height = 120;
         var source = CreateGradient(width, height);
-        var cache = new ScreenshotMosaicTileCache(
+        using var cache = new ScreenshotMosaicTileCache(
             width,
             height,
             width * 4,

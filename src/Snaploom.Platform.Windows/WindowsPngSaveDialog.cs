@@ -12,7 +12,7 @@ internal static partial class WindowsPngSaveDialog
     private const uint OfnExplorer = 0x00080000;
     private const uint OfnDoNotAddToRecent = 0x02000000;
 
-    internal static string? Show(string suggestedFileName)
+    internal static string? Show(string suggestedFileName, string? initialDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(suggestedFileName);
         if (suggestedFileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
@@ -24,6 +24,9 @@ internal static partial class WindowsPngSaveDialog
         var filter = Marshal.StringToCoTaskMemUni("PNG image (*.png)\0*.png\0\0");
         var title = Marshal.StringToCoTaskMemUni("保存截图");
         var defaultExtension = Marshal.StringToCoTaskMemUni("png");
+        var initialDirectoryPointer = string.IsNullOrWhiteSpace(initialDirectory)
+            ? 0
+            : Marshal.StringToCoTaskMemUni(initialDirectory);
         try
         {
             Span<char> emptyBuffer;
@@ -49,6 +52,7 @@ internal static partial class WindowsPngSaveDialog
                         OfnExplorer |
                         OfnDoNotAddToRecent,
                 DefaultExtension = defaultExtension,
+                InitialDirectory = initialDirectoryPointer,
             };
 
             if (GetSaveFileName(ref dialog) != 0)
@@ -70,6 +74,10 @@ internal static partial class WindowsPngSaveDialog
             Marshal.FreeCoTaskMem(filter);
             Marshal.FreeCoTaskMem(title);
             Marshal.FreeCoTaskMem(defaultExtension);
+            if (initialDirectoryPointer != 0)
+            {
+                Marshal.FreeCoTaskMem(initialDirectoryPointer);
+            }
         }
     }
 

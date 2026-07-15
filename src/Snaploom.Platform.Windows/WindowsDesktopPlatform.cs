@@ -67,11 +67,11 @@ public sealed partial class WindowsDesktopPlatform :
 #endif
     }
 
-    public string? ShowSaveDialog(string suggestedFileName)
+    public string? ShowSaveDialog(string suggestedFileName, string? initialDirectory)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureWindows();
-        return WindowsPngSaveDialog.Show(suggestedFileName);
+        return WindowsPngSaveDialog.Show(suggestedFileName, initialDirectory);
     }
 
     public void CopyPng(ReadOnlySpan<byte> png)

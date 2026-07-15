@@ -31,7 +31,7 @@ public interface IScreenCaptureService
 
 public interface IPngSaveDialogService
 {
-    string? ShowSaveDialog(string suggestedFileName);
+    string? ShowSaveDialog(string suggestedFileName, string? initialDirectory);
 }
 
 public interface IScreenshotClipboardService

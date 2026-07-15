@@ -141,7 +141,8 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         _moveCursor.Dispose();
         _textCursor.Dispose();
         _annotationBitmap?.Dispose();
-        DisposeMosaicTileBitmaps();
+        ResetMosaicCache();
+        _annotationSession.Clear();
         _bitmap.Dispose();
     }
 
@@ -899,6 +900,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
     private void ResetMosaicCache()
     {
+        _mosaicTileCache?.Dispose();
         _mosaicTileCache = null;
         _mosaicSelection = null;
         _mosaicCacheDirty = true;

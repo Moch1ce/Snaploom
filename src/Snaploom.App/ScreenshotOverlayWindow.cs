@@ -12,6 +12,7 @@ namespace Snaploom.App;
 
 public sealed class ScreenshotOverlayWindow : Window, IDisposable
 {
+    private static string? s_rememberedSaveDirectory;
     private readonly CapturedScreen _capturedScreen;
     private readonly IPngSaveDialogService _saveDialogService;
     private readonly IScreenshotClipboardService _clipboardService;
@@ -43,6 +44,14 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     internal ScreenshotTextEdit? TextEdit => _selectionCanvas.TextEdit;
 
     internal IScreenshotAnnotation? SelectedAnnotation => _selectionCanvas.SelectedAnnotation;
+
+    internal bool CanUndo => _selectionCanvas.CanUndo;
+
+    internal static string? RememberedSaveDirectory
+    {
+        get => s_rememberedSaveDirectory;
+        set => s_rememberedSaveDirectory = value;
+    }
 
     public ScreenshotOverlayWindow(
         CapturedScreen capturedScreen,
@@ -267,13 +276,18 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         try
         {
             var suggestedName = $"Snaploom_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.png";
-            var path = _saveDialogService.ShowSaveDialog(suggestedName);
+            var path = _saveDialogService.ShowSaveDialog(
+                suggestedName,
+                s_rememberedSaveDirectory);
             if (path is null)
             {
                 _selectionCanvas.Session.CancelSave();
                 RestoreSelectedUi(selection);
                 return;
             }
+
+            path = Path.ChangeExtension(path, ".png");
+            s_rememberedSaveDirectory = Path.GetDirectoryName(path);
 
             await File.WriteAllBytesAsync(path, EncodeSelection(selection));
             Close();
@@ -521,17 +535,32 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     {
         if (_textEditor.IsVisible)
         {
+            var editorCommandModifier = OperatingSystem.IsMacOS()
+                ? e.KeyModifiers.HasFlag(KeyModifiers.Meta)
+                : e.KeyModifiers.HasFlag(KeyModifiers.Control);
             if (e.Key == Key.Escape)
             {
                 e.Handled = true;
                 CancelTextEditing();
             }
+            else if (editorCommandModifier && e.Key == Key.S)
+            {
+                e.Handled = true;
+                CommitTextEditing();
+                HandleSave(this, EventArgs.Empty);
+            }
+            else if (editorCommandModifier && e.Key == Key.C)
+            {
+                e.Handled = true;
+                CommitTextEditing();
+                if (_selectionCanvas.Session.Selection is { } textCopySelection)
+                {
+                    CopySelection(textCopySelection, closeAfterCopy: false);
+                }
+            }
             else
             {
-                var commitModifier = OperatingSystem.IsMacOS()
-                    ? e.KeyModifiers.HasFlag(KeyModifiers.Meta)
-                    : e.KeyModifiers.HasFlag(KeyModifiers.Control);
-                if (e.Key == Key.Enter && commitModifier)
+                if (e.Key == Key.Enter && editorCommandModifier)
                 {
                     e.Handled = true;
                     CommitTextEditing();
@@ -563,6 +592,13 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         {
             e.Handled = true;
             _selectionCanvas.RedoAnnotation();
+            return;
+        }
+
+        if (commandModifierPressed && e.Key == Key.S)
+        {
+            e.Handled = true;
+            HandleSave(this, EventArgs.Empty);
             return;
         }
 
@@ -631,7 +667,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         if (_selectionCanvas.Session.State == ScreenshotSessionState.Selected &&
             _selectionCanvas.Session.Selection is { } copySelection)
         {
-            CopySelection(copySelection, closeAfterCopy: true);
+            CopySelection(copySelection, closeAfterCopy: false);
         }
     }
 

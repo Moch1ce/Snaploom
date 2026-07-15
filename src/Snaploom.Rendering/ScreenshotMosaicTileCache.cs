@@ -1,5 +1,6 @@
 using SkiaSharp;
 using Snaploom.Core;
+using System.Security.Cryptography;
 
 namespace Snaploom.Rendering;
 
@@ -19,7 +20,7 @@ public sealed record MosaicTileUpdate(
     int RenderedTileCount,
     long ProcessedPixelCount);
 
-public sealed class ScreenshotMosaicTileCache
+public sealed class ScreenshotMosaicTileCache : IDisposable
 {
     private readonly int _width;
     private readonly int _height;
@@ -30,6 +31,7 @@ public sealed class ScreenshotMosaicTileCache
     private readonly int _tileSize;
     private readonly Dictionary<MosaicTileKey, MosaicTileRaster> _tiles = [];
     private IReadOnlyList<MosaicSnapshot> _previous = [];
+    private bool _disposed;
 
     public ScreenshotMosaicTileCache(
         int width,
@@ -71,6 +73,7 @@ public sealed class ScreenshotMosaicTileCache
 
     public MosaicTileUpdate Update(IEnumerable<ScreenshotMosaicAnnotation> annotations)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(annotations);
         var current = annotations
             .Select(annotation => new MosaicSnapshot(
@@ -96,6 +99,24 @@ public sealed class ScreenshotMosaicTileCache
 
         _previous = current;
         return new MosaicTileUpdate(changedTiles, changedTiles.Count, processedPixels);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        CryptographicOperations.ZeroMemory(_sourcePixels);
+        foreach (var tile in _tiles.Values)
+        {
+            CryptographicOperations.ZeroMemory(tile.Pixels);
+        }
+
+        _tiles.Clear();
+        _previous = [];
     }
 
     private HashSet<MosaicTileKey> FindDirtyTiles(
@@ -385,7 +406,7 @@ public static class ScreenshotMosaicRenderer
     {
         ArgumentNullException.ThrowIfNull(bitmap);
         ArgumentNullException.ThrowIfNull(annotations);
-        var cache = new ScreenshotMosaicTileCache(
+        using var cache = new ScreenshotMosaicTileCache(
             bitmap.Width,
             bitmap.Height,
             bitmap.RowBytes,
