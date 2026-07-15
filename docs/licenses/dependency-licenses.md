@@ -35,8 +35,11 @@ Avalonia 的其他传递包（FreeDesktop、HarfBuzz、Native、Remote.Protocol�
 | Microsoft.Testing.Platform 及 Microsoft 测试宿主组件 | 1.9.1 | MIT |
 | Microsoft.ApplicationInsights、Microsoft.Bcl.AsyncInterfaces、Microsoft.Win32.Registry | 2.23.0、6.0.0、5.0.0 | MIT |
 | xunit.analyzers | 1.27.0 | Apache-2.0 |
+| Inno Setup | 6.7.1 | Inno Setup License（允许商业使用与二进制再分发） |
 
 Headless 测试引入的 Avalonia 字体、HarfBuzzSharp 和 SkiaSharp 平台原生资源包均为 MIT。
+
+Inno Setup 只在 Windows 安装包构建阶段使用。其安装程序运行时保留上游版权与网站信息，Snaploom 不修改或冒充该组件来源。
 
 ## 复核方法
 

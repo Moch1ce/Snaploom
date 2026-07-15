@@ -4,6 +4,8 @@ namespace Snaploom.Rendering;
 
 public static class TrayIconRenderer
 {
+    private static readonly int[] WindowsIconSizes = [16, 32, 48, 64, 256];
+
     public static byte[] RenderPng(int size)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(size, 16);
@@ -52,5 +54,43 @@ public static class TrayIconRenderer
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
         return data.ToArray();
+    }
+
+    public static byte[] RenderWindowsIco()
+    {
+        var images = new byte[WindowsIconSizes.Length][];
+        for (var index = 0; index < images.Length; index++)
+        {
+            images[index] = RenderPng(WindowsIconSizes[index]);
+        }
+
+        const int headerLength = 6;
+        const int entryLength = 16;
+        var imageOffset = headerLength + (entryLength * images.Length);
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream);
+        writer.Write((ushort)0);
+        writer.Write((ushort)1);
+        writer.Write((ushort)images.Length);
+        for (var index = 0; index < images.Length; index++)
+        {
+            var size = WindowsIconSizes[index];
+            writer.Write((byte)(size == 256 ? 0 : size));
+            writer.Write((byte)(size == 256 ? 0 : size));
+            writer.Write((byte)0);
+            writer.Write((byte)0);
+            writer.Write((ushort)1);
+            writer.Write((ushort)32);
+            writer.Write(images[index].Length);
+            writer.Write(imageOffset);
+            imageOffset += images[index].Length;
+        }
+
+        foreach (var image in images)
+        {
+            writer.Write(image);
+        }
+
+        return stream.ToArray();
     }
 }

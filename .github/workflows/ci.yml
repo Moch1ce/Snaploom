@@ -47,3 +47,25 @@ jobs:
 
       - name: Test
         run: dotnet test Snaploom.sln --configuration Release --no-build
+
+      - name: Install pinned Inno Setup
+        if: runner.os == 'Windows'
+        run: choco upgrade innosetup --version=6.7.1 --allow-downgrade --yes --no-progress
+
+      - name: Build Windows user installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/build-windows-installer.ps1 -Version 1.0.0
+
+      - name: Verify Windows user installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/packaging/verify-windows-installer.ps1 -InstallerDirectory ./artifacts/windows-x64/installer -Version 1.0.0
+
+      - name: Upload Windows installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: snaploom-windows-x64-installer
+          path: artifacts/windows-x64/installer/*
+          if-no-files-found: error

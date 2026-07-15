@@ -58,4 +58,13 @@ dotnet publish src/Snaploom.App/Snaploom.App.csproj \
 
 Windows 主机与 Windows CI 会自动选择 `net10.0-windows10.0.19041.0`。
 
+Windows 用户级安装包在 Windows 主机上通过固定版本的 Inno Setup 构建：
+
+```powershell
+choco upgrade innosetup --version=6.7.1 --allow-downgrade --yes
+pwsh -File scripts/build-windows-installer.ps1 -Version 1.0.0
+```
+
+安装包、SHA256 和体积元数据输出到 `artifacts/windows-x64/installer`。安装和 SmartScreen 校验说明见 [`docs/distribution/windows-installation.md`](docs/distribution/windows-installation.md)。
+
 依赖许可证审计见 [`docs/licenses/dependency-licenses.md`](docs/licenses/dependency-licenses.md)。
