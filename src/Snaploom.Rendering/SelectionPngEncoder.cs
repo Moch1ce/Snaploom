@@ -6,8 +6,15 @@ namespace Snaploom.Rendering;
 public static class SelectionPngEncoder
 {
     public static byte[] Encode(CapturedFrame frame, PhysicalRect selection)
+        => Encode(frame, selection, Array.Empty<IScreenshotAnnotation>());
+
+    public static byte[] Encode(
+        CapturedFrame frame,
+        PhysicalRect selection,
+        IEnumerable<IScreenshotAnnotation> annotations)
     {
         ArgumentNullException.ThrowIfNull(frame);
+        ArgumentNullException.ThrowIfNull(annotations);
 
         if (selection.Width <= 0 || selection.Height <= 0 ||
             selection.X < 0 || selection.Y < 0 ||
@@ -36,6 +43,15 @@ public static class SelectionPngEncoder
             var destinationOffset = checked(row * bitmap.RowBytes);
             source.Slice(sourceOffset, copiedBytesPerRow)
                 .CopyTo(destination.Slice(destinationOffset, copiedBytesPerRow));
+        }
+
+        using (var canvas = new SKCanvas(bitmap))
+        {
+            ScreenshotAnnotationRenderer.Draw(
+                canvas,
+                frame.ScaleX,
+                frame.ScaleY,
+                annotations);
         }
 
         using var image = SKImage.FromBitmap(bitmap);

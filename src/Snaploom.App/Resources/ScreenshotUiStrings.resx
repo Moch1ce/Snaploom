@@ -14,7 +14,18 @@
   </resheader>
   <data name="WindowTitle" xml:space="preserve"><value>Snaploom Screenshot</value></data>
   <data name="RectangleUnavailable" xml:space="preserve"><value>Rectangle (coming soon)</value></data>
+  <data name="RectangleTool" xml:space="preserve"><value>Rectangle (R)</value></data>
   <data name="ArrowUnavailable" xml:space="preserve"><value>Arrow (coming soon)</value></data>
+  <data name="ArrowTool" xml:space="preserve"><value>Arrow (A)</value></data>
+  <data name="ColorRed" xml:space="preserve"><value>Red</value></data>
+  <data name="ColorYellow" xml:space="preserve"><value>Yellow</value></data>
+  <data name="ColorGreen" xml:space="preserve"><value>Green</value></data>
+  <data name="ColorBlue" xml:space="preserve"><value>Blue</value></data>
+  <data name="ColorBlack" xml:space="preserve"><value>Black</value></data>
+  <data name="ColorWhite" xml:space="preserve"><value>White</value></data>
+  <data name="LineWidth2" xml:space="preserve"><value>2 px line</value></data>
+  <data name="LineWidth4" xml:space="preserve"><value>4 px line</value></data>
+  <data name="LineWidth8" xml:space="preserve"><value>8 px line</value></data>
   <data name="TextUnavailable" xml:space="preserve"><value>Text (coming soon)</value></data>
   <data name="MosaicUnavailable" xml:space="preserve"><value>Mosaic (coming soon)</value></data>
   <data name="UndoUnavailable" xml:space="preserve"><value>Undo (coming soon)</value></data>

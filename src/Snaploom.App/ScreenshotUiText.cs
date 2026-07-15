@@ -13,7 +13,29 @@ internal static class ScreenshotUiText
 
     internal static string RectangleUnavailable => Get(nameof(RectangleUnavailable));
 
+    internal static string RectangleTool => Get(nameof(RectangleTool));
+
     internal static string ArrowUnavailable => Get(nameof(ArrowUnavailable));
+
+    internal static string ArrowTool => Get(nameof(ArrowTool));
+
+    internal static string ColorRed => Get(nameof(ColorRed));
+
+    internal static string ColorYellow => Get(nameof(ColorYellow));
+
+    internal static string ColorGreen => Get(nameof(ColorGreen));
+
+    internal static string ColorBlue => Get(nameof(ColorBlue));
+
+    internal static string ColorBlack => Get(nameof(ColorBlack));
+
+    internal static string ColorWhite => Get(nameof(ColorWhite));
+
+    internal static string LineWidth2 => Get(nameof(LineWidth2));
+
+    internal static string LineWidth4 => Get(nameof(LineWidth4));
+
+    internal static string LineWidth8 => Get(nameof(LineWidth8));
 
     internal static string TextUnavailable => Get(nameof(TextUnavailable));
 

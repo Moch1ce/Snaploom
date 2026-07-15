@@ -14,7 +14,18 @@
   </resheader>
   <data name="WindowTitle" xml:space="preserve"><value>Snaploom 截图</value></data>
   <data name="RectangleUnavailable" xml:space="preserve"><value>矩形标注（即将支持）</value></data>
+  <data name="RectangleTool" xml:space="preserve"><value>矩形标注 (R)</value></data>
   <data name="ArrowUnavailable" xml:space="preserve"><value>箭头标注（即将支持）</value></data>
+  <data name="ArrowTool" xml:space="preserve"><value>箭头标注 (A)</value></data>
+  <data name="ColorRed" xml:space="preserve"><value>红色</value></data>
+  <data name="ColorYellow" xml:space="preserve"><value>黄色</value></data>
+  <data name="ColorGreen" xml:space="preserve"><value>绿色</value></data>
+  <data name="ColorBlue" xml:space="preserve"><value>蓝色</value></data>
+  <data name="ColorBlack" xml:space="preserve"><value>黑色</value></data>
+  <data name="ColorWhite" xml:space="preserve"><value>白色</value></data>
+  <data name="LineWidth2" xml:space="preserve"><value>2 像素线宽</value></data>
+  <data name="LineWidth4" xml:space="preserve"><value>4 像素线宽</value></data>
+  <data name="LineWidth8" xml:space="preserve"><value>8 像素线宽</value></data>
   <data name="TextUnavailable" xml:space="preserve"><value>文字标注（即将支持）</value></data>
   <data name="MosaicUnavailable" xml:space="preserve"><value>马赛克（即将支持）</value></data>
   <data name="UndoUnavailable" xml:space="preserve"><value>撤销（即将支持）</value></data>

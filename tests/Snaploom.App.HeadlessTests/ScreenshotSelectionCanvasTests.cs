@@ -144,6 +144,73 @@ public sealed class ScreenshotSelectionCanvasTests
         }
     }
 
+    [AvaloniaFact]
+    public void RectangleAndArrowGesturesAppendAnnotationsInVisualOrder()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            Drag(window, new Point(10, 10), new Point(80, 80));
+
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Rectangle);
+            Drag(window, new Point(20, 20), new Point(50, 45));
+
+            var rectangle = Assert.IsType<ScreenshotRectangleAnnotation>(
+                Assert.Single(canvas.Annotations));
+            Assert.Equal(new LogicalPoint(10, 10), rectangle.Start);
+            Assert.Equal(new LogicalPoint(40, 35), rectangle.End);
+
+            canvas.SetAnnotationStyle(
+                new ScreenshotAnnotationStyle(ScreenshotAnnotationColor.Yellow, 8));
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Arrow);
+            Drag(window, new Point(25, 60), new Point(65, 30));
+
+            Assert.Equal(2, canvas.Annotations.Count);
+            var arrow = Assert.IsType<ScreenshotArrowAnnotation>(canvas.Annotations[1]);
+            Assert.Equal(ScreenshotAnnotationColor.Yellow, arrow.Style.Color);
+            Assert.Equal(8, arrow.Style.LineWidth);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void EscapeCancelsThePreviewThenReturnsToSelectionTool()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            Drag(window, new Point(10, 10), new Point(80, 80));
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Rectangle);
+            window.MouseMove(new Point(20, 20), RawInputModifiers.None);
+            window.MouseDown(
+                new Point(20, 20),
+                MouseButton.Left,
+                RawInputModifiers.LeftMouseButton);
+            window.MouseMove(
+                new Point(50, 45),
+                RawInputModifiers.LeftMouseButton);
+
+            Assert.Equal(ScreenshotCancelResult.ActionCanceled, canvas.CancelCurrentLayer());
+            Assert.Empty(canvas.Annotations);
+            Assert.Equal(ScreenshotAnnotationTool.Rectangle, canvas.ActiveAnnotationTool);
+
+            Assert.Equal(ScreenshotCancelResult.ActionCanceled, canvas.CancelCurrentLayer());
+            Assert.Equal(ScreenshotAnnotationTool.Select, canvas.ActiveAnnotationTool);
+            Assert.NotNull(canvas.Session.Selection);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     private static Window ShowCanvas(ScreenshotSelectionCanvas canvas)
     {
         var window = new Window

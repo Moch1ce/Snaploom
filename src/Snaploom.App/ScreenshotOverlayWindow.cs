@@ -23,7 +23,12 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     private readonly TranslateTransform _sizeBadgeTransform = new();
     private readonly TranslateTransform _toolbarTransform = new();
     private Rect _availableUiBounds;
+    private bool _floatingUiFrozen;
     private bool _resourcesDisposed;
+
+    internal ScreenshotAnnotationTool ActiveAnnotationTool => _toolbar.ActiveTool;
+
+    internal Point ToolbarOrigin => new(_toolbarTransform.X, _toolbarTransform.Y);
 
     public ScreenshotOverlayWindow(
         CapturedScreen capturedScreen,
@@ -59,6 +64,8 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             capturedScreen.WindowCandidates);
         _selectionCanvas.SelectionChanged += HandleSelectionChanged;
         _selectionCanvas.SelectionDoubleClicked += HandleConfirm;
+        _selectionCanvas.AnnotationStarted += HandleAnnotationStarted;
+        _selectionCanvas.SelectionReplaced += HandleSelectionReplaced;
 
         _sizeText = new TextBlock
         {
@@ -87,6 +94,8 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _toolbar.SaveRequested += HandleSave;
         _toolbar.ConfirmRequested += HandleConfirm;
         _toolbar.CancelRequested += HandleCancel;
+        _toolbar.ToolChanged += HandleToolChanged;
+        _toolbar.AnnotationStyleChanged += HandleAnnotationStyleChanged;
 
         var root = new Grid();
         root.Children.Add(_selectionCanvas);
@@ -181,6 +190,11 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     private void PositionFloatingUi(Rect selection)
     {
+        if (_floatingUiFrozen)
+        {
+            return;
+        }
+
         var availableSize = _selectionCanvas.Bounds.Size;
         _sizeBadge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         _toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -287,16 +301,61 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     private void HandleCancel(object? sender, EventArgs e) => Close();
 
+    private void HandleToolChanged(object? sender, EventArgs e)
+    {
+        _selectionCanvas.SelectAnnotationTool(_toolbar.ActiveTool);
+        if (_selectionCanvas.LogicalSelection is { } logicalSelection)
+        {
+            PositionFloatingUi(logicalSelection);
+        }
+    }
+
+    private void HandleAnnotationStyleChanged(object? sender, EventArgs e) =>
+        _selectionCanvas.SetAnnotationStyle(_toolbar.AnnotationStyle);
+
+    private void HandleAnnotationStarted(object? sender, EventArgs e) =>
+        _floatingUiFrozen = true;
+
+    private void HandleSelectionReplaced(object? sender, EventArgs e)
+    {
+        _floatingUiFrozen = false;
+        _toolbar.SelectTool(ScreenshotAnnotationTool.Select);
+    }
+
     private void HandleKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
         {
             e.Handled = true;
-            if (_selectionCanvas.CancelCurrentLayer() == ScreenshotCancelResult.ExitRequested)
+            var result = _selectionCanvas.CancelCurrentLayer();
+            if (_toolbar.ActiveTool != _selectionCanvas.ActiveAnnotationTool)
+            {
+                _toolbar.SelectTool(_selectionCanvas.ActiveAnnotationTool);
+            }
+
+            if (result == ScreenshotCancelResult.ExitRequested)
             {
                 Close();
             }
 
+            return;
+        }
+
+        var annotationShortcutAllowed =
+            !e.KeyModifiers.HasFlag(KeyModifiers.Control) &&
+            !e.KeyModifiers.HasFlag(KeyModifiers.Meta) &&
+            !e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+        if (annotationShortcutAllowed &&
+            _selectionCanvas.Session.State == ScreenshotSessionState.Selected &&
+            e.Key is Key.R or Key.A or Key.V)
+        {
+            e.Handled = true;
+            _toolbar.SelectTool(e.Key switch
+            {
+                Key.R => ScreenshotAnnotationTool.Rectangle,
+                Key.A => ScreenshotAnnotationTool.Arrow,
+                _ => ScreenshotAnnotationTool.Select,
+            });
             return;
         }
 
@@ -326,7 +385,10 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     }
 
     private byte[] EncodeSelection(PhysicalRect selection) =>
-        SelectionPngEncoder.Encode(_capturedScreen.Frame, selection);
+        SelectionPngEncoder.Encode(
+            _capturedScreen.Frame,
+            selection,
+            _selectionCanvas.Annotations);
 
     private void DisposeResources()
     {
@@ -339,8 +401,12 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _toolbar.SaveRequested -= HandleSave;
         _toolbar.ConfirmRequested -= HandleConfirm;
         _toolbar.CancelRequested -= HandleCancel;
+        _toolbar.ToolChanged -= HandleToolChanged;
+        _toolbar.AnnotationStyleChanged -= HandleAnnotationStyleChanged;
         _selectionCanvas.SelectionChanged -= HandleSelectionChanged;
         _selectionCanvas.SelectionDoubleClicked -= HandleConfirm;
+        _selectionCanvas.AnnotationStarted -= HandleAnnotationStarted;
+        _selectionCanvas.SelectionReplaced -= HandleSelectionReplaced;
         _selectionCanvas.Dispose();
         _capturedScreen.Dispose();
     }

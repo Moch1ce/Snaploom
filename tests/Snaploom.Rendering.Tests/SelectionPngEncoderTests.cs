@@ -49,6 +49,37 @@ public sealed class SelectionPngEncoderTests
             chunk is "eXIf" or "tEXt" or "zTXt" or "iTXt" or "tIME");
     }
 
+    [Fact]
+    public void EncodedPngCompositesAnnotationsRelativeToTheCroppedSelection()
+    {
+        var pixels = new byte[40 * 40 * 4];
+        for (var alphaOffset = 3; alphaOffset < pixels.Length; alphaOffset += 4)
+        {
+            pixels[alphaOffset] = byte.MaxValue;
+        }
+
+        using var frame = new CapturedFrame(
+            new PhysicalSize(40, 40),
+            new LogicalSize(20, 20),
+            stride: 160,
+            pixels);
+        var annotation = new ScreenshotRectangleAnnotation(
+            new LogicalPoint(1, 1),
+            new LogicalPoint(8, 8),
+            new ScreenshotAnnotationStyle(ScreenshotAnnotationColor.Green, 2));
+
+        var png = SelectionPngEncoder.Encode(
+            frame,
+            new PhysicalRect(10, 10, 20, 20),
+            [annotation]);
+
+        using var bitmap = SKBitmap.Decode(png);
+        Assert.Equal(20, bitmap.Width);
+        Assert.Equal(20, bitmap.Height);
+        Assert.Equal(new SKColor(0, 0, 0, 255), bitmap.GetPixel(10, 10));
+        Assert.Equal(new SKColor(7, 201, 119, 255), bitmap.GetPixel(2, 8));
+    }
+
     private static void SetPixel(
         byte[] pixels,
         int width,
