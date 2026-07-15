@@ -8,4 +8,6 @@ public static class ProductIdentity
     public const string MacOSBundleId = "com.snaploom.app";
     public const string ReleasePrefix = "snaploom";
     public const string ConfigurationDirectoryName = "Snaploom";
+    public const string GitHubOwner = "liuchuana";
+    public const string GitHubRepository = "Snaploom";
 }

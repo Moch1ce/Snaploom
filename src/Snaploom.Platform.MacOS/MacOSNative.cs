@@ -40,6 +40,12 @@ internal static unsafe partial class MacOSNative
         StringMarshalling = StringMarshalling.Utf8)]
     internal static partial void OpenFolder(string path);
 
+    [LibraryImport(
+        LibraryName,
+        EntryPoint = "snaploom_open_url",
+        StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial void OpenUrl(string value);
+
     [LibraryImport(LibraryName, EntryPoint = "snaploom_screen_capture_permission")]
     internal static partial int GetScreenCapturePermission();
 

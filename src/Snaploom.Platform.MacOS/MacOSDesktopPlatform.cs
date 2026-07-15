@@ -13,6 +13,7 @@ public sealed class MacOSDesktopPlatform :
     ISystemResumeService,
     ISystemNotificationService,
     IFolderLauncher,
+    IExternalUriLauncher,
     IScreenCaptureService,
     IPngSaveDialogService,
     IScreenshotClipboardService,
@@ -129,6 +130,18 @@ public sealed class MacOSDesktopPlatform :
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         Directory.CreateDirectory(path);
         MacOSNative.OpenFolder(path);
+    }
+
+    public void OpenUri(Uri uri)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(uri);
+        if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps)
+        {
+            throw new ArgumentException("Only absolute HTTPS links can be opened.", nameof(uri));
+        }
+
+        MacOSNative.OpenUrl(uri.AbsoluteUri);
     }
 
     public Task<CapturedScreen> CaptureCurrentDisplayAsync(CancellationToken cancellationToken = default) =>

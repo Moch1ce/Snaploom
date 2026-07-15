@@ -59,4 +59,16 @@ public static class AppUiText
     public static string HotKeyReregisterNotification => Get(nameof(HotKeyReregisterNotification));
     public static string AutoStartFailure => Get(nameof(AutoStartFailure));
     public static string PlatformUnavailable => Get(nameof(PlatformUnavailable));
+    public static string UpdateSection => Get(nameof(UpdateSection));
+    public static string CheckUpdates => Get(nameof(CheckUpdates));
+    public static string CheckingUpdates => Get(nameof(CheckingUpdates));
+    public static string UpdateAvailableFormat => Get(nameof(UpdateAvailableFormat));
+    public static string UpToDateFormat => Get(nameof(UpToDateFormat));
+    public static string PublishedFormat => Get(nameof(PublishedFormat));
+    public static string ReleaseNotes => Get(nameof(ReleaseNotes));
+    public static string OpenRelease => Get(nameof(OpenRelease));
+    public static string UpdateNetworkFailure => Get(nameof(UpdateNetworkFailure));
+    public static string UpdateRateLimited => Get(nameof(UpdateRateLimited));
+    public static string UpdateInvalidResponse => Get(nameof(UpdateInvalidResponse));
+    public static string OpenReleaseFailed => Get(nameof(OpenReleaseFailed));
 }

@@ -51,4 +51,16 @@
   <data name="HotKeyReregisterNotification" xml:space="preserve"><value>系统唤醒后未能恢复截图快捷键。请从托盘打开设置，或查看本地日志。</value></data>
   <data name="AutoStartFailure" xml:space="preserve"><value>无法更改开机启动设置。请打开设置或查看本地日志。</value></data>
   <data name="PlatformUnavailable" xml:space="preserve"><value>当前系统无法使用截图能力。请打开设置或查看本地日志。</value></data>
+  <data name="UpdateSection" xml:space="preserve"><value>更新</value></data>
+  <data name="CheckUpdates" xml:space="preserve"><value>检查更新</value></data>
+  <data name="CheckingUpdates" xml:space="preserve"><value>正在查询 GitHub Releases…</value></data>
+  <data name="UpdateAvailableFormat" xml:space="preserve"><value>发现新版本 {0}。</value></data>
+  <data name="UpToDateFormat" xml:space="preserve"><value>当前已是最新版（{0}）。</value></data>
+  <data name="PublishedFormat" xml:space="preserve"><value>发布于 {0:D}</value></data>
+  <data name="ReleaseNotes" xml:space="preserve"><value>更新说明</value></data>
+  <data name="OpenRelease" xml:space="preserve"><value>打开 GitHub Release</value></data>
+  <data name="UpdateNetworkFailure" xml:space="preserve"><value>无法连接 GitHub。请检查网络后重试。</value></data>
+  <data name="UpdateRateLimited" xml:space="preserve"><value>GitHub 暂时限制了更新查询，请稍后重试。</value></data>
+  <data name="UpdateInvalidResponse" xml:space="preserve"><value>GitHub 返回的版本信息无法识别。</value></data>
+  <data name="OpenReleaseFailed" xml:space="preserve"><value>无法打开 GitHub Release 页面。</value></data>
 </root>

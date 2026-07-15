@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -16,6 +17,8 @@ public sealed class ShortcutSettingsWindow : Window
     private readonly Action _appearanceChanged;
     private readonly PrivacyLog _log;
     private readonly IFolderLauncher? _folderLauncher;
+    private readonly IUpdateCheckService _updateCheckService;
+    private readonly IExternalUriLauncher? _uriLauncher;
     private readonly TextBlock _shortcutHeading = new();
     private readonly TextBlock _shortcutText = new();
     private readonly TextBlock _statusText = new();
@@ -28,9 +31,18 @@ public sealed class ShortcutSettingsWindow : Window
     private readonly ComboBox _themeComboBox = new();
     private readonly Button _openLogsButton = new();
     private readonly Button _clearLogsButton = new();
+    private readonly TextBlock _updateHeading = new();
+    private readonly Button _checkUpdatesButton = new();
+    private readonly TextBlock _updateStatusText = new();
+    private readonly TextBlock _releaseNotesHeading = new();
+    private readonly TextBlock _releaseNotesText = new();
+    private readonly ScrollViewer _releaseNotesScroll = new() { Height = 100 };
+    private readonly Button _openReleaseButton = new();
     private ScreenshotHotKey _candidate;
     private ShortcutStatus _status;
     private bool _updatingControls;
+    private bool _checkingUpdates;
+    private UpdateCheckResult? _lastUpdateResult;
 
     public ShortcutSettingsWindow(
         ScreenshotHotKeyManager hotKeyManager,
@@ -38,26 +50,31 @@ public sealed class ShortcutSettingsWindow : Window
         TrayMenuViewModel trayViewModel,
         Action appearanceChanged,
         PrivacyLog log,
-        IFolderLauncher? folderLauncher)
+        IFolderLauncher? folderLauncher,
+        IUpdateCheckService updateCheckService,
+        IExternalUriLauncher? uriLauncher)
     {
         ArgumentNullException.ThrowIfNull(hotKeyManager);
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(trayViewModel);
         ArgumentNullException.ThrowIfNull(appearanceChanged);
         ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(updateCheckService);
         _hotKeyManager = hotKeyManager;
         _settings = settings;
         _trayViewModel = trayViewModel;
         _appearanceChanged = appearanceChanged;
         _log = log;
         _folderLauncher = folderLauncher;
+        _updateCheckService = updateCheckService;
+        _uriLauncher = uriLauncher;
         _candidate = hotKeyManager.CurrentHotKey;
         _status = hotKeyManager.IsRegistered
             ? ShortcutStatus.Instruction
             : ShortcutStatus.StartupConflict;
 
-        Width = 480;
-        Height = 480;
+        Width = 540;
+        Height = 700;
         CanResize = false;
         ShowInTaskbar = true;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -78,8 +95,19 @@ public sealed class ShortcutSettingsWindow : Window
         _themeComboBox.SelectionChanged += HandleThemeChanged;
         _openLogsButton.Click += HandleOpenLogs;
         _clearLogsButton.Click += HandleClearLogs;
+        _updateHeading.FontSize = 16;
+        _updateHeading.FontWeight = FontWeight.SemiBold;
+        _checkUpdatesButton.Click += HandleCheckUpdates;
+        _updateStatusText.TextWrapping = TextWrapping.Wrap;
+        _releaseNotesHeading.FontWeight = FontWeight.SemiBold;
+        _releaseNotesHeading.IsVisible = false;
+        _releaseNotesText.TextWrapping = TextWrapping.Wrap;
+        _releaseNotesScroll.Content = _releaseNotesText;
+        _releaseNotesScroll.IsVisible = false;
+        _openReleaseButton.IsVisible = false;
+        _openReleaseButton.Click += HandleOpenRelease;
 
-        Content = new StackPanel
+        var content = new StackPanel
         {
             Margin = new Thickness(24),
             Spacing = 18,
@@ -101,6 +129,12 @@ public sealed class ShortcutSettingsWindow : Window
                     Spacing = 10,
                     Children = { _openLogsButton, _clearLogsButton },
                 },
+                _updateHeading,
+                _checkUpdatesButton,
+                _updateStatusText,
+                _releaseNotesHeading,
+                _releaseNotesScroll,
+                _openReleaseButton,
                 new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
@@ -110,6 +144,7 @@ public sealed class ShortcutSettingsWindow : Window
                 },
             },
         };
+        Content = new ScrollViewer { Content = content };
 
         _trayViewModel.PropertyChanged += HandleTrayViewModelChanged;
         Closed += (_, _) => _trayViewModel.PropertyChanged -= HandleTrayViewModelChanged;
@@ -148,6 +183,10 @@ public sealed class ShortcutSettingsWindow : Window
             _themeLabel.Text = AppUiText.Theme;
             _openLogsButton.Content = AppUiText.OpenLogs;
             _clearLogsButton.Content = AppUiText.ClearLogs;
+            _updateHeading.Text = AppUiText.UpdateSection;
+            _checkUpdatesButton.Content = AppUiText.CheckUpdates;
+            _releaseNotesHeading.Text = AppUiText.ReleaseNotes;
+            _openReleaseButton.Content = AppUiText.OpenRelease;
             _languageComboBox.ItemsSource = new[]
             {
                 new Choice<AppLanguage>(AppLanguage.System, AppUiText.LanguageSystem),
@@ -164,6 +203,14 @@ public sealed class ShortcutSettingsWindow : Window
                 new Choice<AppTheme>(AppTheme.Dark, AppUiText.ThemeDark),
             };
             _themeComboBox.SelectedIndex = (int)_settings.Current.Theme;
+            if (_checkingUpdates)
+            {
+                _updateStatusText.Text = AppUiText.CheckingUpdates;
+            }
+            else if (_lastUpdateResult is not null)
+            {
+                DisplayUpdateResult(_lastUpdateResult);
+            }
         }
         finally
         {
@@ -309,6 +356,135 @@ public sealed class ShortcutSettingsWindow : Window
         _log.Error(AppLogEvent.PlatformUnavailable, exception);
         SetStatus(ShortcutStatus.LogOperationFailed);
     }
+
+    private async void HandleCheckUpdates(
+        object? sender,
+        Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_checkingUpdates)
+        {
+            return;
+        }
+
+        _checkingUpdates = true;
+        _checkUpdatesButton.IsEnabled = false;
+        _openReleaseButton.IsVisible = false;
+        _releaseNotesHeading.IsVisible = false;
+        _releaseNotesScroll.IsVisible = false;
+        _releaseNotesText.Text = string.Empty;
+        _updateStatusText.Text = AppUiText.CheckingUpdates;
+        try
+        {
+            _lastUpdateResult = await _updateCheckService.CheckAsync();
+            DisplayUpdateResult(_lastUpdateResult);
+            if (_lastUpdateResult.Status is UpdateCheckStatus.NetworkFailure or
+                UpdateCheckStatus.RateLimited or
+                UpdateCheckStatus.InvalidResponse)
+            {
+                _log.Error(AppLogEvent.UpdateCheckFailed);
+            }
+        }
+        finally
+        {
+            _checkingUpdates = false;
+            _checkUpdatesButton.IsEnabled = true;
+        }
+    }
+
+    private void DisplayUpdateResult(UpdateCheckResult result)
+    {
+        _releaseNotesHeading.IsVisible = false;
+        _releaseNotesScroll.IsVisible = false;
+        _releaseNotesText.Text = string.Empty;
+        _openReleaseButton.IsVisible = false;
+        switch (result.Status)
+        {
+            case UpdateCheckStatus.UpdateAvailable:
+            case UpdateCheckStatus.UpToDate:
+                if (result.LatestVersion is null || result.PublishedAt is null)
+                {
+                    _updateStatusText.Text = AppUiText.UpdateInvalidResponse;
+                    return;
+                }
+
+                var version = FormatVersion(result.LatestVersion);
+                var summary = result.Status == UpdateCheckStatus.UpdateAvailable
+                    ? AppUiText.UpdateAvailableFormat.Replace(
+                        "{0}",
+                        version,
+                        StringComparison.Ordinal)
+                    : AppUiText.UpToDateFormat.Replace(
+                        "{0}",
+                        version,
+                        StringComparison.Ordinal);
+                var publishedDate = result.PublishedAt.Value.LocalDateTime.ToString(
+                    "D",
+                    CultureInfo.CurrentCulture);
+                var published = AppUiText.PublishedFormat.Replace(
+                    "{0:D}",
+                    publishedDate,
+                    StringComparison.Ordinal);
+                _updateStatusText.Text = $"{summary}{Environment.NewLine}{published}";
+                _releaseNotesHeading.IsVisible = true;
+                _releaseNotesScroll.IsVisible = true;
+                _releaseNotesText.Text = result.ReleaseNotes ?? string.Empty;
+                _openReleaseButton.IsVisible =
+                    result.Status == UpdateCheckStatus.UpdateAvailable &&
+                    result.ReleasePage is not null;
+                break;
+
+            case UpdateCheckStatus.NetworkFailure:
+                _updateStatusText.Text = AppUiText.UpdateNetworkFailure;
+                break;
+
+            case UpdateCheckStatus.RateLimited:
+                _updateStatusText.Text = AppUiText.UpdateRateLimited;
+                break;
+
+            case UpdateCheckStatus.InvalidResponse:
+                _updateStatusText.Text = AppUiText.UpdateInvalidResponse;
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(result));
+        }
+    }
+
+    private void HandleOpenRelease(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_lastUpdateResult?.ReleasePage is not { } releasePage || _uriLauncher is null)
+        {
+            _updateStatusText.Text = AppUiText.OpenReleaseFailed;
+            return;
+        }
+
+        try
+        {
+            _uriLauncher.OpenUri(releasePage);
+        }
+        catch (InvalidOperationException exception)
+        {
+            HandleOpenReleaseFailure(exception);
+        }
+        catch (Win32Exception exception)
+        {
+            HandleOpenReleaseFailure(exception);
+        }
+        catch (PlatformNotSupportedException exception)
+        {
+            HandleOpenReleaseFailure(exception);
+        }
+    }
+
+    private void HandleOpenReleaseFailure(Exception exception)
+    {
+        _log.Error(AppLogEvent.PlatformUnavailable, exception);
+        _updateStatusText.Text = AppUiText.OpenReleaseFailed;
+    }
+
+    private static string FormatVersion(Version version) => version.Revision > 0
+        ? version.ToString(fieldCount: 4)
+        : version.ToString(fieldCount: 3);
 
     private void HandleTrayViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {

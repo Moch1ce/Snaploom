@@ -396,6 +396,12 @@ public func openFolder(_ path: UnsafePointer<CChar>) {
     )
 }
 
+@_cdecl("snaploom_open_url")
+public func openUrl(_ value: UnsafePointer<CChar>) {
+    guard let url = URL(string: String(cString: value)) else { return }
+    NSWorkspace.shared.open(url)
+}
+
 @_cdecl("snaploom_screen_capture_permission")
 public func screenCapturePermission() -> Int32 {
     CGPreflightScreenCaptureAccess() ? 1 : 0

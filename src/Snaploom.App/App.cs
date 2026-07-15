@@ -26,6 +26,8 @@ public sealed class App : Application, IDisposable
     private PrivacyLog? _log;
     private ISystemNotificationService? _notificationService;
     private IFolderLauncher? _folderLauncher;
+    private IExternalUriLauncher? _uriLauncher;
+    private IUpdateCheckService? _updateCheckService;
     private readonly CultureInfo _systemCulture = CultureInfo.CurrentUICulture;
 
     internal static Func<DesktopPlatformKind, AppSettingsService>? SettingsServiceFactory { get; set; }
@@ -61,6 +63,8 @@ public sealed class App : Application, IDisposable
                 new PrivacyLog(PrivacyLog.GetDefaultDirectory());
             _notificationService = platform as ISystemNotificationService;
             _folderLauncher = platform as IFolderLauncher;
+            _uriLauncher = platform as IExternalUriLauncher;
+            _updateCheckService = UpdateCheckService.CreateDefault();
             _log.Info(AppLogEvent.ApplicationStarted);
 
             _screenshotController = ScreenshotController.TryCreate(platform, _settings, _log);
@@ -184,7 +188,8 @@ public sealed class App : Application, IDisposable
         if (_hotKeyManager is null ||
             _settings is null ||
             _trayViewModel is null ||
-            _log is null)
+            _log is null ||
+            _updateCheckService is null)
         {
             return;
         }
@@ -201,7 +206,9 @@ public sealed class App : Application, IDisposable
             _trayViewModel,
             ApplyAppearance,
             _log,
-            _folderLauncher);
+            _folderLauncher,
+            _updateCheckService,
+            _uriLauncher);
         _shortcutSettingsWindow.Closed += (_, _) => _shortcutSettingsWindow = null;
         _shortcutSettingsWindow.Show();
     }
@@ -304,6 +311,8 @@ public sealed class App : Application, IDisposable
         _log = null;
         _notificationService = null;
         _folderLauncher = null;
+        _uriLauncher = null;
+        _updateCheckService = null;
         _launchPlan = null;
         _settings = null;
         _desktopPlatform?.Dispose();

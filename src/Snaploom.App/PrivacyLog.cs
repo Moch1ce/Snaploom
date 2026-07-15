@@ -17,6 +17,7 @@ public enum AppLogEvent
     AutoStartFailed,
     PlatformUnavailable,
     LogsCleared,
+    UpdateCheckFailed,
 }
 
 public sealed class PrivacyLog

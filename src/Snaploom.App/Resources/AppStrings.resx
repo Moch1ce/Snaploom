@@ -51,4 +51,16 @@
   <data name="HotKeyReregisterNotification" xml:space="preserve"><value>The screenshot shortcut could not be restored after wake. Open Settings from the tray or inspect local logs.</value></data>
   <data name="AutoStartFailure" xml:space="preserve"><value>The start-at-login setting could not be changed. Open Settings or inspect local logs.</value></data>
   <data name="PlatformUnavailable" xml:space="preserve"><value>Screenshot support is unavailable on this system. Open Settings or inspect local logs.</value></data>
+  <data name="UpdateSection" xml:space="preserve"><value>Updates</value></data>
+  <data name="CheckUpdates" xml:space="preserve"><value>Check for updates</value></data>
+  <data name="CheckingUpdates" xml:space="preserve"><value>Checking GitHub Releases…</value></data>
+  <data name="UpdateAvailableFormat" xml:space="preserve"><value>Version {0} is available.</value></data>
+  <data name="UpToDateFormat" xml:space="preserve"><value>Snaploom is up to date (version {0}).</value></data>
+  <data name="PublishedFormat" xml:space="preserve"><value>Published {0:D}</value></data>
+  <data name="ReleaseNotes" xml:space="preserve"><value>Release notes</value></data>
+  <data name="OpenRelease" xml:space="preserve"><value>Open GitHub Release</value></data>
+  <data name="UpdateNetworkFailure" xml:space="preserve"><value>Could not reach GitHub. Check your connection and try again.</value></data>
+  <data name="UpdateRateLimited" xml:space="preserve"><value>GitHub has temporarily limited update checks. Try again later.</value></data>
+  <data name="UpdateInvalidResponse" xml:space="preserve"><value>GitHub returned release information Snaploom could not read.</value></data>
+  <data name="OpenReleaseFailed" xml:space="preserve"><value>Could not open the GitHub Release page.</value></data>
 </root>

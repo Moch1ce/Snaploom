@@ -149,6 +149,11 @@ public interface IFolderLauncher
     void OpenFolder(string path);
 }
 
+public interface IExternalUriLauncher
+{
+    void OpenUri(Uri uri);
+}
+
 public interface IScreenCaptureService
 {
     Task<CapturedScreen> CaptureCurrentDisplayAsync(CancellationToken cancellationToken = default);

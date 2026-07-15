@@ -14,6 +14,7 @@ public sealed partial class WindowsDesktopPlatform :
     ISystemResumeService,
     ISystemNotificationService,
     IFolderLauncher,
+    IExternalUriLauncher,
     IScreenCaptureService,
     IPngSaveDialogService,
     IScreenshotClipboardService,
@@ -105,6 +106,24 @@ public sealed partial class WindowsDesktopPlatform :
             new System.Diagnostics.ProcessStartInfo
             {
                 FileName = path,
+                UseShellExecute = true,
+            });
+    }
+
+    public void OpenUri(Uri uri)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        EnsureWindows();
+        ArgumentNullException.ThrowIfNull(uri);
+        if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps)
+        {
+            throw new ArgumentException("Only absolute HTTPS links can be opened.", nameof(uri));
+        }
+
+        _ = System.Diagnostics.Process.Start(
+            new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = uri.AbsoluteUri,
                 UseShellExecute = true,
             });
     }
