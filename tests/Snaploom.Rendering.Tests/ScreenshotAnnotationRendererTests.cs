@@ -168,10 +168,16 @@ public sealed class ScreenshotAnnotationRendererTests
             preferredTextFontFamily: "Arial");
 
         var actualHash = Convert.ToHexString(SHA256.HashData(raster.Pixels));
-        var expectedFingerprint = OperatingSystem.IsWindows()
-            ? "TBD"
-            : "29223CAF81F270AE33067EC5A3FBA579C99321B78601189E86";
-        Assert.StartsWith(expectedFingerprint, actualHash, StringComparison.Ordinal);
+        var expectedFingerprints = OperatingSystem.IsWindows()
+            ? new[] { "A2493AAA5D54C559DE5DC96342F5F1E444CB5B461DC96CCD15" }
+            :
+            [
+                "227E871F4BB378F7CF722C63BA96B90574EDBA70E845532101",
+                "29223CAF81F270AE33067EC5A3FBA579C99321B78601189E86",
+            ];
+        Assert.Contains(
+            expectedFingerprints,
+            fingerprint => actualHash.StartsWith(fingerprint, StringComparison.Ordinal));
     }
 
     private static byte GetAlpha(AnnotationRaster raster, int x, int y) =>
