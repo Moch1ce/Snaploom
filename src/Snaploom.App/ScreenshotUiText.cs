@@ -37,7 +37,13 @@ internal static class ScreenshotUiText
 
     internal static string LineWidth8 => Get(nameof(LineWidth8));
 
-    internal static string TextUnavailable => Get(nameof(TextUnavailable));
+    internal static string TextTool => Get(nameof(TextTool));
+
+    internal static string FontSize16 => Get(nameof(FontSize16));
+
+    internal static string FontSize24 => Get(nameof(FontSize24));
+
+    internal static string FontSize32 => Get(nameof(FontSize32));
 
     internal static string MosaicUnavailable => Get(nameof(MosaicUnavailable));
 

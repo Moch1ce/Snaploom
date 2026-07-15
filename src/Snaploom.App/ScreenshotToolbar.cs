@@ -11,11 +11,23 @@ internal sealed class ScreenshotToolbar : Border
 {
     private readonly ScreenshotToolbarButton _rectangleButton;
     private readonly ScreenshotToolbarButton _arrowButton;
+    private readonly ScreenshotToolbarButton _textButton;
     private readonly ScreenshotToolbarButton _saveButton;
     private readonly ScreenshotToolbarButton _confirmButton;
     private readonly StackPanel _annotationOptions;
+    private readonly StackPanel _lineWidthOptions = new()
+    {
+        Orientation = Orientation.Horizontal,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly StackPanel _fontSizeOptions = new()
+    {
+        Orientation = Orientation.Horizontal,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
     private readonly Dictionary<ScreenshotAnnotationColor, ScreenshotToolbarButton> _colorButtons = [];
     private readonly Dictionary<int, ScreenshotToolbarButton> _lineWidthButtons = [];
+    private readonly Dictionary<int, ScreenshotToolbarButton> _fontSizeButtons = [];
 
     internal ScreenshotToolbar()
     {
@@ -44,10 +56,12 @@ internal sealed class ScreenshotToolbar : Border
             isEnabled: false);
         _arrowButton.Invoked += (_, _) => ToggleTool(ScreenshotAnnotationTool.Arrow);
 
-        var textButton = CreateUnavailableButton(
+        _textButton = CreateButton(
             ScreenshotToolbarIconKind.Text,
-            ScreenshotUiText.TextUnavailable,
-            ScreenshotUiTheme.DisabledIconBrush);
+            ScreenshotUiText.TextTool,
+            ScreenshotUiTheme.PrimaryTextBrush,
+            isEnabled: false);
+        _textButton.Invoked += (_, _) => ToggleTool(ScreenshotAnnotationTool.Text);
 
         _annotationOptions = CreateAnnotationOptions();
         var mosaicButton = CreateUnavailableButton(
@@ -87,7 +101,7 @@ internal sealed class ScreenshotToolbar : Border
         };
         content.Children.Add(_rectangleButton);
         content.Children.Add(_arrowButton);
-        content.Children.Add(textButton);
+        content.Children.Add(_textButton);
         content.Children.Add(mosaicButton);
         content.Children.Add(_annotationOptions);
         content.Children.Add(CreateSeparator());
@@ -114,12 +128,20 @@ internal sealed class ScreenshotToolbar : Border
     internal ScreenshotAnnotationStyle AnnotationStyle { get; private set; } =
         ScreenshotAnnotationStyle.Default;
 
+    internal ScreenshotTextStyle TextStyle { get; private set; } =
+        ScreenshotTextStyle.Default;
+
     internal bool AnnotationOptionsVisible => _annotationOptions.IsVisible;
+
+    internal bool LineWidthOptionsVisible => _lineWidthOptions.IsVisible;
+
+    internal bool FontSizeOptionsVisible => _fontSizeOptions.IsVisible;
 
     internal void SetSelectionActionsEnabled(bool isEnabled)
     {
         _rectangleButton.SetEnabled(isEnabled);
         _arrowButton.SetEnabled(isEnabled);
+        _textButton.SetEnabled(isEnabled);
         _saveButton.SetEnabled(isEnabled);
         _confirmButton.SetEnabled(isEnabled);
         if (!isEnabled && ActiveTool != ScreenshotAnnotationTool.Select)
@@ -138,7 +160,12 @@ internal sealed class ScreenshotToolbar : Border
         ActiveTool = tool;
         _rectangleButton.IsSelected = tool == ScreenshotAnnotationTool.Rectangle;
         _arrowButton.IsSelected = tool == ScreenshotAnnotationTool.Arrow;
+        _textButton.IsSelected = tool == ScreenshotAnnotationTool.Text;
         _annotationOptions.IsVisible = tool != ScreenshotAnnotationTool.Select;
+        _lineWidthOptions.IsVisible = tool is ScreenshotAnnotationTool.Rectangle or
+            ScreenshotAnnotationTool.Arrow;
+        _fontSizeOptions.IsVisible = tool == ScreenshotAnnotationTool.Text;
+        UpdateStyleSelection();
         ToolChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -150,16 +177,19 @@ internal sealed class ScreenshotToolbar : Border
         }
 
         AnnotationStyle = style;
-        foreach (var colorButton in _colorButtons)
+        UpdateStyleSelection();
+        AnnotationStyleChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal void SelectTextStyle(ScreenshotTextStyle style)
+    {
+        if (TextStyle == style)
         {
-            colorButton.Value.IsSelected = colorButton.Key == style.Color;
+            return;
         }
 
-        foreach (var widthButton in _lineWidthButtons)
-        {
-            widthButton.Value.IsSelected = widthButton.Key == style.LineWidth;
-        }
-
+        TextStyle = style;
+        UpdateStyleSelection();
         AnnotationStyleChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -188,12 +218,19 @@ internal sealed class ScreenshotToolbar : Border
         AddColorButton(options, ScreenshotAnnotationColor.Black, ScreenshotUiText.ColorBlack);
         AddColorButton(options, ScreenshotAnnotationColor.White, ScreenshotUiText.ColorWhite);
         options.Children.Add(CreateSeparator());
-        AddLineWidthButton(options, 2, ScreenshotUiText.LineWidth2);
-        AddLineWidthButton(options, 4, ScreenshotUiText.LineWidth4);
-        AddLineWidthButton(options, 8, ScreenshotUiText.LineWidth8);
+        AddLineWidthButton(_lineWidthOptions, 2, ScreenshotUiText.LineWidth2);
+        AddLineWidthButton(_lineWidthOptions, 4, ScreenshotUiText.LineWidth4);
+        AddLineWidthButton(_lineWidthOptions, 8, ScreenshotUiText.LineWidth8);
+        options.Children.Add(_lineWidthOptions);
+        AddFontSizeButton(_fontSizeOptions, 16, ScreenshotUiText.FontSize16);
+        AddFontSizeButton(_fontSizeOptions, 24, ScreenshotUiText.FontSize24);
+        AddFontSizeButton(_fontSizeOptions, 32, ScreenshotUiText.FontSize32);
+        _fontSizeOptions.IsVisible = false;
+        options.Children.Add(_fontSizeOptions);
 
         _colorButtons[ScreenshotAnnotationColor.Red].IsSelected = true;
         _lineWidthButtons[4].IsSelected = true;
+        _fontSizeButtons[24].IsSelected = true;
         return options;
     }
 
@@ -208,8 +245,7 @@ internal sealed class ScreenshotToolbar : Border
                 new SolidColorBrush(Color.FromRgb(rgb.Red, rgb.Green, rgb.Blue))),
             tooltip,
             isEnabled: true);
-        button.Invoked += (_, _) => SelectAnnotationStyle(
-            new ScreenshotAnnotationStyle(color, AnnotationStyle.LineWidth));
+        button.Invoked += (_, _) => SelectColor(color);
         _colorButtons.Add(color, button);
         options.Children.Add(button);
     }
@@ -224,6 +260,51 @@ internal sealed class ScreenshotToolbar : Border
             new ScreenshotAnnotationStyle(AnnotationStyle.Color, lineWidth));
         _lineWidthButtons.Add(lineWidth, button);
         options.Children.Add(button);
+    }
+
+    private void AddFontSizeButton(Panel options, int fontSize, string tooltip)
+    {
+        var button = new ScreenshotToolbarButton(
+            new ScreenshotFontSizeSwatch(fontSize),
+            tooltip,
+            isEnabled: true);
+        button.Invoked += (_, _) => SelectTextStyle(
+            new ScreenshotTextStyle(TextStyle.Color, fontSize));
+        _fontSizeButtons.Add(fontSize, button);
+        options.Children.Add(button);
+    }
+
+    private void SelectColor(ScreenshotAnnotationColor color)
+    {
+        if (ActiveTool == ScreenshotAnnotationTool.Text)
+        {
+            SelectTextStyle(new ScreenshotTextStyle(color, TextStyle.FontSize));
+        }
+        else
+        {
+            SelectAnnotationStyle(new ScreenshotAnnotationStyle(color, AnnotationStyle.LineWidth));
+        }
+    }
+
+    private void UpdateStyleSelection()
+    {
+        var color = ActiveTool == ScreenshotAnnotationTool.Text
+            ? TextStyle.Color
+            : AnnotationStyle.Color;
+        foreach (var colorButton in _colorButtons)
+        {
+            colorButton.Value.IsSelected = colorButton.Key == color;
+        }
+
+        foreach (var widthButton in _lineWidthButtons)
+        {
+            widthButton.Value.IsSelected = widthButton.Key == AnnotationStyle.LineWidth;
+        }
+
+        foreach (var fontSizeButton in _fontSizeButtons)
+        {
+            fontSizeButton.Value.IsSelected = fontSizeButton.Key == TextStyle.FontSize;
+        }
     }
 
     private void ToggleTool(ScreenshotAnnotationTool tool) =>
@@ -419,5 +500,19 @@ internal sealed class ScreenshotLineWidthSwatch : Control
             previewWidth,
             lineCap: PenLineCap.Round);
         context.DrawLine(pen, new Point(2, 9), new Point(16, 9));
+    }
+}
+
+internal sealed class ScreenshotFontSizeSwatch : TextBlock
+{
+    internal ScreenshotFontSizeSwatch(int fontSize)
+    {
+        Text = fontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        Foreground = ScreenshotUiTheme.PrimaryTextBrush;
+        FontSize = 10;
+        FontWeight = FontWeight.SemiBold;
+        HorizontalAlignment = HorizontalAlignment.Center;
+        VerticalAlignment = VerticalAlignment.Center;
+        IsHitTestVisible = false;
     }
 }

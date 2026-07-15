@@ -26,7 +26,10 @@
   <data name="LineWidth2" xml:space="preserve"><value>2 像素线宽</value></data>
   <data name="LineWidth4" xml:space="preserve"><value>4 像素线宽</value></data>
   <data name="LineWidth8" xml:space="preserve"><value>8 像素线宽</value></data>
-  <data name="TextUnavailable" xml:space="preserve"><value>文字标注（即将支持）</value></data>
+  <data name="TextTool" xml:space="preserve"><value>文字标注 (T)</value></data>
+  <data name="FontSize16" xml:space="preserve"><value>16 像素文字</value></data>
+  <data name="FontSize24" xml:space="preserve"><value>24 像素文字</value></data>
+  <data name="FontSize32" xml:space="preserve"><value>32 像素文字</value></data>
   <data name="MosaicUnavailable" xml:space="preserve"><value>马赛克（即将支持）</value></data>
   <data name="UndoUnavailable" xml:space="preserve"><value>撤销（即将支持）</value></data>
   <data name="SavePng" xml:space="preserve"><value>保存 PNG</value></data>

@@ -80,6 +80,37 @@ public sealed class SelectionPngEncoderTests
         Assert.Equal(new SKColor(7, 201, 119, 255), bitmap.GetPixel(2, 8));
     }
 
+    [Fact]
+    public void EncodedPngCompositesLogicalTextAtTheFrameDpi()
+    {
+        var pixels = new byte[240 * 120 * 4];
+        for (var alphaOffset = 3; alphaOffset < pixels.Length; alphaOffset += 4)
+        {
+            pixels[alphaOffset] = byte.MaxValue;
+        }
+
+        using var frame = new CapturedFrame(
+            new PhysicalSize(240, 120),
+            new LogicalSize(120, 60),
+            stride: 960,
+            pixels);
+        var annotation = new ScreenshotTextAnnotation(
+            new LogicalPoint(8, 6),
+            "DPI 文字",
+            90,
+            new ScreenshotTextStyle(ScreenshotAnnotationColor.Yellow, 24));
+
+        var png = SelectionPngEncoder.Encode(
+            frame,
+            new PhysicalRect(0, 0, 240, 120),
+            [annotation]);
+
+        using var bitmap = SKBitmap.Decode(png);
+        Assert.Contains(
+            Enumerable.Range(12, 70),
+            y => Enumerable.Range(16, 180).Any(x => bitmap.GetPixel(x, y).Red > 0));
+    }
+
     private static void SetPixel(
         byte[] pixels,
         int width,

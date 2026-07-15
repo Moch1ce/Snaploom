@@ -1,5 +1,6 @@
 using SkiaSharp;
 using Snaploom.Core;
+using System.Globalization;
 
 namespace Snaploom.Rendering;
 
@@ -8,6 +9,17 @@ public sealed record AnnotationRaster(
     int Height,
     int Stride,
     byte[] Pixels);
+
+public readonly record struct ScreenshotTextBounds(
+    double X,
+    double Y,
+    double Width,
+    double Height)
+{
+    public bool Contains(LogicalPoint point) =>
+        point.X >= X && point.X <= X + Width &&
+        point.Y >= Y && point.Y <= Y + Height;
+}
 
 public static class ScreenshotAnnotationRenderer
 {
@@ -19,7 +31,8 @@ public static class ScreenshotAnnotationRenderer
         int height,
         double scaleX,
         double scaleY,
-        IEnumerable<IScreenshotAnnotation> annotations)
+        IEnumerable<IScreenshotAnnotation> annotations,
+        string? preferredTextFontFamily = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
@@ -36,7 +49,7 @@ public static class ScreenshotAnnotationRenderer
         bitmap.Erase(SKColors.Transparent);
         using (var canvas = new SKCanvas(bitmap))
         {
-            Draw(canvas, scaleX, scaleY, annotations);
+            Draw(canvas, scaleX, scaleY, annotations, preferredTextFontFamily);
         }
 
         var stride = checked(width * 4);
@@ -55,19 +68,34 @@ public static class ScreenshotAnnotationRenderer
         SKCanvas canvas,
         double scaleX,
         double scaleY,
-        IEnumerable<IScreenshotAnnotation> annotations)
+        IEnumerable<IScreenshotAnnotation> annotations,
+        string? preferredTextFontFamily = null)
     {
         foreach (var annotation in annotations)
         {
-            using var paint = CreatePaint(annotation.Style, scaleX, scaleY);
             switch (annotation)
             {
                 case ScreenshotRectangleAnnotation rectangle:
-                    DrawRectangle(canvas, paint, rectangle, scaleX, scaleY);
+                    using (var paint = CreatePaint(rectangle.Style, scaleX, scaleY))
+                    {
+                        DrawRectangle(canvas, paint, rectangle, scaleX, scaleY);
+                    }
                     break;
 
                 case ScreenshotArrowAnnotation arrow:
-                    DrawArrow(canvas, paint, arrow, scaleX, scaleY);
+                    using (var paint = CreatePaint(arrow.Style, scaleX, scaleY))
+                    {
+                        DrawArrow(canvas, paint, arrow, scaleX, scaleY);
+                    }
+                    break;
+
+                case ScreenshotTextAnnotation text:
+                    DrawText(
+                        canvas,
+                        text,
+                        scaleX,
+                        scaleY,
+                        preferredTextFontFamily);
                     break;
 
                 default:
@@ -75,6 +103,41 @@ public static class ScreenshotAnnotationRenderer
                         $"Unsupported screenshot annotation: {annotation.GetType().Name}.");
             }
         }
+    }
+
+    public static ScreenshotTextBounds MeasureText(
+        ScreenshotTextAnnotation annotation,
+        string? preferredTextFontFamily = null)
+    {
+        ArgumentNullException.ThrowIfNull(annotation);
+        using var layout = CreateTextLayout(
+            annotation,
+            scaleX: 1,
+            scaleY: 1,
+            preferredTextFontFamily);
+        return new ScreenshotTextBounds(
+            annotation.Origin.X,
+            annotation.Origin.Y,
+            Math.Min(annotation.MaxWidth, Math.Max(layout.Width, annotation.Style.FontSize / 2d)),
+            layout.Height);
+    }
+
+    public static int? HitTestText(
+        IReadOnlyList<IScreenshotAnnotation> annotations,
+        LogicalPoint point,
+        string? preferredTextFontFamily = null)
+    {
+        ArgumentNullException.ThrowIfNull(annotations);
+        for (var index = annotations.Count - 1; index >= 0; index--)
+        {
+            if (annotations[index] is ScreenshotTextAnnotation text &&
+                MeasureText(text, preferredTextFontFamily).Contains(point))
+            {
+                return index;
+            }
+        }
+
+        return null;
     }
 
     private static SKPaint CreatePaint(
@@ -146,6 +209,156 @@ public static class ScreenshotAnnotationRenderer
         canvas.DrawPath(path, paint);
     }
 
+    private static void DrawText(
+        SKCanvas canvas,
+        ScreenshotTextAnnotation annotation,
+        double scaleX,
+        double scaleY,
+        string? preferredTextFontFamily)
+    {
+        using var layout = CreateTextLayout(
+            annotation,
+            scaleX,
+            scaleY,
+            preferredTextFontFamily);
+        var color = ScreenshotAnnotationPalette.GetColor(annotation.Style.Color);
+        using var paint = new SKPaint
+        {
+            IsAntialias = true,
+            Color = new SKColor(color.Red, color.Green, color.Blue),
+            Style = SKPaintStyle.Fill,
+        };
+
+        var saveCount = canvas.Save();
+        try
+        {
+            canvas.ClipRect(new SKRect(
+                (float)(annotation.Origin.X * scaleX),
+                (float)(annotation.Origin.Y * scaleY),
+                (float)((annotation.Origin.X + annotation.MaxWidth) * scaleX),
+                canvas.DeviceClipBounds.Bottom));
+            foreach (var glyph in layout.Glyphs)
+            {
+                using var font = new SKFont(glyph.Typeface, layout.FontSize);
+                canvas.DrawText(glyph.Text, glyph.X, glyph.Baseline, font, paint);
+            }
+        }
+        finally
+        {
+            canvas.RestoreToCount(saveCount);
+        }
+    }
+
+    private static TextLayout CreateTextLayout(
+        ScreenshotTextAnnotation annotation,
+        double scaleX,
+        double scaleY,
+        string? preferredTextFontFamily)
+    {
+        var fontScale = (scaleX + scaleY) / 2;
+        var fontSize = (float)(annotation.Style.FontSize * fontScale);
+        var lineHeight = fontSize * 1.25f;
+        var maxWidth = (float)(annotation.MaxWidth * scaleX);
+        var originX = (float)(annotation.Origin.X * scaleX);
+        var originY = (float)(annotation.Origin.Y * scaleY);
+        var layout = new TextLayout(fontSize, lineHeight);
+        var baseTypeface = string.IsNullOrWhiteSpace(preferredTextFontFamily)
+            ? SKTypeface.Default
+            : SKTypeface.FromFamilyName(preferredTextFontFamily) ?? SKTypeface.Default;
+        layout.Own(baseTypeface);
+
+        var x = 0f;
+        var line = 0;
+        foreach (var element in EnumerateTextElements(annotation.Text))
+        {
+            if (element == "\n")
+            {
+                layout.Width = Math.Max(layout.Width, x);
+                x = 0;
+                line++;
+                continue;
+            }
+
+            var typeface = ResolveTypeface(baseTypeface, element);
+            layout.Own(typeface);
+            using var font = new SKFont(typeface, fontSize);
+            var width = Math.Max(0, font.MeasureText(element));
+            if (x > 0 && x + width > maxWidth)
+            {
+                layout.Width = Math.Max(layout.Width, x);
+                x = 0;
+                line++;
+            }
+
+            layout.Glyphs.Add(new TextGlyph(
+                element,
+                typeface,
+                originX + x,
+                originY + fontSize + (line * lineHeight)));
+            x += width;
+        }
+
+        layout.Width = Math.Min(maxWidth, Math.Max(layout.Width, x));
+        layout.Height = Math.Max(lineHeight, (line + 1) * lineHeight);
+        return layout;
+    }
+
+    private static SKTypeface ResolveTypeface(SKTypeface baseTypeface, string textElement)
+    {
+        if (baseTypeface.ContainsGlyphs(textElement))
+        {
+            return baseTypeface;
+        }
+
+        var codePoint = char.ConvertToUtf32(textElement, 0);
+        return SKFontManager.Default.MatchCharacter(codePoint) ?? baseTypeface;
+    }
+
+    private static IEnumerable<string> EnumerateTextElements(string text)
+    {
+        var enumerator = StringInfo.GetTextElementEnumerator(text);
+        while (enumerator.MoveNext())
+        {
+            var element = enumerator.GetTextElement();
+            if (element != "\r")
+            {
+                yield return element;
+            }
+        }
+    }
+
     private static SKPoint ToSkPoint(LogicalPoint point, double scaleX, double scaleY) =>
         new((float)(point.X * scaleX), (float)(point.Y * scaleY));
+
+    private sealed record TextGlyph(
+        string Text,
+        SKTypeface Typeface,
+        float X,
+        float Baseline);
+
+    private sealed class TextLayout(float fontSize, float lineHeight) : IDisposable
+    {
+        private readonly HashSet<SKTypeface> _ownedTypefaces =
+            new(ReferenceEqualityComparer.Instance);
+
+        internal List<TextGlyph> Glyphs { get; } = [];
+
+        internal float FontSize { get; } = fontSize;
+
+        internal float LineHeight { get; } = lineHeight;
+
+        internal float Width { get; set; }
+
+        internal float Height { get; set; }
+
+        internal void Own(SKTypeface typeface) => _ownedTypefaces.Add(typeface);
+
+        public void Dispose()
+        {
+            foreach (var typeface in _ownedTypefaces)
+            {
+                typeface.Dispose();
+            }
+        }
+    }
 }

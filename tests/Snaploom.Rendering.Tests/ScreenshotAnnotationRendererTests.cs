@@ -72,6 +72,108 @@ public sealed class ScreenshotAnnotationRendererTests
         Assert.True(GetAlpha(raster, 4, 14) > 0);
     }
 
+    [Fact]
+    public void MultilineTextWrapsAndIsClippedToItsLogicalMaximumWidth()
+    {
+        var annotation = new ScreenshotTextAnnotation(
+            new LogicalPoint(12, 4),
+            "Snaploom wraps text\n第二行",
+            52,
+            new ScreenshotTextStyle(ScreenshotAnnotationColor.Blue, 16));
+
+        var raster = ScreenshotAnnotationRenderer.RenderBgra(
+            96,
+            72,
+            1,
+            1,
+            [annotation]);
+
+        Assert.Contains(
+            Enumerable.Range(0, raster.Height),
+            y => Enumerable.Range(12, 52).Any(x => GetAlpha(raster, x, y) > 0));
+        Assert.DoesNotContain(
+            Enumerable.Range(0, raster.Height),
+            y => Enumerable.Range(64, raster.Width - 64).Any(x => GetAlpha(raster, x, y) > 0));
+        Assert.Contains(
+            Enumerable.Range(28, raster.Height - 28),
+            y => Enumerable.Range(12, 52).Any(x => GetAlpha(raster, x, y) > 0));
+    }
+
+    [Fact]
+    public void TextHitTestingReturnsTheTopmostMatchingAnnotation()
+    {
+        IScreenshotAnnotation[] annotations =
+        [
+            new ScreenshotTextAnnotation(
+                new LogicalPoint(5, 5),
+                "lower",
+                100,
+                ScreenshotTextStyle.Default),
+            new ScreenshotRectangleAnnotation(
+                new LogicalPoint(0, 0),
+                new LogicalPoint(40, 40),
+                ScreenshotAnnotationStyle.Default),
+            new ScreenshotTextAnnotation(
+                new LogicalPoint(5, 5),
+                "top",
+                100,
+                ScreenshotTextStyle.Default),
+        ];
+
+        Assert.Equal(
+            2,
+            ScreenshotAnnotationRenderer.HitTestText(
+                annotations,
+                new LogicalPoint(8, 10)));
+        Assert.Null(
+            ScreenshotAnnotationRenderer.HitTestText(
+                annotations,
+                new LogicalPoint(180, 180)));
+    }
+
+    [Fact]
+    public void MissingEmojiGlyphsNeverCrashTextRendering()
+    {
+        var exception = Record.Exception(() => ScreenshotAnnotationRenderer.RenderBgra(
+            240,
+            80,
+            1,
+            1,
+            [
+                new ScreenshotTextAnnotation(
+                    new LogicalPoint(4, 4),
+                    "中文 English 😀 🧑‍💻",
+                    220,
+                    ScreenshotTextStyle.Default),
+            ]));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void MultilingualTextMatchesTheControlledFontGoldenRaster()
+    {
+        var raster = ScreenshotAnnotationRenderer.RenderBgra(
+            180,
+            90,
+            1,
+            1,
+            [
+                new ScreenshotTextAnnotation(
+                    new LogicalPoint(6, 5),
+                    "Snaploom 123 !?\n截图文字",
+                    160,
+                    new ScreenshotTextStyle(ScreenshotAnnotationColor.Red, 24)),
+            ],
+            preferredTextFontFamily: "Arial");
+
+        var actualHash = Convert.ToHexString(SHA256.HashData(raster.Pixels));
+        var expectedFingerprint = OperatingSystem.IsWindows()
+            ? "TBD"
+            : "29223CAF81F270AE33067EC5A3FBA579C99321B78601189E86";
+        Assert.StartsWith(expectedFingerprint, actualHash, StringComparison.Ordinal);
+    }
+
     private static byte GetAlpha(AnnotationRaster raster, int x, int y) =>
         raster.Pixels[(y * raster.Stride) + (x * 4) + 3];
 }

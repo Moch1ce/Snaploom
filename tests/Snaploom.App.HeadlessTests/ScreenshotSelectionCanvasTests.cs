@@ -211,6 +211,116 @@ public sealed class ScreenshotSelectionCanvasTests
         }
     }
 
+    [AvaloniaFact]
+    public void TextClickStartsAnEditorAndCommitsMultilineText()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            Drag(window, new Point(10, 10), new Point(80, 80));
+            canvas.SetTextStyle(
+                new ScreenshotTextStyle(ScreenshotAnnotationColor.Blue, 32));
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Text);
+
+            window.MouseDown(
+                new Point(20, 25),
+                MouseButton.Left,
+                RawInputModifiers.LeftMouseButton);
+            window.MouseUp(
+                new Point(20, 25),
+                MouseButton.Left,
+                RawInputModifiers.None);
+
+            Assert.NotNull(canvas.TextEdit);
+            canvas.UpdateTextDraft("中文 English 123\n第二行", isComposing: false);
+            Assert.True(canvas.CommitTextEdit());
+
+            var text = Assert.IsType<ScreenshotTextAnnotation>(
+                Assert.Single(canvas.Annotations));
+            Assert.Equal(new LogicalPoint(10, 15), text.Origin);
+            Assert.Equal("中文 English 123\n第二行", text.Text);
+            Assert.Equal(new ScreenshotTextStyle(ScreenshotAnnotationColor.Blue, 32), text.Style);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void EscapeCancelsTextEditingBeforeItCancelsTheTextTool()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            Drag(window, new Point(10, 10), new Point(80, 80));
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Text);
+            window.MouseDown(
+                new Point(20, 25),
+                MouseButton.Left,
+                RawInputModifiers.LeftMouseButton);
+            window.MouseUp(
+                new Point(20, 25),
+                MouseButton.Left,
+                RawInputModifiers.None);
+            canvas.UpdateTextDraft("不应保存", isComposing: false);
+
+            Assert.Equal(ScreenshotCancelResult.ActionCanceled, canvas.CancelCurrentLayer());
+            Assert.Null(canvas.TextEdit);
+            Assert.Empty(canvas.Annotations);
+            Assert.Equal(ScreenshotAnnotationTool.Text, canvas.ActiveAnnotationTool);
+
+            Assert.Equal(ScreenshotCancelResult.ActionCanceled, canvas.CancelCurrentLayer());
+            Assert.Equal(ScreenshotAnnotationTool.Select, canvas.ActiveAnnotationTool);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void DoubleClickingCommittedTextReopensItForEditing()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            Drag(window, new Point(10, 10), new Point(80, 80));
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Text);
+            window.MouseDown(
+                new Point(20, 25),
+                MouseButton.Left,
+                RawInputModifiers.LeftMouseButton);
+            window.MouseUp(
+                new Point(20, 25),
+                MouseButton.Left,
+                RawInputModifiers.None);
+            canvas.UpdateTextDraft("可编辑文字", isComposing: false);
+            Assert.True(canvas.CommitTextEdit());
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Select);
+
+            Click(window, new Point(22, 28));
+            Click(window, new Point(22, 28));
+
+            Assert.Equal("可编辑文字", canvas.TextEdit?.Text);
+            canvas.UpdateTextDraft("修改完成", isComposing: false);
+            Assert.True(canvas.CommitTextEdit());
+            Assert.Equal(
+                "修改完成",
+                Assert.IsType<ScreenshotTextAnnotation>(Assert.Single(canvas.Annotations)).Text);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     private static Window ShowCanvas(ScreenshotSelectionCanvas canvas)
     {
         var window = new Window
@@ -229,6 +339,12 @@ public sealed class ScreenshotSelectionCanvasTests
         window.MouseDown(start, MouseButton.Left, RawInputModifiers.LeftMouseButton);
         window.MouseMove(end, RawInputModifiers.LeftMouseButton);
         window.MouseUp(end, MouseButton.Left, RawInputModifiers.None);
+    }
+
+    private static void Click(Window window, Point point)
+    {
+        window.MouseDown(point, MouseButton.Left, RawInputModifiers.LeftMouseButton);
+        window.MouseUp(point, MouseButton.Left, RawInputModifiers.None);
     }
 
     private static CapturedFrame CreateHighDpiFrame()

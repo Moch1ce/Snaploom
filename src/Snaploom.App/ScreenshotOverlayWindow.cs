@@ -20,15 +20,26 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     private readonly TextBlock _sizeText;
     private readonly Border _sizeBadge;
     private readonly ScreenshotToolbar _toolbar;
+    private readonly TextBox _textEditor;
     private readonly TranslateTransform _sizeBadgeTransform = new();
     private readonly TranslateTransform _toolbarTransform = new();
+    private readonly TranslateTransform _textEditorTransform = new();
     private Rect _availableUiBounds;
     private bool _floatingUiFrozen;
+    private bool _changingTextEditor;
     private bool _resourcesDisposed;
 
     internal ScreenshotAnnotationTool ActiveAnnotationTool => _toolbar.ActiveTool;
 
     internal Point ToolbarOrigin => new(_toolbarTransform.X, _toolbarTransform.Y);
+
+    internal bool TextEditorVisible => _textEditor.IsVisible;
+
+    internal TextBox TextEditor => _textEditor;
+
+    internal IReadOnlyList<IScreenshotAnnotation> Annotations => _selectionCanvas.Annotations;
+
+    internal ScreenshotTextEdit? TextEdit => _selectionCanvas.TextEdit;
 
     public ScreenshotOverlayWindow(
         CapturedScreen capturedScreen,
@@ -65,6 +76,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _selectionCanvas.SelectionChanged += HandleSelectionChanged;
         _selectionCanvas.SelectionDoubleClicked += HandleConfirm;
         _selectionCanvas.AnnotationStarted += HandleAnnotationStarted;
+        _selectionCanvas.TextEditingStarted += HandleTextEditingStarted;
         _selectionCanvas.SelectionReplaced += HandleSelectionReplaced;
 
         _sizeText = new TextBlock
@@ -97,10 +109,28 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _toolbar.ToolChanged += HandleToolChanged;
         _toolbar.AnnotationStyleChanged += HandleAnnotationStyleChanged;
 
+        _textEditor = new TextBox
+        {
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            FontFamily = FontFamily.Default,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Padding = new Thickness(2, 0),
+            BorderThickness = new Thickness(1),
+            BorderBrush = ScreenshotUiTheme.AccentBrush,
+            Background = new SolidColorBrush(Color.FromArgb(88, 0, 0, 0)),
+            IsVisible = false,
+            RenderTransform = _textEditorTransform,
+        };
+        _textEditor.TextChanged += HandleTextChanged;
+        _textEditor.KeyDown += HandleTextEditorKeyDown;
+
         var root = new Grid();
         root.Children.Add(_selectionCanvas);
         root.Children.Add(_sizeBadge);
         root.Children.Add(_toolbar);
+        root.Children.Add(_textEditor);
         Content = root;
 
         Opened += HandleOpened;
@@ -212,6 +242,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     private async void HandleSave(object? sender, EventArgs e)
     {
+        CommitTextEditing();
         if (_selectionCanvas.Session.Selection is not { } selection ||
             _selectionCanvas.Session.State != ScreenshotSessionState.Selected)
         {
@@ -255,6 +286,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     private void HandleConfirm(object? sender, EventArgs e)
     {
+        CommitTextEditing();
         if (_selectionCanvas.Session.Selection is not { } selection ||
             _selectionCanvas.Session.State != ScreenshotSessionState.Selected)
         {
@@ -303,6 +335,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     private void HandleToolChanged(object? sender, EventArgs e)
     {
+        CommitTextEditing();
         _selectionCanvas.SelectAnnotationTool(_toolbar.ActiveTool);
         if (_selectionCanvas.LogicalSelection is { } logicalSelection)
         {
@@ -310,20 +343,162 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         }
     }
 
-    private void HandleAnnotationStyleChanged(object? sender, EventArgs e) =>
+    private void HandleAnnotationStyleChanged(object? sender, EventArgs e)
+    {
         _selectionCanvas.SetAnnotationStyle(_toolbar.AnnotationStyle);
+        _selectionCanvas.SetTextStyle(_toolbar.TextStyle);
+    }
 
     private void HandleAnnotationStarted(object? sender, EventArgs e) =>
         _floatingUiFrozen = true;
 
+    private void HandleTextEditingStarted(object? sender, EventArgs e)
+    {
+        if (_selectionCanvas.TextEdit is not { } edit ||
+            _selectionCanvas.LogicalSelection is not { } selection)
+        {
+            return;
+        }
+
+        var color = ScreenshotAnnotationPalette.GetColor(edit.Style.Color);
+        _changingTextEditor = true;
+        try
+        {
+            _textEditor.Text = edit.Text;
+            _textEditor.FontSize = edit.Style.FontSize;
+            _textEditor.Foreground = new SolidColorBrush(
+                Color.FromRgb(color.Red, color.Green, color.Blue));
+            _textEditor.Width = Math.Max(1, edit.MaxWidth);
+            _textEditor.MinHeight = edit.Style.FontSize * 1.35;
+            _textEditor.MaxHeight = Math.Max(
+                _textEditor.MinHeight,
+                selection.Height - edit.Origin.Y);
+            _textEditorTransform.X = selection.X + edit.Origin.X;
+            _textEditorTransform.Y = selection.Y + edit.Origin.Y;
+            _textEditor.IsVisible = true;
+            _textEditor.Focus();
+            if (edit.AnnotationIndex is not null)
+            {
+                _textEditor.SelectAll();
+            }
+            else
+            {
+                _textEditor.CaretIndex = _textEditor.Text?.Length ?? 0;
+            }
+        }
+        finally
+        {
+            _changingTextEditor = false;
+        }
+    }
+
+    private void HandleTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (!_changingTextEditor && _selectionCanvas.TextEdit is not null)
+        {
+            _selectionCanvas.UpdateTextDraft(
+                _textEditor.Text ?? string.Empty,
+                isComposing: false);
+        }
+    }
+
+    private void HandleTextEditorKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            CancelTextEditing();
+            return;
+        }
+
+        var commitModifier = OperatingSystem.IsMacOS()
+            ? e.KeyModifiers.HasFlag(KeyModifiers.Meta)
+            : e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        if (e.Key == Key.Enter && commitModifier)
+        {
+            e.Handled = true;
+            CommitTextEditing();
+        }
+    }
+
+    private void CommitTextEditing()
+    {
+        if (!_textEditor.IsVisible || _changingTextEditor)
+        {
+            return;
+        }
+
+        _changingTextEditor = true;
+        try
+        {
+            if (_selectionCanvas.TextEdit is not null)
+            {
+                _selectionCanvas.UpdateTextDraft(
+                    _textEditor.Text ?? string.Empty,
+                    isComposing: false);
+                _selectionCanvas.CommitTextEdit();
+            }
+
+            _textEditor.IsVisible = false;
+            _selectionCanvas.Focus();
+        }
+        finally
+        {
+            _changingTextEditor = false;
+        }
+    }
+
+    private void CancelTextEditing()
+    {
+        if (!_textEditor.IsVisible)
+        {
+            return;
+        }
+
+        _changingTextEditor = true;
+        try
+        {
+            _selectionCanvas.CancelTextEdit();
+            _textEditor.IsVisible = false;
+            _selectionCanvas.Focus();
+        }
+        finally
+        {
+            _changingTextEditor = false;
+        }
+    }
+
     private void HandleSelectionReplaced(object? sender, EventArgs e)
     {
+        CancelTextEditing();
         _floatingUiFrozen = false;
         _toolbar.SelectTool(ScreenshotAnnotationTool.Select);
     }
 
     private void HandleKeyDown(object? sender, KeyEventArgs e)
     {
+        if (_textEditor.IsVisible)
+        {
+            if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                CancelTextEditing();
+            }
+            else
+            {
+                var commitModifier = OperatingSystem.IsMacOS()
+                    ? e.KeyModifiers.HasFlag(KeyModifiers.Meta)
+                    : e.KeyModifiers.HasFlag(KeyModifiers.Control);
+                if (e.Key == Key.Enter && commitModifier)
+                {
+                    e.Handled = true;
+                    CommitTextEditing();
+                }
+            }
+
+            return;
+        }
+
         if (e.Key == Key.Escape)
         {
             e.Handled = true;
@@ -347,13 +522,14 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             !e.KeyModifiers.HasFlag(KeyModifiers.Alt);
         if (annotationShortcutAllowed &&
             _selectionCanvas.Session.State == ScreenshotSessionState.Selected &&
-            e.Key is Key.R or Key.A or Key.V)
+            e.Key is Key.R or Key.A or Key.T or Key.V)
         {
             e.Handled = true;
             _toolbar.SelectTool(e.Key switch
             {
                 Key.R => ScreenshotAnnotationTool.Rectangle,
                 Key.A => ScreenshotAnnotationTool.Arrow,
+                Key.T => ScreenshotAnnotationTool.Text,
                 _ => ScreenshotAnnotationTool.Select,
             });
             return;
@@ -403,9 +579,12 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _toolbar.CancelRequested -= HandleCancel;
         _toolbar.ToolChanged -= HandleToolChanged;
         _toolbar.AnnotationStyleChanged -= HandleAnnotationStyleChanged;
+        _textEditor.TextChanged -= HandleTextChanged;
+        _textEditor.KeyDown -= HandleTextEditorKeyDown;
         _selectionCanvas.SelectionChanged -= HandleSelectionChanged;
         _selectionCanvas.SelectionDoubleClicked -= HandleConfirm;
         _selectionCanvas.AnnotationStarted -= HandleAnnotationStarted;
+        _selectionCanvas.TextEditingStarted -= HandleTextEditingStarted;
         _selectionCanvas.SelectionReplaced -= HandleSelectionReplaced;
         _selectionCanvas.Dispose();
         _capturedScreen.Dispose();
