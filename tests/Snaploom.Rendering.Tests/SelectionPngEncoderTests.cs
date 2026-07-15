@@ -111,6 +111,46 @@ public sealed class SelectionPngEncoderTests
             y => Enumerable.Range(16, 180).Any(x => bitmap.GetPixel(x, y).Red > 0));
     }
 
+    [Fact]
+    public void EncodedPngPixelatesMosaicAtTheFrameDpiWithoutChangingOutsidePixels()
+    {
+        const int width = 160;
+        const int height = 120;
+        var pixels = new byte[width * height * 4];
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var offset = ((y * width) + x) * 4;
+                pixels[offset] = (byte)((x * 3 + y) % 256);
+                pixels[offset + 1] = (byte)((x + y * 5) % 256);
+                pixels[offset + 2] = (byte)((x * 7 + y * 2) % 256);
+                pixels[offset + 3] = byte.MaxValue;
+            }
+        }
+
+        using var frame = new CapturedFrame(
+            new PhysicalSize(width, height),
+            new LogicalSize(width / 2, height / 2),
+            width * 4,
+            pixels);
+        var selection = new PhysicalRect(0, 0, width, height);
+        var originalPng = SelectionPngEncoder.Encode(frame, selection);
+        var mosaicPng = SelectionPngEncoder.Encode(
+            frame,
+            selection,
+            [
+                new ScreenshotMosaicAnnotation(
+                    [new LogicalPoint(10, 10), new LogicalPoint(50, 20)],
+                    new ScreenshotMosaicStyle(16, 8)),
+            ]);
+
+        using var original = SKBitmap.Decode(originalPng);
+        using var mosaic = SKBitmap.Decode(mosaicPng);
+        Assert.Equal(original.GetPixel(2, 2), mosaic.GetPixel(2, 2));
+        Assert.NotEqual(original.GetPixel(40, 24), mosaic.GetPixel(40, 24));
+    }
+
     private static void SetPixel(
         byte[] pixels,
         int width,

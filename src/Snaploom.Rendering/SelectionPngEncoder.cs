@@ -15,6 +15,7 @@ public static class SelectionPngEncoder
     {
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(annotations);
+        var annotationList = annotations.ToArray();
 
         if (selection.Width <= 0 || selection.Height <= 0 ||
             selection.X < 0 || selection.Y < 0 ||
@@ -45,13 +46,24 @@ public static class SelectionPngEncoder
                 .CopyTo(destination.Slice(destinationOffset, copiedBytesPerRow));
         }
 
+        var mosaics = annotationList.OfType<ScreenshotMosaicAnnotation>().ToArray();
+        if (mosaics.Length > 0)
+        {
+            ScreenshotMosaicRenderer.ApplyToBitmap(
+                bitmap,
+                frame.ScaleX,
+                frame.ScaleY,
+                mosaics);
+        }
+
         using (var canvas = new SKCanvas(bitmap))
         {
             ScreenshotAnnotationRenderer.Draw(
                 canvas,
                 frame.ScaleX,
                 frame.ScaleY,
-                annotations);
+                annotationList.Where(annotation =>
+                    annotation is not ScreenshotMosaicAnnotation));
         }
 
         using var image = SKImage.FromBitmap(bitmap);

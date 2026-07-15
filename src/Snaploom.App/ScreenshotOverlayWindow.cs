@@ -347,6 +347,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     {
         _selectionCanvas.SetAnnotationStyle(_toolbar.AnnotationStyle);
         _selectionCanvas.SetTextStyle(_toolbar.TextStyle);
+        _selectionCanvas.SetMosaicStyle(_toolbar.MosaicStyle);
     }
 
     private void HandleAnnotationStarted(object? sender, EventArgs e) =>
@@ -522,7 +523,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             !e.KeyModifiers.HasFlag(KeyModifiers.Alt);
         if (annotationShortcutAllowed &&
             _selectionCanvas.Session.State == ScreenshotSessionState.Selected &&
-            e.Key is Key.R or Key.A or Key.T or Key.V)
+            e.Key is Key.R or Key.A or Key.T or Key.M or Key.V)
         {
             e.Handled = true;
             _toolbar.SelectTool(e.Key switch
@@ -530,6 +531,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
                 Key.R => ScreenshotAnnotationTool.Rectangle,
                 Key.A => ScreenshotAnnotationTool.Arrow,
                 Key.T => ScreenshotAnnotationTool.Text,
+                Key.M => ScreenshotAnnotationTool.Mosaic,
                 _ => ScreenshotAnnotationTool.Select,
             });
             return;

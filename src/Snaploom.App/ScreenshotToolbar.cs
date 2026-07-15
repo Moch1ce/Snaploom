@@ -12,9 +12,15 @@ internal sealed class ScreenshotToolbar : Border
     private readonly ScreenshotToolbarButton _rectangleButton;
     private readonly ScreenshotToolbarButton _arrowButton;
     private readonly ScreenshotToolbarButton _textButton;
+    private readonly ScreenshotToolbarButton _mosaicButton;
     private readonly ScreenshotToolbarButton _saveButton;
     private readonly ScreenshotToolbarButton _confirmButton;
     private readonly StackPanel _annotationOptions;
+    private readonly StackPanel _colorOptions = new()
+    {
+        Orientation = Orientation.Horizontal,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
     private readonly StackPanel _lineWidthOptions = new()
     {
         Orientation = Orientation.Horizontal,
@@ -25,9 +31,15 @@ internal sealed class ScreenshotToolbar : Border
         Orientation = Orientation.Horizontal,
         VerticalAlignment = VerticalAlignment.Center,
     };
+    private readonly StackPanel _mosaicBrushOptions = new()
+    {
+        Orientation = Orientation.Horizontal,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
     private readonly Dictionary<ScreenshotAnnotationColor, ScreenshotToolbarButton> _colorButtons = [];
     private readonly Dictionary<int, ScreenshotToolbarButton> _lineWidthButtons = [];
     private readonly Dictionary<int, ScreenshotToolbarButton> _fontSizeButtons = [];
+    private readonly Dictionary<int, ScreenshotToolbarButton> _mosaicBrushButtons = [];
 
     internal ScreenshotToolbar()
     {
@@ -64,10 +76,12 @@ internal sealed class ScreenshotToolbar : Border
         _textButton.Invoked += (_, _) => ToggleTool(ScreenshotAnnotationTool.Text);
 
         _annotationOptions = CreateAnnotationOptions();
-        var mosaicButton = CreateUnavailableButton(
+        _mosaicButton = CreateButton(
             ScreenshotToolbarIconKind.Mosaic,
-            ScreenshotUiText.MosaicUnavailable,
-            ScreenshotUiTheme.DisabledIconBrush);
+            ScreenshotUiText.MosaicTool,
+            ScreenshotUiTheme.PrimaryTextBrush,
+            isEnabled: false);
+        _mosaicButton.Invoked += (_, _) => ToggleTool(ScreenshotAnnotationTool.Mosaic);
         var undoButton = CreateUnavailableButton(
             ScreenshotToolbarIconKind.Undo,
             ScreenshotUiText.UndoUnavailable,
@@ -102,7 +116,7 @@ internal sealed class ScreenshotToolbar : Border
         content.Children.Add(_rectangleButton);
         content.Children.Add(_arrowButton);
         content.Children.Add(_textButton);
-        content.Children.Add(mosaicButton);
+        content.Children.Add(_mosaicButton);
         content.Children.Add(_annotationOptions);
         content.Children.Add(CreateSeparator());
         content.Children.Add(undoButton);
@@ -131,17 +145,25 @@ internal sealed class ScreenshotToolbar : Border
     internal ScreenshotTextStyle TextStyle { get; private set; } =
         ScreenshotTextStyle.Default;
 
+    internal ScreenshotMosaicStyle MosaicStyle { get; private set; } =
+        ScreenshotMosaicStyle.Default;
+
     internal bool AnnotationOptionsVisible => _annotationOptions.IsVisible;
+
+    internal bool ColorOptionsVisible => _colorOptions.IsVisible;
 
     internal bool LineWidthOptionsVisible => _lineWidthOptions.IsVisible;
 
     internal bool FontSizeOptionsVisible => _fontSizeOptions.IsVisible;
+
+    internal bool MosaicBrushOptionsVisible => _mosaicBrushOptions.IsVisible;
 
     internal void SetSelectionActionsEnabled(bool isEnabled)
     {
         _rectangleButton.SetEnabled(isEnabled);
         _arrowButton.SetEnabled(isEnabled);
         _textButton.SetEnabled(isEnabled);
+        _mosaicButton.SetEnabled(isEnabled);
         _saveButton.SetEnabled(isEnabled);
         _confirmButton.SetEnabled(isEnabled);
         if (!isEnabled && ActiveTool != ScreenshotAnnotationTool.Select)
@@ -161,10 +183,14 @@ internal sealed class ScreenshotToolbar : Border
         _rectangleButton.IsSelected = tool == ScreenshotAnnotationTool.Rectangle;
         _arrowButton.IsSelected = tool == ScreenshotAnnotationTool.Arrow;
         _textButton.IsSelected = tool == ScreenshotAnnotationTool.Text;
+        _mosaicButton.IsSelected = tool == ScreenshotAnnotationTool.Mosaic;
         _annotationOptions.IsVisible = tool != ScreenshotAnnotationTool.Select;
+        _colorOptions.IsVisible = tool is ScreenshotAnnotationTool.Rectangle or
+            ScreenshotAnnotationTool.Arrow or ScreenshotAnnotationTool.Text;
         _lineWidthOptions.IsVisible = tool is ScreenshotAnnotationTool.Rectangle or
             ScreenshotAnnotationTool.Arrow;
         _fontSizeOptions.IsVisible = tool == ScreenshotAnnotationTool.Text;
+        _mosaicBrushOptions.IsVisible = tool == ScreenshotAnnotationTool.Mosaic;
         UpdateStyleSelection();
         ToolChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -193,6 +219,18 @@ internal sealed class ScreenshotToolbar : Border
         AnnotationStyleChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    internal void SelectMosaicStyle(ScreenshotMosaicStyle style)
+    {
+        if (MosaicStyle == style)
+        {
+            return;
+        }
+
+        MosaicStyle = style;
+        UpdateStyleSelection();
+        AnnotationStyleChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     private static ScreenshotToolbarButton CreateButton(
         ScreenshotToolbarIconKind icon,
         string tooltip,
@@ -211,13 +249,14 @@ internal sealed class ScreenshotToolbar : Border
         };
         options.Children.Add(CreateSeparator());
 
-        AddColorButton(options, ScreenshotAnnotationColor.Red, ScreenshotUiText.ColorRed);
-        AddColorButton(options, ScreenshotAnnotationColor.Yellow, ScreenshotUiText.ColorYellow);
-        AddColorButton(options, ScreenshotAnnotationColor.Green, ScreenshotUiText.ColorGreen);
-        AddColorButton(options, ScreenshotAnnotationColor.Blue, ScreenshotUiText.ColorBlue);
-        AddColorButton(options, ScreenshotAnnotationColor.Black, ScreenshotUiText.ColorBlack);
-        AddColorButton(options, ScreenshotAnnotationColor.White, ScreenshotUiText.ColorWhite);
-        options.Children.Add(CreateSeparator());
+        AddColorButton(_colorOptions, ScreenshotAnnotationColor.Red, ScreenshotUiText.ColorRed);
+        AddColorButton(_colorOptions, ScreenshotAnnotationColor.Yellow, ScreenshotUiText.ColorYellow);
+        AddColorButton(_colorOptions, ScreenshotAnnotationColor.Green, ScreenshotUiText.ColorGreen);
+        AddColorButton(_colorOptions, ScreenshotAnnotationColor.Blue, ScreenshotUiText.ColorBlue);
+        AddColorButton(_colorOptions, ScreenshotAnnotationColor.Black, ScreenshotUiText.ColorBlack);
+        AddColorButton(_colorOptions, ScreenshotAnnotationColor.White, ScreenshotUiText.ColorWhite);
+        _colorOptions.Children.Add(CreateSeparator());
+        options.Children.Add(_colorOptions);
         AddLineWidthButton(_lineWidthOptions, 2, ScreenshotUiText.LineWidth2);
         AddLineWidthButton(_lineWidthOptions, 4, ScreenshotUiText.LineWidth4);
         AddLineWidthButton(_lineWidthOptions, 8, ScreenshotUiText.LineWidth8);
@@ -227,10 +266,16 @@ internal sealed class ScreenshotToolbar : Border
         AddFontSizeButton(_fontSizeOptions, 32, ScreenshotUiText.FontSize32);
         _fontSizeOptions.IsVisible = false;
         options.Children.Add(_fontSizeOptions);
+        AddMosaicBrushButton(_mosaicBrushOptions, 16, 8, ScreenshotUiText.MosaicBrush16);
+        AddMosaicBrushButton(_mosaicBrushOptions, 32, 12, ScreenshotUiText.MosaicBrush32);
+        AddMosaicBrushButton(_mosaicBrushOptions, 64, 16, ScreenshotUiText.MosaicBrush64);
+        _mosaicBrushOptions.IsVisible = false;
+        options.Children.Add(_mosaicBrushOptions);
 
         _colorButtons[ScreenshotAnnotationColor.Red].IsSelected = true;
         _lineWidthButtons[4].IsSelected = true;
         _fontSizeButtons[24].IsSelected = true;
+        _mosaicBrushButtons[32].IsSelected = true;
         return options;
     }
 
@@ -274,6 +319,22 @@ internal sealed class ScreenshotToolbar : Border
         options.Children.Add(button);
     }
 
+    private void AddMosaicBrushButton(
+        Panel options,
+        int brushSize,
+        int pixelSize,
+        string tooltip)
+    {
+        var button = new ScreenshotToolbarButton(
+            new ScreenshotMosaicBrushSwatch(brushSize),
+            tooltip,
+            isEnabled: true);
+        button.Invoked += (_, _) => SelectMosaicStyle(
+            new ScreenshotMosaicStyle(brushSize, pixelSize));
+        _mosaicBrushButtons.Add(brushSize, button);
+        options.Children.Add(button);
+    }
+
     private void SelectColor(ScreenshotAnnotationColor color)
     {
         if (ActiveTool == ScreenshotAnnotationTool.Text)
@@ -304,6 +365,12 @@ internal sealed class ScreenshotToolbar : Border
         foreach (var fontSizeButton in _fontSizeButtons)
         {
             fontSizeButton.Value.IsSelected = fontSizeButton.Key == TextStyle.FontSize;
+        }
+
+        foreach (var mosaicBrushButton in _mosaicBrushButtons)
+        {
+            mosaicBrushButton.Value.IsSelected =
+                mosaicBrushButton.Key == MosaicStyle.BrushSize;
         }
     }
 
@@ -514,5 +581,46 @@ internal sealed class ScreenshotFontSizeSwatch : TextBlock
         HorizontalAlignment = HorizontalAlignment.Center;
         VerticalAlignment = VerticalAlignment.Center;
         IsHitTestVisible = false;
+    }
+}
+
+internal sealed class ScreenshotMosaicBrushSwatch : Control
+{
+    private readonly double _diameter;
+
+    internal ScreenshotMosaicBrushSwatch(int brushSize)
+    {
+        _diameter = brushSize switch
+        {
+            16 => 6,
+            32 => 10,
+            _ => 14,
+        };
+        Width = ScreenshotUiTheme.IconSize;
+        Height = ScreenshotUiTheme.IconSize;
+        IsHitTestVisible = false;
+    }
+
+    public override void Render(DrawingContext context)
+    {
+        base.Render(context);
+        var topLeft = new Point(
+            (ScreenshotUiTheme.IconSize - _diameter) / 2,
+            (ScreenshotUiTheme.IconSize - _diameter) / 2);
+        var cell = Math.Max(2, _diameter / 3);
+        for (var row = 0; row < 3; row++)
+        {
+            for (var column = 0; column < 3; column++)
+            {
+                context.DrawRectangle(
+                    ScreenshotUiTheme.PrimaryTextBrush,
+                    pen: null,
+                    new Rect(
+                        topLeft.X + (column * cell),
+                        topLeft.Y + (row * cell),
+                        Math.Max(1, cell - 0.5),
+                        Math.Max(1, cell - 0.5)));
+            }
+        }
     }
 }

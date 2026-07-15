@@ -161,4 +161,44 @@ public sealed class ScreenshotAnnotationSessionTests
         var text = Assert.IsType<ScreenshotTextAnnotation>(Assert.Single(visible));
         Assert.Equal("second", text.Text);
     }
+
+    [Fact]
+    public void MosaicStyleKeepsBrushSizeAndPixelIntensity()
+    {
+        Assert.Equal(32, ScreenshotMosaicStyle.Default.BrushSize);
+        Assert.Equal(12, ScreenshotMosaicStyle.Default.PixelSize);
+        Assert.Equal(16, new ScreenshotMosaicStyle(16, 8).BrushSize);
+        Assert.Equal(64, new ScreenshotMosaicStyle(64, 16).BrushSize);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ScreenshotMosaicStyle(24, 8));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ScreenshotMosaicStyle(32, 0));
+    }
+
+    [Fact]
+    public void MosaicStrokeInterpolatesContinuousNonDestructivePoints()
+    {
+        var session = new ScreenshotAnnotationSession();
+        session.SetTool(ScreenshotAnnotationTool.Mosaic);
+        session.SetMosaicStyle(new ScreenshotMosaicStyle(16, 8));
+
+        session.Begin(new LogicalPoint(4, 6));
+        session.Update(new LogicalPoint(60, 6));
+
+        var preview = Assert.IsType<ScreenshotMosaicAnnotation>(session.Preview);
+        Assert.True(preview.Points.Count > 2);
+        Assert.All(
+            preview.Points.Zip(preview.Points.Skip(1)),
+            pair => Assert.InRange(Distance(pair.First, pair.Second), 0, 4.001));
+        Assert.Equal(new ScreenshotMosaicStyle(16, 8), preview.Style);
+        Assert.Empty(session.Annotations);
+
+        Assert.True(session.Complete());
+        Assert.Same(preview, Assert.Single(session.Annotations));
+    }
+
+    private static double Distance(LogicalPoint first, LogicalPoint second)
+    {
+        var deltaX = second.X - first.X;
+        var deltaY = second.Y - first.Y;
+        return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
+    }
 }

@@ -45,7 +45,13 @@ internal static class ScreenshotUiText
 
     internal static string FontSize32 => Get(nameof(FontSize32));
 
-    internal static string MosaicUnavailable => Get(nameof(MosaicUnavailable));
+    internal static string MosaicTool => Get(nameof(MosaicTool));
+
+    internal static string MosaicBrush16 => Get(nameof(MosaicBrush16));
+
+    internal static string MosaicBrush32 => Get(nameof(MosaicBrush32));
+
+    internal static string MosaicBrush64 => Get(nameof(MosaicBrush64));
 
     internal static string UndoUnavailable => Get(nameof(UndoUnavailable));
 

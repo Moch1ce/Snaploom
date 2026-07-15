@@ -30,7 +30,10 @@
   <data name="FontSize16" xml:space="preserve"><value>16 px text</value></data>
   <data name="FontSize24" xml:space="preserve"><value>24 px text</value></data>
   <data name="FontSize32" xml:space="preserve"><value>32 px text</value></data>
-  <data name="MosaicUnavailable" xml:space="preserve"><value>Mosaic (coming soon)</value></data>
+  <data name="MosaicTool" xml:space="preserve"><value>Pixelate (M)</value></data>
+  <data name="MosaicBrush16" xml:space="preserve"><value>16 px mosaic brush</value></data>
+  <data name="MosaicBrush32" xml:space="preserve"><value>32 px mosaic brush</value></data>
+  <data name="MosaicBrush64" xml:space="preserve"><value>64 px mosaic brush</value></data>
   <data name="UndoUnavailable" xml:space="preserve"><value>Undo (coming soon)</value></data>
   <data name="SavePng" xml:space="preserve"><value>Save PNG</value></data>
   <data name="ExitScreenshot" xml:space="preserve"><value>Exit screenshot</value></data>

@@ -321,6 +321,32 @@ public sealed class ScreenshotSelectionCanvasTests
         }
     }
 
+    [AvaloniaFact]
+    public void MosaicGestureCommitsAContinuousStroke()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            Drag(window, new Point(10, 10), new Point(80, 80));
+            canvas.SetMosaicStyle(new ScreenshotMosaicStyle(64, 16));
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Mosaic);
+
+            Drag(window, new Point(20, 25), new Point(65, 55));
+
+            var mosaic = Assert.IsType<ScreenshotMosaicAnnotation>(
+                Assert.Single(canvas.Annotations));
+            Assert.True(mosaic.Points.Count > 2);
+            Assert.Equal(new ScreenshotMosaicStyle(64, 16), mosaic.Style);
+            Assert.True(canvas.MosaicTileCount > 0);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     private static Window ShowCanvas(ScreenshotSelectionCanvas canvas)
     {
         var window = new Window

@@ -44,6 +44,9 @@ public sealed class ScreenshotAnnotationShortcutTests
         window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
         Assert.Equal(ScreenshotAnnotationTool.Text, window.ActiveAnnotationTool);
 
+        window.KeyPress(Key.M, RawInputModifiers.None, PhysicalKey.M, "m");
+        Assert.Equal(ScreenshotAnnotationTool.Mosaic, window.ActiveAnnotationTool);
+
         window.KeyPress(Key.V, RawInputModifiers.None, PhysicalKey.V, "v");
         Assert.Equal(ScreenshotAnnotationTool.Select, window.ActiveAnnotationTool);
     }
@@ -74,6 +77,16 @@ public sealed class ScreenshotAnnotationShortcutTests
         Assert.True(toolbar.FontSizeOptionsVisible);
         Assert.Equal(ScreenshotAnnotationColor.Green, toolbar.TextStyle.Color);
         Assert.Equal(32, toolbar.TextStyle.FontSize);
+
+        toolbar.SelectTool(ScreenshotAnnotationTool.Mosaic);
+        toolbar.SelectMosaicStyle(new ScreenshotMosaicStyle(64, 16));
+        Assert.True(toolbar.AnnotationOptionsVisible);
+        Assert.False(toolbar.ColorOptionsVisible);
+        Assert.False(toolbar.LineWidthOptionsVisible);
+        Assert.False(toolbar.FontSizeOptionsVisible);
+        Assert.True(toolbar.MosaicBrushOptionsVisible);
+        Assert.Equal(64, toolbar.MosaicStyle.BrushSize);
+        Assert.Equal(16, toolbar.MosaicStyle.PixelSize);
     }
 
     [AvaloniaFact]

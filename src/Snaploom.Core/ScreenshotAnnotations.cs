@@ -8,6 +8,7 @@ public enum ScreenshotAnnotationTool
     Rectangle,
     Arrow,
     Text,
+    Mosaic,
 }
 
 public enum ScreenshotAnnotationColor
@@ -85,6 +86,30 @@ public readonly record struct ScreenshotTextStyle
     public int FontSize { get; }
 }
 
+public readonly record struct ScreenshotMosaicStyle
+{
+    public ScreenshotMosaicStyle(int brushSize, int pixelSize)
+    {
+        if (brushSize is not (16 or 32 or 64))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(brushSize),
+                brushSize,
+                "Mosaic brush size must be 16, 32, or 64 logical pixels.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pixelSize);
+        BrushSize = brushSize;
+        PixelSize = pixelSize;
+    }
+
+    public static ScreenshotMosaicStyle Default { get; } = new(32, 12);
+
+    public int BrushSize { get; }
+
+    public int PixelSize { get; }
+}
+
 public interface IScreenshotAnnotation;
 
 public sealed record ScreenshotRectangleAnnotation(
@@ -103,6 +128,10 @@ public sealed record ScreenshotTextAnnotation(
     double MaxWidth,
     ScreenshotTextStyle Style) : IScreenshotAnnotation;
 
+public sealed record ScreenshotMosaicAnnotation(
+    IReadOnlyList<LogicalPoint> Points,
+    ScreenshotMosaicStyle Style) : IScreenshotAnnotation;
+
 public sealed record ScreenshotTextEdit(
     LogicalPoint Origin,
     string Text,
@@ -115,6 +144,7 @@ public sealed class ScreenshotAnnotationSession
 {
     private readonly List<IScreenshotAnnotation> _annotations = [];
     private readonly ReadOnlyCollection<IScreenshotAnnotation> _readOnlyAnnotations;
+    private readonly List<LogicalPoint> _mosaicPoints = [];
     private LogicalPoint _start;
 
     public ScreenshotAnnotationSession()
@@ -130,6 +160,9 @@ public sealed class ScreenshotAnnotationSession
     public ScreenshotTextStyle TextStyle { get; private set; } =
         ScreenshotTextStyle.Default;
 
+    public ScreenshotMosaicStyle MosaicStyle { get; private set; } =
+        ScreenshotMosaicStyle.Default;
+
     public IReadOnlyList<IScreenshotAnnotation> Annotations => _readOnlyAnnotations;
 
     public IScreenshotAnnotation? Preview { get; private set; }
@@ -141,11 +174,14 @@ public sealed class ScreenshotAnnotationSession
         ActiveTool = tool;
         Preview = null;
         TextEdit = null;
+        _mosaicPoints.Clear();
     }
 
     public void SetStyle(ScreenshotAnnotationStyle style) => Style = style;
 
     public void SetTextStyle(ScreenshotTextStyle style) => TextStyle = style;
+
+    public void SetMosaicStyle(ScreenshotMosaicStyle style) => MosaicStyle = style;
 
     public void Begin(LogicalPoint point)
     {
@@ -155,7 +191,16 @@ public sealed class ScreenshotAnnotationSession
         }
 
         _start = point;
-        Preview = CreateAnnotation(_start, _start);
+        if (ActiveTool == ScreenshotAnnotationTool.Mosaic)
+        {
+            _mosaicPoints.Clear();
+            _mosaicPoints.Add(point);
+            Preview = CreateMosaicAnnotation();
+        }
+        else
+        {
+            Preview = CreateAnnotation(_start, _start);
+        }
     }
 
     public void Update(LogicalPoint point)
@@ -165,7 +210,15 @@ public sealed class ScreenshotAnnotationSession
             throw new InvalidOperationException("An annotation has not been started.");
         }
 
-        Preview = CreateAnnotation(_start, point);
+        if (Preview is ScreenshotMosaicAnnotation)
+        {
+            AppendMosaicPoints(point);
+            Preview = CreateMosaicAnnotation();
+        }
+        else
+        {
+            Preview = CreateAnnotation(_start, point);
+        }
     }
 
     public bool Complete()
@@ -180,6 +233,7 @@ public sealed class ScreenshotAnnotationSession
         {
             ScreenshotRectangleAnnotation rectangle => rectangle.Start == rectangle.End,
             ScreenshotArrowAnnotation arrow => arrow.Start == arrow.End,
+            ScreenshotMosaicAnnotation => false,
             _ => true,
         })
         {
@@ -198,6 +252,7 @@ public sealed class ScreenshotAnnotationSession
         }
 
         Preview = null;
+        _mosaicPoints.Clear();
         return true;
     }
 
@@ -299,6 +354,7 @@ public sealed class ScreenshotAnnotationSession
     {
         Preview = null;
         TextEdit = null;
+        _mosaicPoints.Clear();
         _annotations.Clear();
     }
 
@@ -327,6 +383,31 @@ public sealed class ScreenshotAnnotationSession
                 new ScreenshotArrowAnnotation(start, end, Style),
             _ => throw new InvalidOperationException("The active tool does not create annotations."),
         };
+
+    private ScreenshotMosaicAnnotation CreateMosaicAnnotation() =>
+        new(_mosaicPoints.ToArray(), MosaicStyle);
+
+    private void AppendMosaicPoints(LogicalPoint point)
+    {
+        var previous = _mosaicPoints[^1];
+        var deltaX = point.X - previous.X;
+        var deltaY = point.Y - previous.Y;
+        var distance = Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
+        if (distance <= 0)
+        {
+            return;
+        }
+
+        var maximumSpacing = MosaicStyle.BrushSize / 4d;
+        var steps = Math.Max(1, (int)Math.Ceiling(distance / maximumSpacing));
+        for (var step = 1; step <= steps; step++)
+        {
+            var progress = step / (double)steps;
+            _mosaicPoints.Add(new LogicalPoint(
+                previous.X + (deltaX * progress),
+                previous.Y + (deltaY * progress)));
+        }
+    }
 
     private static string NormalizeLineEndings(string text) =>
         text.Replace("\r\n", "\n", StringComparison.Ordinal)

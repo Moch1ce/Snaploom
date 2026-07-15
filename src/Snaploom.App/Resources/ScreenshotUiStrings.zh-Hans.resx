@@ -30,7 +30,10 @@
   <data name="FontSize16" xml:space="preserve"><value>16 像素文字</value></data>
   <data name="FontSize24" xml:space="preserve"><value>24 像素文字</value></data>
   <data name="FontSize32" xml:space="preserve"><value>32 像素文字</value></data>
-  <data name="MosaicUnavailable" xml:space="preserve"><value>马赛克（即将支持）</value></data>
+  <data name="MosaicTool" xml:space="preserve"><value>像素化马赛克 (M)</value></data>
+  <data name="MosaicBrush16" xml:space="preserve"><value>16 像素马赛克画笔</value></data>
+  <data name="MosaicBrush32" xml:space="preserve"><value>32 像素马赛克画笔</value></data>
+  <data name="MosaicBrush64" xml:space="preserve"><value>64 像素马赛克画笔</value></data>
   <data name="UndoUnavailable" xml:space="preserve"><value>撤销（即将支持）</value></data>
   <data name="SavePng" xml:space="preserve"><value>保存 PNG</value></data>
   <data name="ExitScreenshot" xml:space="preserve"><value>退出截图</value></data>
