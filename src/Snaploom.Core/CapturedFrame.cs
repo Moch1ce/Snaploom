@@ -7,6 +7,11 @@ public enum CapturedPixelFormat
     Bgra8888PremultipliedSrgb,
 }
 
+public readonly record struct CapturedColor(byte Red, byte Green, byte Blue)
+{
+    public string Hex => $"#{Red:X2}{Green:X2}{Blue:X2}";
+}
+
 public sealed class CapturedFrame : IDisposable
 {
     private byte[]? _pixels;
@@ -52,6 +57,26 @@ public sealed class CapturedFrame : IDisposable
     public ReadOnlyMemory<byte> Pixels =>
         _pixels ?? throw new ObjectDisposedException(nameof(CapturedFrame));
 
+    public CapturedColor SamplePixel(PhysicalPoint point)
+    {
+        if (point.X < 0 || point.X >= PhysicalSize.Width ||
+            point.Y < 0 || point.Y >= PhysicalSize.Height)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(point),
+                point,
+                "The sample point must be inside the captured frame.");
+        }
+
+        var pixels = Pixels.Span;
+        var offset = checked((point.Y * Stride) + (point.X * 4));
+        var alpha = pixels[offset + 3];
+        return new CapturedColor(
+            Unpremultiply(pixels[offset + 2], alpha),
+            Unpremultiply(pixels[offset + 1], alpha),
+            Unpremultiply(pixels[offset], alpha));
+    }
+
     public void Dispose()
     {
         var pixels = Interlocked.Exchange(ref _pixels, null);
@@ -59,5 +84,22 @@ public sealed class CapturedFrame : IDisposable
         {
             CryptographicOperations.ZeroMemory(pixels);
         }
+    }
+
+    private static byte Unpremultiply(byte component, byte alpha)
+    {
+        if (alpha == byte.MaxValue)
+        {
+            return component;
+        }
+
+        if (alpha == 0)
+        {
+            return 0;
+        }
+
+        return (byte)Math.Min(
+            byte.MaxValue,
+            ((component * byte.MaxValue) + (alpha / 2)) / alpha);
     }
 }

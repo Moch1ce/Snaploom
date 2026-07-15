@@ -11,11 +11,15 @@ namespace Snaploom.App;
 public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 {
     private static readonly IBrush DimBrush = new SolidColorBrush(Color.FromArgb(115, 0, 0, 0));
-    private static readonly Pen SelectionPen = new(Brushes.White, 1);
+    private static readonly IBrush AccentBrush = new SolidColorBrush(Color.Parse("#07C977"));
+    private static readonly Pen SelectionPen = new(AccentBrush, 2);
+
+    private const double SelectionHandleSize = 8;
 
     private readonly CapturedFrame _frame;
     private readonly ScreenshotSession _session;
     private readonly WriteableBitmap _bitmap;
+    private readonly ScreenshotPixelInspector _pixelInspector;
     private bool _disposed;
 
     public ScreenshotSelectionCanvas(CapturedFrame frame)
@@ -24,6 +28,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         _frame = frame;
         _session = new ScreenshotSession(frame.PhysicalSize);
         _bitmap = CreateBitmap(frame);
+        _pixelInspector = new ScreenshotPixelInspector(frame, _bitmap);
         ClipToBounds = true;
         Cursor = new Cursor(StandardCursorType.Cross);
         Focusable = true;
@@ -32,6 +37,11 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     public event EventHandler? SelectionChanged;
 
     public ScreenshotSession Session => _session;
+
+    public CapturedColor? SampledColor =>
+        _session.State is ScreenshotSessionState.Ready or ScreenshotSessionState.Selecting
+            ? _pixelInspector.SampledColor
+            : null;
 
     public override void Render(DrawingContext context)
     {
@@ -48,13 +58,23 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
         if (_session.Selection is not { } selection)
         {
+            _pixelInspector.Render(context, Bounds.Size);
             return;
         }
 
-        var source = new Rect(selection.X, selection.Y, selection.Width, selection.Height);
-        var selectedDestination = ToLogicalRect(selection);
-        context.DrawImage(_bitmap, source, selectedDestination);
-        context.DrawRectangle(brush: null, SelectionPen, selectedDestination);
+        if (selection.Width > 0 && selection.Height > 0)
+        {
+            var source = new Rect(selection.X, selection.Y, selection.Width, selection.Height);
+            var selectedDestination = ToLogicalRect(selection);
+            context.DrawImage(_bitmap, source, selectedDestination);
+            context.DrawRectangle(brush: null, SelectionPen, selectedDestination);
+            DrawSelectionHandles(context, selectedDestination);
+        }
+
+        if (_session.State == ScreenshotSessionState.Selecting)
+        {
+            _pixelInspector.Render(context, Bounds.Size);
+        }
     }
 
     public void Dispose()
@@ -72,13 +92,15 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed ||
+            _session.State == ScreenshotSessionState.Saving)
         {
             return;
         }
 
         Focus();
-        _session.BeginSelection(ToPhysicalPoint(e.GetPosition(this)));
+        var position = _pixelInspector.UpdatePointer(e.GetPosition(this), Bounds.Size);
+        _session.BeginSelection(ToPhysicalPoint(position));
         e.Pointer.Capture(this);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
@@ -88,15 +110,20 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (_session.State != ScreenshotSessionState.Selecting)
+        if (_session.State is ScreenshotSessionState.Selected or ScreenshotSessionState.Saving)
         {
             return;
         }
 
-        _session.UpdateSelection(ToPhysicalPoint(e.GetPosition(this)));
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        var position = _pixelInspector.UpdatePointer(e.GetPosition(this), Bounds.Size);
+        if (_session.State == ScreenshotSessionState.Selecting)
+        {
+            _session.UpdateSelection(ToPhysicalPoint(position));
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+            e.Handled = true;
+        }
+
         InvalidateVisual();
-        e.Handled = true;
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
@@ -107,7 +134,8 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
             return;
         }
 
-        _session.UpdateSelection(ToPhysicalPoint(e.GetPosition(this)));
+        var position = _pixelInspector.UpdatePointer(e.GetPosition(this), Bounds.Size);
+        _session.UpdateSelection(ToPhysicalPoint(position));
         _session.CompleteSelection();
         e.Pointer.Capture(control: null);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -133,6 +161,24 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         new(
             checked((int)Math.Round(point.X * _frame.ScaleX)),
             checked((int)Math.Round(point.Y * _frame.ScaleY)));
+
+    private static void DrawSelectionHandles(DrawingContext context, Rect selection)
+    {
+        DrawSelectionHandle(context, selection.TopLeft);
+        DrawSelectionHandle(context, selection.TopRight);
+        DrawSelectionHandle(context, selection.BottomRight);
+        DrawSelectionHandle(context, selection.BottomLeft);
+    }
+
+    private static void DrawSelectionHandle(DrawingContext context, Point center)
+    {
+        var handle = new Rect(
+            center.X - (SelectionHandleSize / 2),
+            center.Y - (SelectionHandleSize / 2),
+            SelectionHandleSize,
+            SelectionHandleSize);
+        context.DrawRectangle(AccentBrush, pen: null, handle, 1, 1);
+    }
 
     private Rect ToLogicalRect(PhysicalRect rect) =>
         new(

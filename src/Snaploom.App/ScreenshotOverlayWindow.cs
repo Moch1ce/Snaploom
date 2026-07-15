@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Snaploom.Core;
@@ -17,6 +18,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     private readonly ScreenshotSelectionCanvas _selectionCanvas;
     private readonly Button _saveButton;
     private readonly TextBlock _statusText;
+    private readonly Border _toolbar;
     private bool _resourcesDisposed;
 
     public ScreenshotOverlayWindow(
@@ -66,7 +68,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         };
         cancelButton.Click += (_, _) => Close();
 
-        var toolbar = new Border
+        _toolbar = new Border
         {
             Background = new SolidColorBrush(Color.FromArgb(230, 30, 30, 30)),
             CornerRadius = new CornerRadius(8),
@@ -74,6 +76,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             Margin = new Thickness(24),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Bottom,
+            IsVisible = false,
             Child = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -84,7 +87,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
         var root = new Grid();
         root.Children.Add(_selectionCanvas);
-        root.Children.Add(toolbar);
+        root.Children.Add(_toolbar);
         Content = root;
 
         Opened += HandleOpened;
@@ -133,11 +136,13 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         if (_selectionCanvas.Session.Selection is { } selection &&
             _selectionCanvas.Session.State == ScreenshotSessionState.Selected)
         {
+            _toolbar.IsVisible = true;
             _saveButton.IsEnabled = true;
             _statusText.Text = $"{selection.Width} × {selection.Height} 像素";
             return;
         }
 
+        _toolbar.IsVisible = false;
         _saveButton.IsEnabled = false;
         _statusText.Text = _selectionCanvas.Session.State == ScreenshotSessionState.Selecting
             ? "松开鼠标完成选区"
@@ -184,15 +189,39 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         }
     }
 
-    private void HandleKeyDown(object? sender, KeyEventArgs e)
+    private async void HandleKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Escape)
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            Close();
+            return;
+        }
+
+        var copyModifierPressed = OperatingSystem.IsMacOS()
+            ? e.KeyModifiers.HasFlag(KeyModifiers.Meta)
+            : e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        if (e.Key != Key.C || !copyModifierPressed ||
+            _selectionCanvas.SampledColor is not { } color)
+        {
+            return;
+        }
+
+        var clipboard = Clipboard;
+        if (clipboard is null)
         {
             return;
         }
 
         e.Handled = true;
-        Close();
+        try
+        {
+            await clipboard.SetTextAsync(color.Hex);
+        }
+        catch (Exception exception)
+        {
+            _statusText.Text = $"复制色值失败：{exception.Message}";
+        }
     }
 
     private void DisposeResources()
