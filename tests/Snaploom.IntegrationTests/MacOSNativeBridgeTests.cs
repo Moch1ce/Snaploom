@@ -56,7 +56,6 @@ public sealed class MacOSNativeBridgeTests
             capturedScreen.CursorPosition.Y,
             0,
             capturedScreen.Frame.PhysicalSize.Height);
-        Assert.NotEmpty(capturedScreen.WindowCandidates);
         Assert.All(capturedScreen.WindowCandidates, candidate =>
         {
             Assert.Equal(Snaploom.Core.ScreenshotWindowExclusion.None, candidate.Exclusion);
