@@ -94,7 +94,7 @@ v1 聚焦一条可靠且高性能的核心路径：全局快捷键 → 当前显
 76. 作为 Windows 11 用户，我希望 Snaploom 支持当前 x64 系统，以便正常安装和运行。
 77. 作为 Apple Silicon 用户，我希望 Snaploom 在 macOS 14 及更高版本上运行，以便获得原生体验。
 78. 作为 Windows 用户，我希望使用不需要管理员权限的按用户安装包，以便自行安装。
-79. 作为 macOS 用户，我希望通过已签名、公证的 DMG 安装，以便通过系统安全检查。
+79. 作为 macOS 测试版用户，我希望通过带 SHA256 和未认证提示的 Apple Silicon DMG 安装，以便理解 Gatekeeper 手动放行步骤并验证文件完整性。
 80. 作为从 GitHub Releases 下载 Windows 测试版的用户，我希望看到 SHA256 校验值和未签名提示，以便理解 SmartScreen 警告并验证文件完整性。
 
 ## Implementation Decisions
@@ -199,11 +199,11 @@ v1 聚焦一条可靠且高性能的核心路径：全局快捷键 → 当前显
 
 - Windows x64 使用按用户安装的 EXE，不要求管理员权限；v1 不提供便携版。
 - Windows 测试版暂不购买代码签名证书，接受 SmartScreen 警告；发布页必须提供 SHA256 和安装说明。正式商业发布前重新评估 OV 代码签名证书。
-- macOS 提供 Apple Silicon DMG，使用现有 Apple Developer 账户完成签名和公证。
+- macOS 测试版提供 ad hoc 签名的 Apple Silicon DMG，并在发布页明确说明 Gatekeeper 手动放行步骤；Developer ID 签名和公证延后到取得发布证书后完成。
 - 不通过 Microsoft Store 或 Mac App Store 分发。
 - GitHub Releases 是 v1 的下载和手动更新来源。
 - GitHub Actions 分别在 Windows x64 和 Apple Silicon runner 上构建平台包；标签触发发布，并为所有制品生成 SHA256。
-- 签名、公证和发布凭据只能存放在 GitHub Secrets 中。
+- 后续启用 Developer ID 时，签名、公证和发布凭据只能存放在 GitHub Secrets 中。
 
 ### 性能门槛
 
@@ -221,7 +221,7 @@ v1 聚焦一条可靠且高性能的核心路径：全局快捷键 → 当前显
 2. 在 macOS 完成“快捷键 → 捕获 → 浮层 → 选区 → 保存”的最小垂直切片。
 3. 在复杂标注实现前，立即完成 Windows 10/11 的同一条最小路径，尽早验证平台抽象。
 4. 依次加入窗口吸附、标注对象编辑、马赛克、剪贴板和设置。
-5. 最后完成安装包、手动更新、签名、公证和正式发布流程。
+5. 最后完成安装包、手动更新和测试版发布流程；Developer ID 签名、公证在证书可用后补充。
 
 ## Testing Decisions
 
@@ -258,7 +258,7 @@ v1 聚焦一条可靠且高性能的核心路径：全局快捷键 → 当前显
 - macOS 真机矩阵包括 macOS 14 及后续受支持版本的 Apple Silicon 设备。
 - 显示矩阵覆盖单显示器、双显示器、混合 DPI、显示器热插拔、1080p、4K 和 5K Retina。
 - 场景覆盖快捷键冲突、macOS 缺少屏幕录制权限、取消保存、睡眠唤醒、重复启动和捕获失败。
-- 验证 Windows 未签名安装包的用户级安装与卸载，以及 macOS DMG 的签名和公证结果。
+- 验证 Windows 未签名安装包的用户级安装与卸载，以及 macOS ad hoc DMG 的校验值、架构、安装、启动和 Gatekeeper 手动放行说明。
 - CI 在两个平台构建并运行不依赖交互桌面的测试；全局快捷键、系统权限和真实捕获保留在人工或具备桌面会话的自动化矩阵中。
 
 ### 性能与资源测试
@@ -291,6 +291,6 @@ v1 聚焦一条可靠且高性能的核心路径：全局快捷键 → 当前显
 - Snaploom 未来可能闭源商业化，因此所有依赖都必须经过许可证审查，不得引入要求商业应用公开源码的强传染性依赖。
 - Windows 10 已超出微软面向普通消费者的主流支持范围；Snaploom 对 Windows 10 22H2 的承诺由项目自己的真机测试和兼容性修复承担。
 - Windows 首批测试版没有代码签名，SmartScreen 警告属于已接受风险，但发布页面必须清楚解释验证 SHA256 与安装步骤。
-- macOS 已具备开发者账户，首版应完成 Developer ID 签名、公证和 DMG 验证，不发布未签名正式包。
+- macOS 首版暂不使用 Developer ID 证书：只发布标记为测试版的 ad hoc DMG，并提供 SHA256 和 Gatekeeper 风险说明；取得证书后再启用正式签名和公证流程。
 - 在开始复杂标注前必须完成 Windows 与 macOS 的同路径垂直切片，以尽早暴露平台抽象中的错误假设。
 - 本规格是当前共同理解的基线。任何扩大 v1 范围或改变性能、隐私、平台支持的决定，都应先更新规格或记录架构决策。
