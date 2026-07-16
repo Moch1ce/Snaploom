@@ -203,7 +203,7 @@ v1 聚焦一条可靠且高性能的核心路径：全局快捷键 → 当前显
 - 不通过 Microsoft Store 或 Mac App Store 分发。
 - GitHub Releases 是 v1 的下载和手动更新来源。
 - GitHub Actions 分别在 Windows x64 和 Apple Silicon runner 上构建平台包；标签触发发布，并为所有制品生成 SHA256。
-- 后续启用 Developer ID 时，签名、公证和发布凭据只能存放在 GitHub Secrets 中。
+- 发布凭据，以及后续启用 Developer ID 时的签名和公证凭据，只能存放在 GitHub Secrets 中。
 
 ### 性能门槛
 
