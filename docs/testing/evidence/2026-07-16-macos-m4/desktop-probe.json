@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "idleMemoryBytes": 67994680,
+  "idleMemoryMetric": "physical-footprint",
+  "screenshotCycleNativeMemoryMetric": "physical-footprint",
+  "activationMilliseconds": [
+    316.8457,
+    105.0913,
+    114.3397,
+    113.6436,
+    112.3865,
+    107.9972,
+    112.0565,
+    107.5057,
+    113.6286,
+    124.48,
+    117.5305,
+    108.3395,
+    109.1012,
+    114.079,
+    117.6434,
+    115.8126,
+    132.1418,
+    110.313,
+    120.3634,
+    140.1554,
+    109.4515,
+    113.934,
+    106.695,
+    118.5933,
+    110.6858,
+    104.108,
+    115.1369,
+    113.1297,
+    112.1789,
+    113.276
+  ],
+  "screenshotCycles": [
+    {
+      "managedHeapBytes": 4109608,
+      "nativeMemoryBytes": 270845032
+    },
+    {
+      "managedHeapBytes": 4134392,
+      "nativeMemoryBytes": 274629736
+    },
+    {
+      "managedHeapBytes": 4125808,
+      "nativeMemoryBytes": 277087336
+    },
+    {
+      "managedHeapBytes": 4134096,
+      "nativeMemoryBytes": 277726312
+    },
+    {
+      "managedHeapBytes": 4134184,
+      "nativeMemoryBytes": 278201448
+    },
+    {
+      "managedHeapBytes": 4142584,
+      "nativeMemoryBytes": 278955112
+    },
+    {
+      "managedHeapBytes": 4142640,
+      "nativeMemoryBytes": 279381096
+    },
+    {
+      "managedHeapBytes": 4142704,
+      "nativeMemoryBytes": 274613352
+    },
+    {
+      "managedHeapBytes": 4142888,
+      "nativeMemoryBytes": 275022952
+    },
+    {
+      "managedHeapBytes": 4143072,
+      "nativeMemoryBytes": 275317864
+    },
+    {
+      "managedHeapBytes": 4143176,
+      "nativeMemoryBytes": 275842152
+    },
+    {
+      "managedHeapBytes": 4143240,
+      "nativeMemoryBytes": 275956840
+    },
+    {
+      "managedHeapBytes": 4157920,
+      "nativeMemoryBytes": 276317288
+    },
+    {
+      "managedHeapBytes": 4159768,
+      "nativeMemoryBytes": 276382824
+    },
+    {
+      "managedHeapBytes": 4159832,
+      "nativeMemoryBytes": 277136488
+    },
+    {
+      "managedHeapBytes": 4159888,
+      "nativeMemoryBytes": 277808232
+    },
+    {
+      "managedHeapBytes": 4160232,
+      "nativeMemoryBytes": 278103144
+    },
+    {
+      "managedHeapBytes": 4160544,
+      "nativeMemoryBytes": 278119528
+    },
+    {
+      "managedHeapBytes": 4160608,
+      "nativeMemoryBytes": 278152296
+    },
+    {
+      "managedHeapBytes": 4160248,
+      "nativeMemoryBytes": 278561896
+    },
+    {
+      "managedHeapBytes": 4029664,
+      "nativeMemoryBytes": 277234792
+    },
+    {
+      "managedHeapBytes": 3987768,
+      "nativeMemoryBytes": 274547816
+    },
+    {
+      "managedHeapBytes": 3987016,
+      "nativeMemoryBytes": 274547816
+    },
+    {
+      "managedHeapBytes": 3985936,
+      "nativeMemoryBytes": 274564200
+    },
+    {
+      "managedHeapBytes": 3976720,
+      "nativeMemoryBytes": 274596968
+    },
+    {
+      "managedHeapBytes": 3985240,
+      "nativeMemoryBytes": 274662504
+    },
+    {
+      "managedHeapBytes": 3987768,
+      "nativeMemoryBytes": 274809960
+    },
+    {
+      "managedHeapBytes": 3985320,
+      "nativeMemoryBytes": 274809960
+    },
+    {
+      "managedHeapBytes": 3985328,
+      "nativeMemoryBytes": 274875496
+    },
+    {
+      "managedHeapBytes": 3985384,
+      "nativeMemoryBytes": 275039336
+    }
+  ]
+}

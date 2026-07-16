@@ -13,7 +13,15 @@ DOTNET_ROOT="$HOME/.dotnet" "$HOME/.dotnet/dotnet" test tests/Snaploom.Rendering
 DOTNET_ROOT="$HOME/.dotnet" "$HOME/.dotnet/dotnet" test tests/Snaploom.IntegrationTests/Snaploom.IntegrationTests.csproj -c Release --no-build
 ```
 
-集成测试不会主动弹出屏幕录制授权。只有系统已授权时，才会实际调用 ScreenCaptureKit 并检查统一像素帧。
+集成测试不会主动弹出屏幕录制授权。只有系统已授权并显式设置
+`SNAPLOOM_RUN_SCREEN_CAPTURE_INTEGRATION=1` 时，才会实际调用 ScreenCaptureKit 并检查统一像素帧：
+
+```bash
+SNAPLOOM_RUN_SCREEN_CAPTURE_INTEGRATION=1 \
+  DOTNET_ROOT="$HOME/.dotnet" "$HOME/.dotnet/dotnet" test \
+  tests/Snaploom.IntegrationTests/Snaploom.IntegrationTests.csproj \
+  -c Release --no-build
+```
 
 ## 首次授权
 

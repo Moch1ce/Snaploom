@@ -41,6 +41,36 @@ public sealed class ScreenshotMosaicTileCacheTests
     }
 
     [Fact]
+    public void MovingALong4KStrokeDoesNotInvalidateItsWholeBoundingRectangle()
+    {
+        const int width = 3840;
+        const int height = 2160;
+        var source = CreateGradient(width, height);
+        var style = new ScreenshotMosaicStyle(16, 8);
+        var points = Enumerable.Range(0, 80)
+            .Select(index => new LogicalPoint(300 + (index * 35), 1800 - (index * 12)))
+            .ToArray();
+        var original = new ScreenshotMosaicAnnotation(points, style);
+        var moved = new ScreenshotMosaicAnnotation(
+            points.Select(point => new LogicalPoint(point.X + 2, point.Y + 1)).ToArray(),
+            style);
+        using var cache = new ScreenshotMosaicTileCache(
+            width,
+            height,
+            width * 4,
+            source,
+            scaleX: 1,
+            scaleY: 1,
+            tileSize: 128);
+
+        _ = cache.Update([original]);
+        var update = cache.Update([moved]);
+
+        Assert.InRange(update.RenderedTileCount, 1, 80);
+        Assert.True(update.ProcessedPixelCount < (width * height) / 6);
+    }
+
+    [Fact]
     public void TilePixelsAreTransparentOutsideTheStrokeAndPixelatedInsideIt()
     {
         const int width = 128;

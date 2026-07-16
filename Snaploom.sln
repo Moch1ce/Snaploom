@@ -22,6 +22,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Snaploom.IntegrationTests",
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Snaploom.App.HeadlessTests", "tests\Snaploom.App.HeadlessTests\Snaploom.App.HeadlessTests.csproj", "{BF1D2A39-BC39-4505-AA6A-87D129EAF010}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Snaploom.PerformanceHarness", "tools\Snaploom.PerformanceHarness\Snaploom.PerformanceHarness.csproj", "{C01E3B4A-CD4A-4616-B95B-87D23BAF1011}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Snaploom.Performance.Tests", "tests\Snaploom.Performance.Tests\Snaploom.Performance.Tests.csproj", "{D12F4C5B-DE5B-4727-CA6C-98E34CBF2022}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -68,6 +72,14 @@ Global
 		{BF1D2A39-BC39-4505-AA6A-87D129EAF010}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BF1D2A39-BC39-4505-AA6A-87D129EAF010}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BF1D2A39-BC39-4505-AA6A-87D129EAF010}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C01E3B4A-CD4A-4616-B95B-87D23BAF1011}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C01E3B4A-CD4A-4616-B95B-87D23BAF1011}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C01E3B4A-CD4A-4616-B95B-87D23BAF1011}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C01E3B4A-CD4A-4616-B95B-87D23BAF1011}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D12F4C5B-DE5B-4727-CA6C-98E34CBF2022}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D12F4C5B-DE5B-4727-CA6C-98E34CBF2022}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D12F4C5B-DE5B-4727-CA6C-98E34CBF2022}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D12F4C5B-DE5B-4727-CA6C-98E34CBF2022}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

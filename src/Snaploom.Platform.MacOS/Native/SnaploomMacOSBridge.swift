@@ -44,6 +44,8 @@ private let systemUiBundleIdentifiers: Set<String> = [
     "com.apple.WindowManager",
 ]
 
+private let screenCaptureKitUserDeclinedErrorCode = -3801
+
 final class CapturedFrameHandle: @unchecked Sendable {
     let status: Int32
     let width: Int32
@@ -536,9 +538,12 @@ public func captureCurrentDisplayBlocking() -> UnsafeMutableRawPointer {
         do {
             box.store(try await captureCurrentDisplay())
         } catch {
+            let nativeError = error as NSError
+            let status: Int32 = nativeError.domain == SCStreamErrorDomain &&
+                nativeError.code == screenCaptureKitUserDeclinedErrorCode ? 1 : 2
             box.store(
                 CapturedFrameHandle(
-                    errorStatus: 2,
+                    errorStatus: status,
                     message: error.localizedDescription
                 )
             )

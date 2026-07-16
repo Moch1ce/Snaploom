@@ -136,6 +136,7 @@ public sealed class ScreenshotCompletionWorkflowTests
         window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, "\r");
 
         Assert.False(window.IsVisible);
+        Assert.True(window.OutputCompleted);
         using var bitmap = SKBitmap.Decode(clipboard.Png);
         Assert.Equal(320, bitmap.Width);
         Assert.Equal(120, bitmap.Height);
@@ -165,6 +166,41 @@ public sealed class ScreenshotCompletionWorkflowTests
 
         Assert.False(window.IsVisible);
         Assert.NotEmpty(clipboard.Png);
+    }
+
+    [AvaloniaFact]
+    public void ShownOverlaySignalsThatItIsInteractive()
+    {
+        var frame = CreateFrame(600, 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(100, 100));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new RecordingSaveDialog(path: null),
+            new CapturingClipboard(),
+            new NullOverlayConfigurator());
+        var interactiveRaised = false;
+        window.Interactive += (_, _) => interactiveRaised = true;
+
+        window.Show();
+
+        Assert.True(interactiveRaised);
+    }
+
+    [AvaloniaFact]
+    public void ClosingWithoutCopyOrSaveDoesNotCompleteAnOutputCycle()
+    {
+        var frame = CreateFrame(600, 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(100, 100));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new RecordingSaveDialog(path: null),
+            new CapturingClipboard(),
+            new NullOverlayConfigurator());
+
+        window.Show();
+        window.Close();
+
+        Assert.False(window.OutputCompleted);
     }
 
     private static RawInputModifiers CommandModifier => OperatingSystem.IsMacOS()

@@ -33,6 +33,10 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     private bool _synchronizingAnnotationStyle;
     private bool _resourcesDisposed;
 
+    internal event EventHandler? Interactive;
+
+    internal bool OutputCompleted { get; private set; }
+
     internal ScreenshotAnnotationTool ActiveAnnotationTool => _toolbar.ActiveTool;
 
     internal Point ToolbarOrigin => new(_toolbarTransform.X, _toolbarTransform.Y);
@@ -212,6 +216,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             PositionFloatingUi(logicalSelection);
         }
 
+        Interactive?.Invoke(this, EventArgs.Empty);
     }
 
     private void UpdateAvailableUiBounds(Screen screen)
@@ -306,6 +311,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             });
 
             await File.WriteAllBytesAsync(path, EncodeSelection(selection));
+            OutputCompleted = true;
             Close();
         }
         catch (Exception exception)
@@ -343,6 +349,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             _clipboardService.CopyPng(EncodeSelection(selection));
             if (closeAfterCopy)
             {
+                OutputCompleted = true;
                 Close();
             }
             else

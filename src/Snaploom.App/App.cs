@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using Avalonia.Styling;
 using Avalonia.Themes.Fluent;
+using System.Diagnostics;
 using System.Globalization;
 using System.ComponentModel;
 using Snaploom.Core;
@@ -28,6 +29,7 @@ public sealed class App : Application, IDisposable
     private IFolderLauncher? _folderLauncher;
     private IExternalUriLauncher? _uriLauncher;
     private IUpdateCheckService? _updateCheckService;
+    private DesktopPerformanceRecorder? _performanceRecorder;
     private readonly CultureInfo _systemCulture = CultureInfo.CurrentUICulture;
 
     internal static Func<DesktopPlatformKind, AppSettingsService>? SettingsServiceFactory { get; set; }
@@ -68,6 +70,12 @@ public sealed class App : Application, IDisposable
             _log.Info(AppLogEvent.ApplicationStarted);
 
             _screenshotController = ScreenshotController.TryCreate(platform, _settings, _log);
+            _performanceRecorder = DesktopPerformanceRecorder.TryCreateFromEnvironment();
+            if (_screenshotController is not null && _performanceRecorder is not null)
+            {
+                _screenshotController.ScreenshotActivated += HandleScreenshotActivated;
+                _screenshotController.ScreenshotCycleCompleted += HandleScreenshotCycleCompleted;
+            }
             _launchPlan = ApplicationLaunchPlan.Create(_screenshotController is not null);
             if (_screenshotController is null)
             {
@@ -83,8 +91,7 @@ public sealed class App : Application, IDisposable
                     hotKeyService,
                     resumeService,
                     _settings.Current.HotKey,
-                    () => Dispatcher.UIThread.Post(
-                        () => _ = _screenshotController.StartAsync()));
+                    HandleScreenshotHotKey);
                 _hotKeyManager.RegistrationFailed += HandleHotKeyReregistrationFailed;
                 if (!_hotKeyManager.Start())
                 {
@@ -235,6 +242,19 @@ public sealed class App : Application, IDisposable
         Dispose();
     }
 
+    private void HandleScreenshotActivated(TimeSpan elapsed) =>
+        _performanceRecorder?.RecordActivation(elapsed);
+
+    private void HandleScreenshotHotKey()
+    {
+        var activationStartedAt = Stopwatch.GetTimestamp();
+        Dispatcher.UIThread.Post(
+            () => _ = _screenshotController?.StartAsync(activationStartedAt));
+    }
+
+    private void HandleScreenshotCycleCompleted(object? sender, EventArgs e) =>
+        _performanceRecorder?.RecordScreenshotCycle();
+
     private void HandleHotKeyReregistrationFailed(object? sender, EventArgs e) =>
         ReportBackgroundFailure(
             AppLogEvent.HotKeyReregisterFailed,
@@ -289,7 +309,12 @@ public sealed class App : Application, IDisposable
         TrayIcon.SetIcons(this, trayIcons: null);
         _trayIcon?.Dispose();
         _trayIcon = null;
-        _screenshotController?.Dispose();
+        if (_screenshotController is not null)
+        {
+            _screenshotController.ScreenshotActivated -= HandleScreenshotActivated;
+            _screenshotController.ScreenshotCycleCompleted -= HandleScreenshotCycleCompleted;
+            _screenshotController.Dispose();
+        }
         _screenshotController = null;
         _shortcutSettingsWindow?.Close();
         _shortcutSettingsWindow = null;
@@ -313,6 +338,8 @@ public sealed class App : Application, IDisposable
         _folderLauncher = null;
         _uriLauncher = null;
         _updateCheckService = null;
+        _performanceRecorder?.Dispose();
+        _performanceRecorder = null;
         _launchPlan = null;
         _settings = null;
         _desktopPlatform?.Dispose();

@@ -1,4 +1,5 @@
 using Avalonia.Threading;
+using System.Diagnostics;
 using Snaploom.Core;
 using Snaploom.Platform.Abstractions;
 
@@ -18,6 +19,10 @@ public sealed class ScreenshotController : IDisposable
     private CaptureFailureOverlayWindow? _failureOverlay;
     private ScreenCapturePermissionWindow? _permissionWindow;
     private bool _disposed;
+
+    internal event Action<TimeSpan>? ScreenshotActivated;
+
+    internal event EventHandler? ScreenshotCycleCompleted;
 
     private ScreenshotController(
         IScreenCapturePermissionService permissionService,
@@ -62,7 +67,9 @@ public sealed class ScreenshotController : IDisposable
             : null;
     }
 
-    public async Task StartAsync()
+    public Task StartAsync() => StartAsync(Stopwatch.GetTimestamp());
+
+    internal async Task StartAsync(long activationStartedAt)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (!_activationGate.TryBegin())
@@ -82,7 +89,8 @@ public sealed class ScreenshotController : IDisposable
             }
 
             capturedScreen = await _captureService.CaptureCurrentDisplayAsync();
-            await Dispatcher.UIThread.InvokeAsync(() => ShowOverlay(capturedScreen));
+            await Dispatcher.UIThread.InvokeAsync(
+                () => ShowOverlay(capturedScreen, activationStartedAt));
             capturedScreen = null;
         }
         catch (ScreenCaptureException exception)
@@ -142,7 +150,7 @@ public sealed class ScreenshotController : IDisposable
             });
     }
 
-    private void ShowOverlay(CapturedScreen capturedScreen)
+    private void ShowOverlay(CapturedScreen capturedScreen, long activationStartedAt)
     {
         if (_disposed)
         {
@@ -151,19 +159,31 @@ public sealed class ScreenshotController : IDisposable
             return;
         }
 
-        _overlay = new ScreenshotOverlayWindow(
+        var overlay = new ScreenshotOverlayWindow(
             capturedScreen,
             _saveDialogService,
             _clipboardService,
             _overlayConfigurator,
             _settings,
             _log);
-        _overlay.Closed += (_, _) =>
+        _overlay = overlay;
+        EventHandler? interactiveHandler = null;
+        interactiveHandler = (_, _) =>
+        {
+            overlay.Interactive -= interactiveHandler;
+            ScreenshotActivated?.Invoke(Stopwatch.GetElapsedTime(activationStartedAt));
+        };
+        overlay.Interactive += interactiveHandler;
+        overlay.Closed += (_, _) =>
         {
             _overlay = null;
             _activationGate.End();
+            if (overlay.OutputCompleted)
+            {
+                ScreenshotCycleCompleted?.Invoke(this, EventArgs.Empty);
+            }
         };
-        _overlay.Show();
+        overlay.Show();
     }
 
     private void ShowCaptureFailure(string message)

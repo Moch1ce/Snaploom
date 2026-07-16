@@ -368,13 +368,34 @@ public sealed class ScreenshotMosaicTileCache : IDisposable
         }
 
         var radius = (snapshot.Style.BrushSize / 2d) + snapshot.Style.PixelSize;
-        var points = snapshot.Points.Skip(startIndex).ToArray();
-        bounds.Add(new LogicalBounds(
-            points.Min(point => point.X) - radius,
-            points.Min(point => point.Y) - radius,
-            points.Max(point => point.X) + radius,
-            points.Max(point => point.Y) + radius));
+        var firstSegment = Math.Clamp(startIndex, 0, snapshot.Points.Count - 1);
+        if (snapshot.Points.Count == 1 || firstSegment == snapshot.Points.Count - 1)
+        {
+            AddPointBounds(bounds, snapshot.Points[firstSegment], radius);
+            return;
+        }
+
+        for (var index = firstSegment; index < snapshot.Points.Count - 1; index++)
+        {
+            var start = snapshot.Points[index];
+            var end = snapshot.Points[index + 1];
+            bounds.Add(new LogicalBounds(
+                Math.Min(start.X, end.X) - radius,
+                Math.Min(start.Y, end.Y) - radius,
+                Math.Max(start.X, end.X) + radius,
+                Math.Max(start.Y, end.Y) + radius));
+        }
     }
+
+    private static void AddPointBounds(
+        ICollection<LogicalBounds> bounds,
+        LogicalPoint point,
+        double radius) =>
+        bounds.Add(new LogicalBounds(
+            point.X - radius,
+            point.Y - radius,
+            point.X + radius,
+            point.Y + radius));
 
     private static byte Premultiply(byte color, byte alpha) =>
         (byte)((color * alpha + 127) / 255);
