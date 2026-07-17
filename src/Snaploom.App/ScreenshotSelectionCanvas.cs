@@ -375,18 +375,8 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         {
             if (_session.SelectionContains(physicalPoint) && e.ClickCount >= 2)
             {
-                var annotationIndex = _annotationSession.HitTest(
-                    ToSelectionLogicalPoint(position));
-                if (annotationIndex is { } textIndex &&
-                    _annotationSession.Annotations[textIndex] is ScreenshotTextAnnotation &&
-                    _annotationSession.Select(textIndex) &&
-                    _annotationSession.BeginTextEdit(textIndex))
+                if (TryBeginTextAnnotationEditing(position))
                 {
-                    _annotationBitmapDirty = true;
-                    _mosaicCacheDirty = true;
-                    AnnotationStarted?.Invoke(this, EventArgs.Empty);
-                    TextEditingStarted?.Invoke(this, EventArgs.Empty);
-                    InvalidateVisual();
                     e.Handled = true;
                     return;
                 }
@@ -430,6 +420,12 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                     LogicalSelection is { } textSelection)
                 {
                     _annotationSession.CommitText();
+                    if (TryBeginTextAnnotationEditing(position))
+                    {
+                        e.Handled = true;
+                        return;
+                    }
+
                     var origin = ToSelectionLogicalPoint(position);
                     _annotationSession.BeginText(
                         origin,
@@ -525,6 +521,26 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         CapturePointer(e.Pointer);
         InvalidateVisual();
         e.Handled = true;
+    }
+
+    private bool TryBeginTextAnnotationEditing(Point position)
+    {
+        var annotationIndex = _annotationSession.HitTest(
+            ToSelectionLogicalPoint(position));
+        if (annotationIndex is not { } textIndex ||
+            _annotationSession.Annotations[textIndex] is not ScreenshotTextAnnotation ||
+            !_annotationSession.Select(textIndex) ||
+            !_annotationSession.BeginTextEdit(textIndex))
+        {
+            return false;
+        }
+
+        _annotationBitmapDirty = true;
+        _mosaicCacheDirty = true;
+        AnnotationStarted?.Invoke(this, EventArgs.Empty);
+        TextEditingStarted?.Invoke(this, EventArgs.Empty);
+        InvalidateVisual();
+        return true;
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)

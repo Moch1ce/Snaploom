@@ -36,7 +36,7 @@ public sealed class ScreenshotAnnotationShortcutTests
         Assert.Equal(ScreenshotAnnotationTool.Rectangle, window.ActiveAnnotationTool);
         Assert.False(window.AnnotationOptionsFlyoutOpen);
 
-        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        window.KeyPress(Key.V, RawInputModifiers.None, PhysicalKey.V, "v");
         Assert.Equal(ScreenshotAnnotationTool.Select, window.ActiveAnnotationTool);
 
         window.KeyPress(Key.A, RawInputModifiers.None, PhysicalKey.A, "a");
@@ -50,6 +50,81 @@ public sealed class ScreenshotAnnotationShortcutTests
 
         window.KeyPress(Key.V, RawInputModifiers.None, PhysicalKey.V, "v");
         Assert.Equal(ScreenshotAnnotationTool.Select, window.ActiveAnnotationTool);
+    }
+
+    [AvaloniaFact]
+    public void EscapeClosesTheOverlayImmediatelyFromAnActiveAnnotationTool()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 200));
+        window.KeyPress(Key.R, RawInputModifiers.None, PhysicalKey.R, "r");
+
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+
+        Assert.False(window.IsVisible);
+        Assert.False(window.OutputCompleted);
+    }
+
+    [AvaloniaFact]
+    public void EscapeClosesTheOverlayImmediatelyWhileEditingText()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 200));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        Assert.True(window.TextEditorVisible);
+
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+
+        Assert.False(window.IsVisible);
+        Assert.False(window.OutputCompleted);
+    }
+
+    [AvaloniaFact]
+    public void ClickingCommittedTextWithTheTextToolReopensAndUpdatesIt()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 200));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        window.TextEditor.Text = "原文";
+        var commandModifier = OperatingSystem.IsMacOS()
+            ? RawInputModifiers.Meta
+            : RawInputModifiers.Control;
+        window.KeyPress(Key.Enter, commandModifier, PhysicalKey.Enter, "\r");
+
+        Click(window, new Point(105, 125));
+
+        Assert.True(window.TextEditorVisible);
+        Assert.Equal(0, window.TextEdit?.AnnotationIndex);
+        Assert.Equal("原文", window.TextEditor.Text);
+
+        window.TextEditor.Text = "修改后的文字";
+        window.KeyPress(Key.Enter, commandModifier, PhysicalKey.Enter, "\r");
+
+        var text = Assert.IsType<ScreenshotTextAnnotation>(Assert.Single(window.Annotations));
+        Assert.Equal("修改后的文字", text.Text);
     }
 
     [AvaloniaFact]

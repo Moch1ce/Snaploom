@@ -645,7 +645,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         if (e.Key == Key.Escape)
         {
             e.Handled = true;
-            CancelTextEditing();
+            Close();
             return;
         }
 
@@ -715,17 +715,19 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     private void HandleKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            Close();
+            return;
+        }
+
         if (_textEditorHost.IsVisible)
         {
             var editorCommandModifier = OperatingSystem.IsMacOS()
                 ? e.KeyModifiers.HasFlag(KeyModifiers.Meta)
                 : e.KeyModifiers.HasFlag(KeyModifiers.Control);
-            if (e.Key == Key.Escape)
-            {
-                e.Handled = true;
-                CancelTextEditing();
-            }
-            else if (editorCommandModifier && e.Key == Key.S)
+            if (editorCommandModifier && e.Key == Key.S)
             {
                 e.Handled = true;
                 HandleSave(this, EventArgs.Empty);
@@ -787,23 +789,6 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             _selectionCanvas.DeleteSelectedAnnotation())
         {
             e.Handled = true;
-            return;
-        }
-
-        if (e.Key == Key.Escape)
-        {
-            e.Handled = true;
-            var result = _selectionCanvas.CancelCurrentLayer();
-            if (_toolbar.ActiveTool != _selectionCanvas.ActiveAnnotationTool)
-            {
-                _toolbar.SelectTool(_selectionCanvas.ActiveAnnotationTool);
-            }
-
-            if (result == ScreenshotCancelResult.ExitRequested)
-            {
-                Close();
-            }
-
             return;
         }
 
