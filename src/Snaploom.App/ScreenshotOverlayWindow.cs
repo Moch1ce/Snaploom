@@ -167,6 +167,8 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
             FontFamily = FontFamily.Default,
+            MinWidth = 0,
+            MinHeight = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
             Padding = new Thickness(

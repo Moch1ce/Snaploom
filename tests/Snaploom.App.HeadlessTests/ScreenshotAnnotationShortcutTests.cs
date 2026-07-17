@@ -505,6 +505,37 @@ public sealed class ScreenshotAnnotationShortcutTests
     }
 
     [AvaloniaFact]
+    public void FocusedTextEditorCaretRendersInsideItsBorder()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+
+        Assert.True(
+            window.TextEditor.Bounds.Width <= window.TextEditorVisualWidth,
+            $"editor={window.TextEditor.Bounds}, hostWidth={window.TextEditorVisualWidth}");
+        using var renderedFrame = window.CaptureRenderedFrame();
+        Assert.NotNull(renderedFrame);
+
+        AssertAccentPixelsStayInside(
+            renderedFrame,
+            searchRegion: new PixelRect(70, 110, 70, 60),
+            expectedRegion: new PixelRect(
+                100,
+                120,
+                (int)Math.Ceiling(window.TextEditorVisualWidth),
+                (int)Math.Ceiling(window.TextEditorVisualHeight)));
+    }
+
+    [AvaloniaFact]
     public void TextEditorStaysInsideTheSelectionNearItsBottomEdge()
     {
         var frame = CreateFrame(width: 600, height: 400);
@@ -646,6 +677,45 @@ public sealed class ScreenshotAnnotationShortcutTests
         }
 
         Assert.Equal(0, bluePixelCount);
+    }
+
+    private static void AssertAccentPixelsStayInside(
+        Bitmap bitmap,
+        PixelRect searchRegion,
+        PixelRect expectedRegion)
+    {
+        using var pixels = new WriteableBitmap(
+            bitmap.PixelSize,
+            bitmap.Dpi,
+            PixelFormat.Bgra8888,
+            AlphaFormat.Premul);
+        using var framebuffer = pixels.Lock();
+        bitmap.CopyPixels(framebuffer);
+        var bytes = new byte[framebuffer.RowBytes * bitmap.PixelSize.Height];
+        Marshal.Copy(framebuffer.Address, bytes, 0, bytes.Length);
+
+        var accentPoints = new List<PixelPoint>();
+        for (var y = searchRegion.Y; y < searchRegion.Bottom; y++)
+        {
+            for (var x = searchRegion.X; x < searchRegion.Right; x++)
+            {
+                var offset = (y * framebuffer.RowBytes) + (x * 4);
+                var blue = bytes[offset];
+                var green = bytes[offset + 1];
+                var red = bytes[offset + 2];
+                if (green > 150 && green > red + 60 && green > blue + 40)
+                {
+                    accentPoints.Add(new PixelPoint(x, y));
+                }
+            }
+        }
+
+        Assert.NotEmpty(accentPoints);
+        Assert.All(accentPoints, point =>
+        {
+            Assert.InRange(point.X, expectedRegion.X, expectedRegion.Right - 1);
+            Assert.InRange(point.Y, expectedRegion.Y, expectedRegion.Bottom - 1);
+        });
     }
 
     private sealed class NullSaveDialog : IPngSaveDialogService
