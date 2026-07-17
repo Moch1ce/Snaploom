@@ -1,4 +1,7 @@
+using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Styling;
 
 namespace Snaploom.App;
 
@@ -32,6 +35,22 @@ internal static class ScreenshotUiTheme
             Blur = 18,
             Color = Color.FromArgb(48, 0, 0, 0),
         });
+
+    internal static Style CreateTextEditorFocusChromeStyle() =>
+        new(
+            selector => selector
+                .OfType<TextBox>()
+                .Class(":focus-within")
+                .Template()
+                .OfType<Border>()
+                .Name("PART_BorderElement"))
+        {
+            Setters =
+            {
+                new Setter(Border.BackgroundProperty, TransparentBrush),
+                new Setter(Border.BorderThicknessProperty, new Thickness(0)),
+            },
+        };
 
     internal const double FloatingCornerRadius = 8;
     internal const double FloatingBorderThickness = 1;

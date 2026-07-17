@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform;
@@ -194,6 +195,8 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             IsVisible = false,
             RenderTransform = _textEditorTransform,
         };
+        _textEditorHost.Styles.Add(
+            ScreenshotUiTheme.CreateTextEditorFocusChromeStyle());
         _textEditorHost.Children.Add(new Border
         {
             Background = ScreenshotUiTheme.TransparentBrush,
@@ -208,7 +211,10 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         }
 
         _textEditor.TextChanged += HandleTextChanged;
-        _textEditor.KeyDown += HandleTextEditorKeyDown;
+        _textEditor.AddHandler(
+            InputElement.KeyDownEvent,
+            HandleTextEditorKeyDown,
+            RoutingStrategies.Tunnel);
 
         var root = new Grid();
         root.Children.Add(_selectionCanvas);
@@ -863,7 +869,9 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _toolbar.UndoRequested -= HandleUndo;
         _toolbar.RedoRequested -= HandleRedo;
         _textEditor.TextChanged -= HandleTextChanged;
-        _textEditor.KeyDown -= HandleTextEditorKeyDown;
+        _textEditor.RemoveHandler(
+            InputElement.KeyDownEvent,
+            HandleTextEditorKeyDown);
         _selectionCanvas.SelectionChanged -= HandleSelectionChanged;
         _selectionCanvas.SelectionDoubleClicked -= HandleConfirm;
         _selectionCanvas.AnnotationStarted -= HandleAnnotationStarted;
