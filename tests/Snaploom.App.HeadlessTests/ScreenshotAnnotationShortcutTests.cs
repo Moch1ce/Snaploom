@@ -160,6 +160,37 @@ public sealed class ScreenshotAnnotationShortcutTests
     }
 
     [AvaloniaFact]
+    public void FirstBlankClickCommitsCurrentTextAndSecondClickStartsAnotherEditor()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        window.TextEditor.Text = "第一段文字";
+
+        Click(window, new Point(200, 160));
+
+        Assert.False(window.TextEditorVisible);
+        Assert.Null(window.TextEdit);
+        var committed = Assert.IsType<ScreenshotTextAnnotation>(
+            Assert.Single(window.Annotations));
+        Assert.Equal("第一段文字", committed.Text);
+
+        Click(window, new Point(200, 160));
+
+        Assert.True(window.TextEditorVisible);
+        Assert.Equal(new LogicalPoint(150, 110), window.TextEdit?.Origin);
+        Assert.Single(window.Annotations);
+    }
+
+    [AvaloniaFact]
     public void ToolbarExposesAllStyleSelectionsForActiveAnnotationTools()
     {
         var toolbar = new ScreenshotToolbar();

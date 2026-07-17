@@ -226,6 +226,10 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
         Opened += HandleOpened;
         KeyDown += HandleKeyDown;
+        AddHandler(
+            InputElement.PointerPressedEvent,
+            HandlePointerPressedWhileEditingText,
+            RoutingStrategies.Tunnel);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -669,6 +673,21 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         }
     }
 
+    private void HandlePointerPressedWhileEditingText(
+        object? sender,
+        PointerPressedEventArgs e)
+    {
+        if (!_textEditorHost.IsVisible ||
+            !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed ||
+            !ReferenceEquals(e.Source, _selectionCanvas))
+        {
+            return;
+        }
+
+        e.Handled = true;
+        CommitTextEditing();
+    }
+
     private void CommitTextEditing(bool force = false)
     {
         if ((!_textEditorHost.IsVisible && !force) || _changingTextEditor)
@@ -872,6 +891,9 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _textEditor.RemoveHandler(
             InputElement.KeyDownEvent,
             HandleTextEditorKeyDown);
+        RemoveHandler(
+            InputElement.PointerPressedEvent,
+            HandlePointerPressedWhileEditingText);
         _selectionCanvas.SelectionChanged -= HandleSelectionChanged;
         _selectionCanvas.SelectionDoubleClicked -= HandleConfirm;
         _selectionCanvas.AnnotationStarted -= HandleAnnotationStarted;
