@@ -22,10 +22,6 @@
   <data name="LanguageSystem" xml:space="preserve"><value>Follow system</value></data>
   <data name="LanguageSimplifiedChinese" xml:space="preserve"><value>简体中文</value></data>
   <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
-  <data name="Theme" xml:space="preserve"><value>Theme</value></data>
-  <data name="ThemeSystem" xml:space="preserve"><value>Follow system</value></data>
-  <data name="ThemeLight" xml:space="preserve"><value>Light</value></data>
-  <data name="ThemeDark" xml:space="preserve"><value>Dark</value></data>
   <data name="PermissionTitle" xml:space="preserve"><value>Allow Snaploom to record the screen</value></data>
   <data name="PermissionDescription" xml:space="preserve"><value>Screenshots require the macOS Screen &amp; System Audio Recording permission. Snaploom only reads the screen when you start a screenshot.</value></data>
   <data name="ContinueAuthorization" xml:space="preserve"><value>Continue</value></data>

@@ -38,7 +38,7 @@ public sealed class App : Application, IDisposable
     public override void Initialize()
     {
         Name = ProductIdentity.Name;
-        RequestedThemeVariant = ThemeVariant.Default;
+        RequestedThemeVariant = ThemeVariant.Light;
         Styles.Add(new FluentTheme());
     }
 
@@ -230,7 +230,6 @@ public sealed class App : Application, IDisposable
         var culture = AppAppearance.GetCulture(_settings.Current.Language, _systemCulture);
         CultureInfo.CurrentUICulture = culture;
         CultureInfo.DefaultThreadCurrentUICulture = culture;
-        RequestedThemeVariant = AppAppearance.GetThemeVariant(_settings.Current.Theme);
         if (_trayIcon is not null && _trayViewModel is not null && _launchPlan is not null)
         {
             _trayIcon.Menu = CreateTrayMenu(_trayViewModel, _launchPlan);

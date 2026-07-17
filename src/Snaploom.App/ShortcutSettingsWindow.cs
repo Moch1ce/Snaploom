@@ -23,12 +23,10 @@ public sealed class ShortcutSettingsWindow : Window
     private readonly TextBlock _shortcutText = new();
     private readonly TextBlock _statusText = new();
     private readonly TextBlock _languageLabel = new();
-    private readonly TextBlock _themeLabel = new();
     private readonly Button _saveButton = new();
     private readonly Button _closeButton = new();
     private readonly CheckBox _autoStartCheckBox = new();
     private readonly ComboBox _languageComboBox = new();
-    private readonly ComboBox _themeComboBox = new();
     private readonly Button _openLogsButton = new();
     private readonly Button _clearLogsButton = new();
     private readonly TextBlock _updateHeading = new();
@@ -91,8 +89,6 @@ public sealed class ShortcutSettingsWindow : Window
         _autoStartCheckBox.Click += HandleAutoStartClicked;
         _languageComboBox.MinWidth = 190;
         _languageComboBox.SelectionChanged += HandleLanguageChanged;
-        _themeComboBox.MinWidth = 190;
-        _themeComboBox.SelectionChanged += HandleThemeChanged;
         _openLogsButton.Click += HandleOpenLogs;
         _clearLogsButton.Click += HandleClearLogs;
         _updateHeading.FontSize = 16;
@@ -122,7 +118,6 @@ public sealed class ShortcutSettingsWindow : Window
                 _statusText,
                 _autoStartCheckBox,
                 CreateSettingRow(_languageLabel, _languageComboBox),
-                CreateSettingRow(_themeLabel, _themeComboBox),
                 new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
@@ -180,7 +175,6 @@ public sealed class ShortcutSettingsWindow : Window
             _autoStartCheckBox.Content = AppUiText.AutoStart;
             _autoStartCheckBox.IsChecked = _trayViewModel.IsAutoStartEnabled;
             _languageLabel.Text = AppUiText.Language;
-            _themeLabel.Text = AppUiText.Theme;
             _openLogsButton.Content = AppUiText.OpenLogs;
             _clearLogsButton.Content = AppUiText.ClearLogs;
             _updateHeading.Text = AppUiText.UpdateSection;
@@ -196,13 +190,6 @@ public sealed class ShortcutSettingsWindow : Window
                 new Choice<AppLanguage>(AppLanguage.English, AppUiText.LanguageEnglish),
             };
             _languageComboBox.SelectedIndex = (int)_settings.Current.Language;
-            _themeComboBox.ItemsSource = new[]
-            {
-                new Choice<AppTheme>(AppTheme.System, AppUiText.ThemeSystem),
-                new Choice<AppTheme>(AppTheme.Light, AppUiText.ThemeLight),
-                new Choice<AppTheme>(AppTheme.Dark, AppUiText.ThemeDark),
-            };
-            _themeComboBox.SelectedIndex = (int)_settings.Current.Theme;
             if (_checkingUpdates)
             {
                 _updateStatusText.Text = AppUiText.CheckingUpdates;
@@ -300,17 +287,6 @@ public sealed class ShortcutSettingsWindow : Window
         _settings.Update(current => current with { Language = choice.Value });
         _appearanceChanged();
         ApplyLocalizedText();
-    }
-
-    private void HandleThemeChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_updatingControls || _themeComboBox.SelectedItem is not Choice<AppTheme> choice)
-        {
-            return;
-        }
-
-        _settings.Update(current => current with { Theme = choice.Value });
-        _appearanceChanged();
     }
 
     private void HandleOpenLogs(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

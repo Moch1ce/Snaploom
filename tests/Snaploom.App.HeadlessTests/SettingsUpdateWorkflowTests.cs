@@ -43,6 +43,7 @@ public sealed class SettingsUpdateWorkflowTests
         try
         {
             window.Show();
+            Assert.Single(window.GetVisualDescendants().OfType<ComboBox>());
             Assert.Equal(0, updateService.CallCount);
 
             FindButton(window, AppUiText.CheckUpdates).RaiseEvent(

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Nodes;
 using Snaploom.App;
 using Snaploom.Core;
 using Snaploom.Platform.Abstractions;
@@ -28,7 +29,6 @@ public sealed class AppSettingsTests
                 MosaicBrushSize = 64,
                 LastSaveDirectory = "/screenshots",
                 Language = AppLanguage.English,
-                Theme = AppTheme.Dark,
             };
             var store = new JsonAppSettingsStore(path, defaults);
 
@@ -76,19 +76,32 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void LegacyThemePreferenceIsIgnored()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "settings.json");
+            var defaults = AppSettings.CreateDefault(DesktopPlatformKind.MacOS);
+            var store = new JsonAppSettingsStore(path, defaults);
+            store.Save(defaults);
+            var legacySettings = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+            legacySettings["theme"] = "dark";
+            File.WriteAllText(path, legacySettings.ToJsonString());
+
+            Assert.Equal(defaults, store.Load());
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void ResourceFallbackUsesEnglishForUnsupportedCultures()
     {
         Assert.Equal("开始截图", AppUiText.Get("StartScreenshot", new CultureInfo("zh-CN")));
         Assert.Equal("Start screenshot", AppUiText.Get("StartScreenshot", new CultureInfo("fr-FR")));
-    }
-
-    [Theory]
-    [InlineData(AppTheme.System, "Default")]
-    [InlineData(AppTheme.Light, "Light")]
-    [InlineData(AppTheme.Dark, "Dark")]
-    public void ThemePreferenceMapsToAvaloniaThemeVariant(AppTheme theme, string expectedKey)
-    {
-        Assert.Equal(expectedKey, AppAppearance.GetThemeVariant(theme).Key);
     }
 
     private static string CreateTemporaryDirectory()

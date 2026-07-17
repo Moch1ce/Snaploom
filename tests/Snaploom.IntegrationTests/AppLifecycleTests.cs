@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Headless;
+using Avalonia.Styling;
 using Snaploom.App;
 
 namespace Snaploom.IntegrationTests;
@@ -36,6 +37,7 @@ public sealed class AppLifecycleTests
             Assert.Equal(ShutdownMode.OnExplicitShutdown, lifetime.ShutdownMode);
 
             var app = Assert.IsType<Snaploom.App.App>(Application.Current);
+            Assert.Equal(ThemeVariant.Light, app.RequestedThemeVariant);
             var trayIcon = Assert.Single(Assert.IsType<TrayIcons>(TrayIcon.GetIcons(app)));
             Assert.True(trayIcon.IsVisible);
 

@@ -22,10 +22,6 @@
   <data name="LanguageSystem" xml:space="preserve"><value>跟随系统</value></data>
   <data name="LanguageSimplifiedChinese" xml:space="preserve"><value>简体中文</value></data>
   <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
-  <data name="Theme" xml:space="preserve"><value>主题</value></data>
-  <data name="ThemeSystem" xml:space="preserve"><value>跟随系统</value></data>
-  <data name="ThemeLight" xml:space="preserve"><value>浅色</value></data>
-  <data name="ThemeDark" xml:space="preserve"><value>深色</value></data>
   <data name="PermissionTitle" xml:space="preserve"><value>允许 Snaploom 录制屏幕</value></data>
   <data name="PermissionDescription" xml:space="preserve"><value>截图需要 macOS 的“屏幕与系统音频录制”权限。Snaploom 只在你主动截图时读取屏幕。</value></data>
   <data name="ContinueAuthorization" xml:space="preserve"><value>继续授权</value></data>

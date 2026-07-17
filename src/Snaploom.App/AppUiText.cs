@@ -30,10 +30,6 @@ public static class AppUiText
     public static string LanguageSystem => Get(nameof(LanguageSystem));
     public static string LanguageSimplifiedChinese => Get(nameof(LanguageSimplifiedChinese));
     public static string LanguageEnglish => Get(nameof(LanguageEnglish));
-    public static string Theme => Get(nameof(Theme));
-    public static string ThemeSystem => Get(nameof(ThemeSystem));
-    public static string ThemeLight => Get(nameof(ThemeLight));
-    public static string ThemeDark => Get(nameof(ThemeDark));
     public static string PermissionTitle => Get(nameof(PermissionTitle));
     public static string PermissionDescription => Get(nameof(PermissionDescription));
     public static string ContinueAuthorization => Get(nameof(ContinueAuthorization));

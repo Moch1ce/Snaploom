@@ -13,13 +13,6 @@ public enum AppLanguage
     English,
 }
 
-public enum AppTheme
-{
-    System,
-    Light,
-    Dark,
-}
-
 public sealed record AppSettings
 {
     public const int CurrentSchemaVersion = 1;
@@ -45,8 +38,6 @@ public sealed record AppSettings
     public string? LastSaveDirectory { get; init; }
 
     public AppLanguage Language { get; init; }
-
-    public AppTheme Theme { get; init; }
 
     [JsonIgnore]
     public ScreenshotHotKey HotKey => new(HotKeyModifiers, HotKeyKey);
@@ -84,7 +75,6 @@ public sealed record AppSettings
             MosaicBrushSize = ScreenshotMosaicStyle.Default.BrushSize,
             LastSaveDirectory = null,
             Language = AppLanguage.System,
-            Theme = AppTheme.System,
         };
     }
 
@@ -104,8 +94,7 @@ public sealed record AppSettings
                Enum.IsDefined(TextColor) &&
                TextFontSize is 16 or 24 or 32 &&
                MosaicBrushSize is 16 or 32 or 64 &&
-               Enum.IsDefined(Language) &&
-               Enum.IsDefined(Theme);
+               Enum.IsDefined(Language);
     }
 }
 
