@@ -406,6 +406,24 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                 return;
             }
 
+            if (_annotationSession.ActiveTool is ScreenshotAnnotationTool.Rectangle or
+                    ScreenshotAnnotationTool.Arrow &&
+                _session.SelectionContains(physicalPoint) &&
+                _annotationSession.HitTest(ToSelectionLogicalPoint(position)) is { } existingIndex &&
+                _annotationSession.Annotations[existingIndex] is
+                    ScreenshotRectangleAnnotation or ScreenshotArrowAnnotation)
+            {
+                _annotationSession.SetTool(ScreenshotAnnotationTool.Select);
+                _annotationSession.Select(existingIndex);
+                _annotationBitmapDirty = true;
+                _mosaicCacheDirty = true;
+                UpdateSelectedPointerFeedback(position);
+                AnnotationSelectionChanged?.Invoke(this, EventArgs.Empty);
+                InvalidateVisual();
+                e.Handled = true;
+                return;
+            }
+
             if (_annotationSession.ActiveTool == ScreenshotAnnotationTool.Text)
             {
                 if (_session.SelectionContains(physicalPoint) &&

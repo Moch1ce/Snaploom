@@ -509,6 +509,11 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _synchronizingAnnotationStyle = true;
         try
         {
+            if (_toolbar.ActiveTool != _selectionCanvas.ActiveAnnotationTool)
+            {
+                _toolbar.SynchronizeTool(_selectionCanvas.ActiveAnnotationTool);
+            }
+
             _toolbar.SetSelectedAnnotation(_selectionCanvas.SelectedAnnotation);
             PositionAnnotationOptionsFlyout();
         }

@@ -184,7 +184,11 @@ public sealed class ScreenshotAnnotationShortcutTests
             (3.5 * ScreenshotUiTheme.ToolbarButtonSize),
             flyoutOrigin.Y + optionCenterY));
         Click(window, new Point(
-            flyoutOrigin.X + 365,
+            flyoutOrigin.X + ScreenshotUiTheme.AnnotationOptionsSurfaceHorizontalPadding +
+            (6 * ScreenshotUiTheme.ToolbarButtonSize) +
+            ScreenshotUiTheme.ToolbarSeparatorWidth +
+            (2 * ScreenshotUiTheme.ToolbarSeparatorMargin) +
+            (2.5 * ScreenshotUiTheme.ToolbarButtonSize),
             flyoutOrigin.Y + optionCenterY));
 
         Drag(window, new Point(100, 100), new Point(220, 160));
@@ -193,6 +197,77 @@ public sealed class ScreenshotAnnotationShortcutTests
             Assert.Single(window.Annotations));
         Assert.Equal(ScreenshotAnnotationColor.Blue, rectangle.Style.Color);
         Assert.Equal(8, rectangle.Style.LineWidth);
+    }
+
+    [AvaloniaFact]
+    public void ClickingADrawnRectangleSelectsItAndAppliesStyleChanges()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 200));
+        var toolbarOrigin = window.ToolbarOrigin;
+        Click(window, new Point(
+            toolbarOrigin.X + ScreenshotUiTheme.FloatingBorderThickness +
+            ScreenshotUiTheme.ToolbarHorizontalPadding +
+            (ScreenshotUiTheme.ToolbarButtonSize / 2),
+            toolbarOrigin.Y + (ScreenshotUiTheme.ToolbarHeight / 2)));
+        Drag(window, new Point(100, 100), new Point(220, 160));
+
+        Click(window, new Point(100, 130));
+
+        Assert.Equal(ScreenshotAnnotationTool.Select, window.ActiveAnnotationTool);
+        Assert.IsType<ScreenshotRectangleAnnotation>(window.SelectedAnnotation);
+        Assert.True(window.AnnotationOptionsFlyoutOpen);
+
+        var flyoutOrigin = window.AnnotationOptionsFlyoutOrigin;
+        var optionCenterY = ScreenshotUiTheme.AnnotationOptionsPointerHeight -
+            ScreenshotUiTheme.AnnotationOptionsPointerOverlap +
+            (ScreenshotUiTheme.ToolbarHeight / 2);
+        Click(window, new Point(
+            flyoutOrigin.X + ScreenshotUiTheme.AnnotationOptionsSurfaceHorizontalPadding +
+            (3.5 * ScreenshotUiTheme.ToolbarButtonSize),
+            flyoutOrigin.Y + optionCenterY));
+        Click(window, new Point(
+            flyoutOrigin.X + ScreenshotUiTheme.AnnotationOptionsSurfaceHorizontalPadding +
+            (6 * ScreenshotUiTheme.ToolbarButtonSize) +
+            ScreenshotUiTheme.ToolbarSeparatorWidth +
+            (2 * ScreenshotUiTheme.ToolbarSeparatorMargin) +
+            (2.5 * ScreenshotUiTheme.ToolbarButtonSize),
+            flyoutOrigin.Y + optionCenterY));
+
+        var rectangle = Assert.IsType<ScreenshotRectangleAnnotation>(
+            Assert.Single(window.Annotations));
+        Assert.Equal(ScreenshotAnnotationColor.Blue, rectangle.Style.Color);
+        Assert.Equal(8, rectangle.Style.LineWidth);
+    }
+
+    [AvaloniaFact]
+    public void RectangleToolDoesNotSelectAnExistingMosaicStroke()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 200));
+        window.KeyPress(Key.M, RawInputModifiers.None, PhysicalKey.M, "m");
+        Drag(window, new Point(100, 100), new Point(150, 100));
+        window.KeyPress(Key.R, RawInputModifiers.None, PhysicalKey.R, "r");
+
+        Click(window, new Point(125, 100));
+
+        Assert.Equal(ScreenshotAnnotationTool.Rectangle, window.ActiveAnnotationTool);
+        Assert.Null(window.SelectedAnnotation);
+        Assert.IsType<ScreenshotMosaicAnnotation>(Assert.Single(window.Annotations));
     }
 
     [AvaloniaFact]

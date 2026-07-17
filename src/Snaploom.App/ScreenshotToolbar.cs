@@ -235,7 +235,19 @@ internal sealed class ScreenshotToolbar : Border
 
     internal void SelectTool(
         ScreenshotAnnotationTool tool,
-        bool showAnnotationOptions = true)
+        bool showAnnotationOptions = true) =>
+        SelectToolCore(tool, showAnnotationOptions, raiseToolChanged: true);
+
+    internal void SynchronizeTool(ScreenshotAnnotationTool tool) =>
+        SelectToolCore(
+            tool,
+            showAnnotationOptions: false,
+            raiseToolChanged: false);
+
+    private void SelectToolCore(
+        ScreenshotAnnotationTool tool,
+        bool showAnnotationOptions,
+        bool raiseToolChanged)
     {
         _annotationOptionsFlyoutRequested =
             showAnnotationOptions && tool != ScreenshotAnnotationTool.Select;
@@ -257,7 +269,10 @@ internal sealed class ScreenshotToolbar : Border
         _mosaicButton.IsSelected = tool == ScreenshotAnnotationTool.Mosaic;
         UpdateOptionVisibility();
         UpdateStyleSelection();
-        ToolChanged?.Invoke(this, EventArgs.Empty);
+        if (raiseToolChanged)
+        {
+            ToolChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     internal void SetSelectedAnnotation(IScreenshotAnnotation? annotation)
@@ -552,7 +567,7 @@ internal sealed class ScreenshotToolbar : Border
     private static Border CreateSeparator() =>
         new()
         {
-            Width = 1,
+            Width = ScreenshotUiTheme.ToolbarSeparatorWidth,
             Height = 20,
             Margin = new Thickness(ScreenshotUiTheme.ToolbarSeparatorMargin, 0),
             Background = ScreenshotUiTheme.SeparatorBrush,
