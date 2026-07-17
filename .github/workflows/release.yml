@@ -260,6 +260,14 @@ jobs:
             --draft \
             --latest=false
 
+          release_id="$(gh api \
+            "repos/$REPOSITORY/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$TAG\" and .draft == true) | .id")"
+          if [[ ! "$release_id" =~ ^[0-9]+$ ]]; then
+            echo "Could not resolve the draft release ID for $TAG." >&2
+            exit 1
+          fi
+
           gh release upload "$TAG" "${assets[@]}" --repo "$REPOSITORY"
 
           expected_assets="$(printf '%s\n' \
@@ -267,7 +275,7 @@ jobs:
             "$(basename "$windows").sha256" \
             "$(basename "$macos")" \
             "$(basename "$macos").sha256" | jq -R . | jq -s 'sort')"
-          release_json="$(gh api "repos/$REPOSITORY/releases/tags/$TAG")"
+          release_json="$(gh api "repos/$REPOSITORY/releases/$release_id")"
           jq -e \
             --arg tag "$TAG" \
             --argjson expected "$expected_assets" '
@@ -277,14 +285,13 @@ jobs:
               ([.assets[] | select(.size > 0) | .name] | sort) == $expected
             ' <<< "$release_json" >/dev/null
 
-          gh release edit "$TAG" \
-            --repo "$REPOSITORY" \
-            --verify-tag \
-            --draft=false \
-            --prerelease \
-            --latest=false
+          gh api --method PATCH \
+            "repos/$REPOSITORY/releases/$release_id" \
+            -F draft=false \
+            -F prerelease=true \
+            -f make_latest=false >/dev/null
 
-          published_json="$(gh api "repos/$REPOSITORY/releases/tags/$TAG")"
+          published_json="$(gh api "repos/$REPOSITORY/releases/$release_id")"
           jq -e '
             .draft == false and
             .prerelease == true and
