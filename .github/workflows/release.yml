@@ -1,0 +1,292 @@
+name: Test release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+
+jobs:
+  prepare:
+    name: Validate release tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.guard.outputs.version }}
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag, branch, acceptance gate, and release uniqueness
+        id: guard
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tags must use vX.Y.Z format: $TAG" >&2
+            exit 1
+          fi
+
+          version="${TAG#v}"
+          tag_commit="$(git rev-list -n 1 "$TAG")"
+          git fetch --no-tags origin \
+            "$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          if ! git merge-base --is-ancestor \
+            "$tag_commit" "refs/remotes/origin/$DEFAULT_BRANCH"; then
+            echo "Release tag $TAG is not reachable from $DEFAULT_BRANCH." >&2
+            exit 1
+          fi
+
+          acceptance="$(gh api "repos/$REPOSITORY/issues/18")"
+          acceptance_state="$(jq -r .state <<< "$acceptance")"
+          acceptance_reason="$(jq -r .state_reason <<< "$acceptance")"
+          if [[ "$acceptance_state" != "closed" || \
+                "$acceptance_reason" != "completed" ]]; then
+            echo "Issue #18 must be manually accepted and closed as completed before release." >&2
+            exit 1
+          fi
+
+          existing_release_ids="$(gh api --paginate \
+            "repos/$REPOSITORY/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$TAG\") | .id")"
+          if [[ -n "$existing_release_ids" ]]; then
+            echo "A draft or published release already exists for $TAG." >&2
+            echo "Refusing to overwrite or duplicate it." >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  windows:
+    name: Windows x64 package
+    needs: prepare
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Snaploom.sln
+
+      - name: Build
+        run: dotnet build Snaploom.sln --configuration Release --no-restore
+
+      - name: Run all headless tests
+        run: dotnet test Snaploom.sln --configuration Release --no-build
+
+      - name: Install pinned Inno Setup
+        run: choco upgrade innosetup --version=6.7.1 --allow-downgrade --yes --no-progress
+
+      - name: Build unsigned Windows installer
+        shell: pwsh
+        run: ./scripts/build-windows-installer.ps1 -Version '${{ needs.prepare.outputs.version }}'
+
+      - name: Verify Windows installer
+        shell: pwsh
+        run: >-
+          ./tests/packaging/verify-windows-installer.ps1
+          -InstallerDirectory ./artifacts/windows-x64/installer
+          -Version '${{ needs.prepare.outputs.version }}'
+
+      - name: Upload verified Windows package
+        uses: actions/upload-artifact@v7
+        with:
+          name: snaploom-${{ needs.prepare.outputs.version }}-windows-x64
+          path: artifacts/windows-x64/installer/*
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  macos:
+    name: macOS Apple Silicon package
+    needs: prepare
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Snaploom.sln
+
+      - name: Build
+        run: dotnet build Snaploom.sln --configuration Release --no-restore
+
+      - name: Test native frame orientation
+        run: bash tests/native/macos/run-frame-orientation-test.sh
+
+      - name: Run all headless tests
+        run: dotnet test Snaploom.sln --configuration Release --no-build
+
+      - name: Build ad hoc macOS DMG
+        run: >-
+          ./scripts/build-macos-dmg.sh
+          --version '${{ needs.prepare.outputs.version }}'
+          --adhoc
+
+      - name: Verify ad hoc macOS DMG
+        run: >-
+          ./tests/packaging/verify-macos-dmg.sh
+          --dmg-directory ./artifacts/macos-arm64/dmg
+          --version '${{ needs.prepare.outputs.version }}'
+          --expected-signing adhoc
+
+      - name: Upload verified macOS package
+        uses: actions/upload-artifact@v7
+        with:
+          name: snaploom-${{ needs.prepare.outputs.version }}-macos-arm64
+          path: artifacts/macos-arm64/dmg/*
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  publish:
+    name: Publish prerelease
+    needs:
+      - prepare
+      - windows
+      - macos
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Download Windows package
+        uses: actions/download-artifact@v8
+        with:
+          name: snaploom-${{ needs.prepare.outputs.version }}-windows-x64
+          path: release-assets/windows
+
+      - name: Download macOS package
+        uses: actions/download-artifact@v8
+        with:
+          name: snaploom-${{ needs.prepare.outputs.version }}-macos-arm64
+          path: release-assets/macos
+
+      - name: Verify downloaded checksums and metadata
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          windows="release-assets/windows/snaploom-$VERSION-windows-x64-setup.exe"
+          macos="release-assets/macos/snaploom-$VERSION-macos-arm64.dmg"
+          for asset in "$windows" "$windows.sha256" "$macos" "$macos.sha256"; do
+            if [[ ! -s "$asset" ]]; then
+              echo "Expected release asset is missing or empty: $asset" >&2
+              exit 1
+            fi
+          done
+
+          (cd release-assets/windows && \
+            sha256sum -c "snaploom-$VERSION-windows-x64-setup.exe.sha256")
+          (cd release-assets/macos && \
+            sha256sum -c "snaploom-$VERSION-macos-arm64.dmg.sha256")
+
+          jq -e --arg version "$VERSION" '
+            .version == $version and
+            .runtime == "win-x64" and
+            .selfContained == true
+          ' release-assets/windows/windows-installer-metadata.json >/dev/null
+          jq -e --arg version "$VERSION" '
+            .version == $version and
+            .runtime == "osx-arm64" and
+            .selfContained == true and
+            .signingMode == "adhoc" and
+            .notarized == false
+          ' release-assets/macos/macos-dmg-metadata.json >/dev/null
+
+      - name: Create, verify, and publish test release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          windows="release-assets/windows/snaploom-$VERSION-windows-x64-setup.exe"
+          macos="release-assets/macos/snaploom-$VERSION-macos-arm64.dmg"
+          assets=("$windows" "$windows.sha256" "$macos" "$macos.sha256")
+          notes="$(sed \
+            -e "s/{{VERSION}}/$VERSION/g" \
+            -e "s/{{TAG}}/$TAG/g" \
+            docs/distribution/test-release-notes.md)"
+
+          gh release create "$TAG" \
+            --repo "$REPOSITORY" \
+            --verify-tag \
+            --title "Snaploom $VERSION 测试版" \
+            --generate-notes \
+            --notes "$notes" \
+            --prerelease \
+            --draft \
+            --latest=false
+
+          gh release upload "$TAG" "${assets[@]}" --repo "$REPOSITORY"
+
+          expected_assets="$(printf '%s\n' \
+            "$(basename "$windows")" \
+            "$(basename "$windows").sha256" \
+            "$(basename "$macos")" \
+            "$(basename "$macos").sha256" | jq -R . | jq -s 'sort')"
+          release_json="$(gh api "repos/$REPOSITORY/releases/tags/$TAG")"
+          jq -e \
+            --arg tag "$TAG" \
+            --argjson expected "$expected_assets" '
+              .tag_name == $tag and
+              .draft == true and
+              .prerelease == true and
+              ([.assets[] | select(.size > 0) | .name] | sort) == $expected
+            ' <<< "$release_json" >/dev/null
+
+          gh release edit "$TAG" \
+            --repo "$REPOSITORY" \
+            --verify-tag \
+            --draft=false \
+            --prerelease \
+            --latest=false
+
+          published_json="$(gh api "repos/$REPOSITORY/releases/tags/$TAG")"
+          jq -e '
+            .draft == false and
+            .prerelease == true and
+            (.published_at | type == "string")
+          ' <<< "$published_json" >/dev/null

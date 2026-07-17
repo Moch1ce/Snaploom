@@ -29,9 +29,9 @@ public interface IUpdateCheckService
 
 public sealed class UpdateCheckService : IUpdateCheckService
 {
-    private static readonly Uri LatestReleaseEndpoint = new(
+    private static readonly Uri ReleasesEndpoint = new(
         $"https://api.github.com/repos/{ProductIdentity.GitHubOwner}/" +
-        $"{ProductIdentity.GitHubRepository}/releases/latest");
+        $"{ProductIdentity.GitHubRepository}/releases?per_page=20");
 
     private readonly HttpClient _httpClient;
     private readonly Version _currentVersion;
@@ -59,7 +59,7 @@ public sealed class UpdateCheckService : IUpdateCheckService
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseEndpoint);
+            using var request = new HttpRequestMessage(HttpMethod.Get, ReleasesEndpoint);
             request.Headers.UserAgent.ParseAdd($"{ProductIdentity.Name}/{_currentVersion}");
             request.Headers.Accept.ParseAdd("application/vnd.github+json");
             request.Headers.TryAddWithoutValidation("X-GitHub-Api-Version", "2026-03-10");
@@ -79,7 +79,7 @@ public sealed class UpdateCheckService : IUpdateCheckService
             using var document = await JsonDocument.ParseAsync(
                 content,
                 cancellationToken: cancellationToken);
-            return ParseRelease(document.RootElement);
+            return ParseResponse(document.RootElement);
         }
         catch (JsonException)
         {
@@ -95,6 +95,35 @@ public sealed class UpdateCheckService : IUpdateCheckService
         }
     }
 
+    private UpdateCheckResult ParseResponse(JsonElement response)
+    {
+        if (response.ValueKind != JsonValueKind.Array)
+        {
+            return new UpdateCheckResult(UpdateCheckStatus.InvalidResponse);
+        }
+
+        UpdateCheckResult? latest = null;
+        foreach (var release in response.EnumerateArray())
+        {
+            if (release.TryGetProperty("draft", out var draft) &&
+                draft.ValueKind == JsonValueKind.True)
+            {
+                continue;
+            }
+
+            var result = ParseRelease(release);
+            if (result.Status != UpdateCheckStatus.InvalidResponse &&
+                result.LatestVersion is not null &&
+                (latest?.LatestVersion is null ||
+                 result.LatestVersion.CompareTo(latest.LatestVersion) > 0))
+            {
+                latest = result;
+            }
+        }
+
+        return latest ?? new UpdateCheckResult(UpdateCheckStatus.InvalidResponse);
+    }
+
     private UpdateCheckResult ParseRelease(JsonElement release)
     {
         if (release.ValueKind != JsonValueKind.Object ||
@@ -107,7 +136,7 @@ public sealed class UpdateCheckService : IUpdateCheckService
                 DateTimeStyles.AssumeUniversal,
                 out var publishedAt) ||
             !TryGetStringProperty(release, "html_url", out var page) ||
-            !TryParseReleasePage(page, out var releasePage))
+            !TryParseReleasePage(page, tag!, out var releasePage))
         {
             return new UpdateCheckResult(UpdateCheckStatus.InvalidResponse);
         }
@@ -170,15 +199,19 @@ public sealed class UpdateCheckService : IUpdateCheckService
         return true;
     }
 
-    private static bool TryParseReleasePage(string? value, out Uri releasePage)
+    private static bool TryParseReleasePage(
+        string? value,
+        string tag,
+        out Uri releasePage)
     {
         releasePage = new Uri("https://github.com");
         if (!Uri.TryCreate(value, UriKind.Absolute, out var parsed) ||
             parsed.Scheme != Uri.UriSchemeHttps ||
             !string.Equals(parsed.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
-            !parsed.AbsolutePath.StartsWith(
-                $"/{ProductIdentity.GitHubOwner}/{ProductIdentity.GitHubRepository}/releases/",
-                StringComparison.OrdinalIgnoreCase))
+            !string.Equals(
+                parsed.AbsolutePath,
+                $"/{ProductIdentity.GitHubOwner}/{ProductIdentity.GitHubRepository}/releases/tag/{tag}",
+                StringComparison.Ordinal))
         {
             return false;
         }

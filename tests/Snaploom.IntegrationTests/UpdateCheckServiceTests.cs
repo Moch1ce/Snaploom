@@ -21,7 +21,7 @@ public sealed class UpdateCheckServiceTests
     {
         var handler = new RecordingHandler(
             _ => CreateReleaseResponse(
-                "snaploom-v1.4.2",
+                "v1.4.2",
                 body: "## Improvements\n- Faster capture",
                 publishedAt: "2026-07-10T08:30:00Z"));
         var service = CreateService(handler, new Version(1, 3, 0));
@@ -37,8 +37,87 @@ public sealed class UpdateCheckServiceTests
             result.ReleasePage);
         Assert.Equal(1, handler.RequestCount);
         Assert.Equal(
-            "https://api.github.com/repos/liuchuana/Snaploom/releases/latest",
+            "https://api.github.com/repos/liuchuana/Snaploom/releases?per_page=20",
             handler.LastRequestUri?.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task PublishedPrereleaseFromTagPipelineIsAvailableForManualUpdateCheck()
+    {
+        var handler = new RecordingHandler(
+            _ => CreateReleaseListResponse(
+                CreateReleaseJson(
+                    "v1.5.0",
+                    prerelease: true,
+                    body: "Snaploom ad hoc 测试版")));
+        var service = CreateService(handler, new Version(1, 4, 0));
+
+        var result = await service.CheckAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(UpdateCheckStatus.UpdateAvailable, result.Status);
+        Assert.Equal(new Version(1, 5, 0, 0), result.LatestVersion);
+        Assert.Equal("Snaploom ad hoc 测试版", result.ReleaseNotes);
+        Assert.Equal(
+            new Uri("https://github.com/liuchuana/Snaploom/releases/tag/v1.5.0"),
+            result.ReleasePage);
+    }
+
+    [Fact]
+    public async Task DraftReleaseIsIgnoredDuringManualUpdateCheck()
+    {
+        var handler = new RecordingHandler(
+            _ => CreateReleaseListResponse(
+                CreateReleaseJson("v9.0.0", prerelease: true, draft: true),
+                CreateReleaseJson("v1.5.0", prerelease: true)));
+        var service = CreateService(handler, new Version(1, 4, 0));
+
+        var result = await service.CheckAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(UpdateCheckStatus.UpdateAvailable, result.Status);
+        Assert.Equal(new Version(1, 5, 0, 0), result.LatestVersion);
+        Assert.Equal(
+            new Uri("https://github.com/liuchuana/Snaploom/releases/tag/v1.5.0"),
+            result.ReleasePage);
+    }
+
+    [Fact]
+    public async Task ReleasePageMustMatchThePipelineTag()
+    {
+        var handler = new RecordingHandler(
+            _ => CreateReleaseListResponse(
+                CreateReleaseJson(
+                    "v1.6.0",
+                    prerelease: true,
+                    releasePageTag: "v1.5.0"),
+                CreateReleaseJson("v1.5.0", prerelease: true)));
+        var service = CreateService(handler, new Version(1, 4, 0));
+
+        var result = await service.CheckAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(UpdateCheckStatus.UpdateAvailable, result.Status);
+        Assert.Equal(new Version(1, 5, 0, 0), result.LatestVersion);
+        Assert.Equal(
+            new Uri("https://github.com/liuchuana/Snaploom/releases/tag/v1.5.0"),
+            result.ReleasePage);
+    }
+
+    [Fact]
+    public async Task HighestPublishedPipelineVersionIsSelectedRegardlessOfApiOrder()
+    {
+        var handler = new RecordingHandler(
+            _ => CreateReleaseListResponse(
+                CreateReleaseJson("v1.4.0", prerelease: true),
+                CreateReleaseJson("v1.6.0", prerelease: true),
+                CreateReleaseJson("v1.5.0", prerelease: true)));
+        var service = CreateService(handler, new Version(1, 5, 0));
+
+        var result = await service.CheckAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(UpdateCheckStatus.UpdateAvailable, result.Status);
+        Assert.Equal(new Version(1, 6, 0, 0), result.LatestVersion);
+        Assert.Equal(
+            new Uri("https://github.com/liuchuana/Snaploom/releases/tag/v1.6.0"),
+            result.ReleasePage);
     }
 
     [Theory]
@@ -116,20 +195,40 @@ public sealed class UpdateCheckServiceTests
     private static HttpResponseMessage CreateReleaseResponse(
         string tag,
         string body = "Release notes",
-        string publishedAt = "2026-07-10T08:30:00Z") => new(HttpStatusCode.OK)
+        string publishedAt = "2026-07-10T08:30:00Z") =>
+        CreateReleaseListResponse(
+            CreateReleaseJson(
+                tag,
+                prerelease: true,
+                body: body,
+                publishedAt: publishedAt));
+
+    private static HttpResponseMessage CreateReleaseListResponse(params string[] releases) =>
+        new(HttpStatusCode.OK)
         {
             Content = new StringContent(
-                $$"""
-                {
-                  "tag_name": "{{tag}}",
-                  "published_at": "{{publishedAt}}",
-                  "body": {{System.Text.Json.JsonSerializer.Serialize(body)}},
-                  "html_url": "https://github.com/liuchuana/Snaploom/releases/tag/v1.4.2"
-                }
-                """,
+                $"[{string.Join(',', releases)}]",
                 Encoding.UTF8,
                 "application/json"),
         };
+
+    private static string CreateReleaseJson(
+        string tag,
+        bool prerelease,
+        bool draft = false,
+        string body = "Release notes",
+        string publishedAt = "2026-07-10T08:30:00Z",
+        string? releasePageTag = null) =>
+        $$"""
+        {
+          "tag_name": {{System.Text.Json.JsonSerializer.Serialize(tag)}},
+          "published_at": {{System.Text.Json.JsonSerializer.Serialize(publishedAt)}},
+          "body": {{System.Text.Json.JsonSerializer.Serialize(body)}},
+          "html_url": "https://github.com/liuchuana/Snaploom/releases/tag/{{releasePageTag ?? tag}}",
+          "prerelease": {{prerelease.ToString().ToLowerInvariant()}},
+          "draft": {{draft.ToString().ToLowerInvariant()}}
+        }
+        """;
 
     private sealed class RecordingHandler(
         Func<HttpRequestMessage, HttpResponseMessage> responseFactory) : HttpMessageHandler

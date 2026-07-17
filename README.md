@@ -67,4 +67,6 @@ pwsh -File scripts/build-windows-installer.ps1 -Version 1.0.0
 
 安装包、SHA256 和体积元数据输出到 `artifacts/windows-x64/installer`。安装和 SmartScreen 校验说明见 [`docs/distribution/windows-installation.md`](docs/distribution/windows-installation.md)。
 
+维护者推送 `vX.Y.Z` 标签后，测试版发布流水线会在 Windows x64 和 Apple Silicon runner 上重新执行完整测试，生成未签名 EXE、ad hoc DMG、对应 SHA256，并在全部验证成功后发布 GitHub prerelease。发布门槛、失败恢复和未来 Developer ID 升级步骤见 [`docs/distribution/test-release-process.md`](docs/distribution/test-release-process.md)。
+
 依赖许可证审计见 [`docs/licenses/dependency-licenses.md`](docs/licenses/dependency-licenses.md)。
