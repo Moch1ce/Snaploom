@@ -482,6 +482,40 @@ public sealed class ScreenshotAnnotationShortcutTests
     }
 
     [AvaloniaFact]
+    public void TextEditorGrowsWhileTheInputMethodIsStillComposing()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        window.TextEditor.Text = "问";
+        window.TextEditor.CaretIndex = window.TextEditor.Text.Length;
+        var initialWidth = window.TextEditorVisualWidth;
+        var request = new Avalonia.Input.TextInput.TextInputMethodClientRequestedEventArgs
+        {
+            RoutedEvent = InputElement.TextInputMethodClientRequestedEvent,
+        };
+        window.TextEditor.RaiseEvent(request);
+        Assert.NotNull(request.Client);
+        Assert.True(request.Client.SupportsPreedit);
+
+        request.Client.SetPreeditText("js'j's");
+        window.UpdateLayout();
+
+        Assert.True(
+            window.TextEditorVisualWidth > initialWidth,
+            $"initial={initialWidth}, current={window.TextEditorVisualWidth}");
+        Assert.Equal("问js'j's", request.Client.SurroundingText);
+    }
+
+    [AvaloniaFact]
     public void FocusedTextEditorDoesNotRenderAThemeBlueBorder()
     {
         var frame = CreateFrame(width: 600, height: 400);

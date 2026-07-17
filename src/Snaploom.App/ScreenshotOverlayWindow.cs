@@ -1,5 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -27,6 +29,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     private readonly TextBox _textEditor;
     private readonly Grid _textEditorHost;
     private readonly Avalonia.Controls.Shapes.Ellipse[] _textEditorControlPoints;
+    private TextPresenter? _textEditorPresenter;
     private readonly TranslateTransform _sizeBadgeTransform = new();
     private readonly TranslateTransform _toolbarTransform = new();
     private readonly TranslateTransform _annotationOptionsFlyoutTransform = new();
@@ -213,6 +216,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         }
 
         _textEditor.TextChanged += HandleTextChanged;
+        _textEditor.TemplateApplied += HandleTextEditorTemplateApplied;
         _textEditor.AddHandler(
             InputElement.KeyDownEvent,
             HandleTextEditorKeyDown,
@@ -616,9 +620,15 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         };
     }
 
-    private void ResizeTextEditor(ScreenshotTextEdit edit, Rect selection)
+    private void ResizeTextEditor(
+        ScreenshotTextEdit edit,
+        Rect selection,
+        string? measurementText = null)
     {
-        var text = string.IsNullOrEmpty(edit.Text) ? "I" : edit.Text;
+        var draftText = measurementText ?? edit.Text;
+        var text = string.IsNullOrEmpty(draftText)
+            ? "I"
+            : draftText;
         var measured = ScreenshotAnnotationRenderer.MeasureText(new ScreenshotTextAnnotation(
             new LogicalPoint(0, 0),
             text,
@@ -639,6 +649,56 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             measured.Height + ScreenshotUiTheme.TextEditorMeasuredHeightPadding,
             minimumHeight,
             maximumHeight);
+    }
+
+    private void HandleTextEditorTemplateApplied(object? sender, TemplateAppliedEventArgs e)
+    {
+        if (_textEditorPresenter is not null)
+        {
+            _textEditorPresenter.PropertyChanged -= HandleTextEditorPresenterPropertyChanged;
+        }
+
+        _textEditorPresenter = e.NameScope.Find<TextPresenter>("PART_TextPresenter");
+        if (_textEditorPresenter is not null)
+        {
+            _textEditorPresenter.PropertyChanged += HandleTextEditorPresenterPropertyChanged;
+        }
+    }
+
+    private void HandleTextEditorPresenterPropertyChanged(
+        object? sender,
+        AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != TextPresenter.PreeditTextProperty ||
+            _selectionCanvas.TextEdit is not { } edit ||
+            _selectionCanvas.LogicalSelection is not { } selection)
+        {
+            return;
+        }
+
+        ResizeTextEditor(
+            edit,
+            selection,
+            BuildTextEditorMeasurementText(_textEditorPresenter?.PreeditText));
+    }
+
+    private string BuildTextEditorMeasurementText(string? preeditText)
+    {
+        var text = _textEditor.Text ?? string.Empty;
+        if (string.IsNullOrEmpty(preeditText))
+        {
+            return text;
+        }
+
+        var selectionStart = Math.Clamp(
+            Math.Min(_textEditor.SelectionStart, _textEditor.SelectionEnd),
+            0,
+            text.Length);
+        var selectionEnd = Math.Clamp(
+            Math.Max(_textEditor.SelectionStart, _textEditor.SelectionEnd),
+            selectionStart,
+            text.Length);
+        return text[..selectionStart] + preeditText + text[selectionEnd..];
     }
 
     private void HandleTextChanged(object? sender, TextChangedEventArgs e)
@@ -890,6 +950,11 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _toolbar.UndoRequested -= HandleUndo;
         _toolbar.RedoRequested -= HandleRedo;
         _textEditor.TextChanged -= HandleTextChanged;
+        _textEditor.TemplateApplied -= HandleTextEditorTemplateApplied;
+        if (_textEditorPresenter is not null)
+        {
+            _textEditorPresenter.PropertyChanged -= HandleTextEditorPresenterPropertyChanged;
+        }
         _textEditor.RemoveHandler(
             InputElement.KeyDownEvent,
             HandleTextEditorKeyDown);
