@@ -410,7 +410,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
             if (_annotationSession.ActiveTool is ScreenshotAnnotationTool.Rectangle or
                     ScreenshotAnnotationTool.Arrow &&
                 _session.SelectionContains(physicalPoint) &&
-                _annotationSession.HitTest(ToSelectionLogicalPoint(position)) is { } existingIndex &&
+                HitTestAnnotation(ToSelectionLogicalPoint(position)) is { } existingIndex &&
                 _annotationSession.Annotations[existingIndex] is
                     ScreenshotRectangleAnnotation or ScreenshotArrowAnnotation)
             {
@@ -487,7 +487,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                     return;
                 }
 
-                if (_annotationSession.HitTest(relativePoint) is { } hitIndex)
+                if (HitTestAnnotation(relativePoint) is { } hitIndex)
                 {
                     _annotationSession.Select(hitIndex);
                     _annotationSession.BeginMoveSelected(relativePoint);
@@ -565,8 +565,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
             return null;
         }
 
-        var annotationIndex = _annotationSession.HitTest(
-            ToSelectionLogicalPoint(position));
+        var annotationIndex = HitTestAnnotation(ToSelectionLogicalPoint(position));
         return annotationIndex is { } textIndex &&
             _annotationSession.Annotations[textIndex] is ScreenshotTextAnnotation
                 ? textIndex
@@ -1161,7 +1160,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
             return;
         }
 
-        if (_annotationSession.HitTest(relativePoint) is not null)
+        if (HitTestAnnotation(relativePoint) is not null)
         {
             SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
             return;
@@ -1175,6 +1174,12 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
         SetPointerCursor(_defaultCursor, ScreenshotPointerFeedback.Default);
     }
+
+    private int? HitTestAnnotation(LogicalPoint point) =>
+        _annotationSession.HitTest(
+            point,
+            static (text, candidate) =>
+                ScreenshotAnnotationRenderer.MeasureText(text).Contains(candidate));
 
     private void SetResizePointerFeedback(SelectionResizeHandle handle)
     {

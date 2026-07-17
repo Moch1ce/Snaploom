@@ -160,6 +160,47 @@ public sealed class ScreenshotAnnotationShortcutTests
     }
 
     [AvaloniaFact]
+    public void DraggingTheLastWrappedLineMovesTheWholeTextAnnotation()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        window.TextEditor.Text =
+            "这是一段很长的文字用来验证自动换行后的最后几个字也可以按住并拖拽移动";
+        var commandModifier = OperatingSystem.IsMacOS()
+            ? RawInputModifiers.Meta
+            : RawInputModifiers.Control;
+        window.KeyPress(Key.Enter, commandModifier, PhysicalKey.Enter, "\r");
+        var annotation = Assert.IsType<ScreenshotTextAnnotation>(
+            Assert.Single(window.Annotations));
+        var bounds = Snaploom.Rendering.ScreenshotAnnotationRenderer.MeasureText(annotation);
+        Assert.True(bounds.Height > annotation.Style.FontSize * 1.25);
+        var tailLinePoint = new Point(
+            50 + bounds.X + (annotation.Style.FontSize / 2),
+            50 + bounds.Y + bounds.Height - (annotation.Style.FontSize / 2));
+
+        Drag(
+            window,
+            tailLinePoint,
+            new Point(tailLinePoint.X + 50, tailLinePoint.Y + 20));
+
+        Assert.False(window.TextEditorVisible);
+        Assert.Null(window.TextEdit);
+        var moved = Assert.IsType<ScreenshotTextAnnotation>(Assert.Single(window.Annotations));
+        Assert.Equal(
+            new LogicalPoint(annotation.Origin.X + 50, annotation.Origin.Y + 20),
+            moved.Origin);
+    }
+
+    [AvaloniaFact]
     public void FirstBlankClickCommitsCurrentTextAndSecondClickStartsAnotherEditor()
     {
         var frame = CreateFrame(width: 600, height: 400);

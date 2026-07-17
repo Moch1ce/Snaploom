@@ -410,11 +410,17 @@ public sealed class ScreenshotAnnotationSession
     }
 
     public int? HitTest(LogicalPoint point, double tolerance = 6)
+        => HitTest(point, textContains: null, tolerance);
+
+    public int? HitTest(
+        LogicalPoint point,
+        Func<ScreenshotTextAnnotation, LogicalPoint, bool>? textContains,
+        double tolerance = 6)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(tolerance);
         for (var index = _annotations.Count - 1; index >= 0; index--)
         {
-            if (ContainsPoint(_annotations[index], point, tolerance))
+            if (ContainsPoint(_annotations[index], point, tolerance, textContains))
             {
                 return index;
             }
@@ -808,7 +814,8 @@ public sealed class ScreenshotAnnotationSession
     private static bool ContainsPoint(
         IScreenshotAnnotation annotation,
         LogicalPoint point,
-        double tolerance) =>
+        double tolerance,
+        Func<ScreenshotTextAnnotation, LogicalPoint, bool>? textContains = null) =>
         annotation switch
         {
             ScreenshotRectangleAnnotation rectangle =>
@@ -817,7 +824,8 @@ public sealed class ScreenshotAnnotationSession
             ScreenshotArrowAnnotation arrow =>
                 DistanceToSegment(point, arrow.Start, arrow.End) <=
                 tolerance + (arrow.Style.LineWidth / 2d),
-            ScreenshotTextAnnotation text => ContainsText(text, point),
+            ScreenshotTextAnnotation text =>
+                textContains?.Invoke(text, point) ?? ContainsText(text, point),
             ScreenshotMosaicAnnotation mosaic => ContainsMosaic(mosaic, point, tolerance),
             _ => false,
         };
