@@ -168,10 +168,13 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             FontFamily = FontFamily.Default,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
-            Padding = new Thickness(ScreenshotUiTheme.TextEditorHorizontalPadding, 0),
+            Padding = new Thickness(
+                ScreenshotUiTheme.TextEditorHorizontalPadding,
+                ScreenshotUiTheme.TextEditorVerticalPadding),
             BorderThickness = new Thickness(0),
             Background = ScreenshotUiTheme.TransparentBrush,
             CaretBrush = ScreenshotUiTheme.AccentBrush,
+            SelectionBrush = ScreenshotUiTheme.TextEditorSelectionBrush,
         };
         _textEditorControlPoints =
         [
@@ -196,6 +199,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             Background = ScreenshotUiTheme.TransparentBrush,
             BorderBrush = ScreenshotUiTheme.TextEditorBorderBrush,
             BorderThickness = new Thickness(ScreenshotUiTheme.FloatingBorderThickness),
+            CornerRadius = new CornerRadius(ScreenshotUiTheme.TextEditorCornerRadius),
             Child = _textEditor,
         });
         foreach (var controlPoint in _textEditorControlPoints)
@@ -593,7 +597,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
                 verticalAlignment == VerticalAlignment.Top ? -halfSize : 0,
                 horizontalAlignment == HorizontalAlignment.Right ? -halfSize : 0,
                 verticalAlignment == VerticalAlignment.Bottom ? -halfSize : 0),
-            Fill = ScreenshotUiTheme.FloatingSurfaceBrush,
+            Fill = ScreenshotUiTheme.TextEditorControlPointBrush,
             Stroke = ScreenshotUiTheme.TextEditorBorderBrush,
             StrokeThickness = ScreenshotUiTheme.FloatingBorderThickness,
             IsHitTestVisible = false,

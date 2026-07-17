@@ -128,6 +128,35 @@ public sealed class ScreenshotAnnotationShortcutTests
     }
 
     [AvaloniaFact]
+    public void DraggingCommittedTextWithTheTextToolMovesItWithoutOpeningTheEditor()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 200));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        window.TextEditor.Text = "可拖拽文字";
+        var commandModifier = OperatingSystem.IsMacOS()
+            ? RawInputModifiers.Meta
+            : RawInputModifiers.Control;
+        window.KeyPress(Key.Enter, commandModifier, PhysicalKey.Enter, "\r");
+
+        Drag(window, new Point(105, 125), new Point(205, 155));
+
+        Assert.False(window.TextEditorVisible);
+        Assert.Null(window.TextEdit);
+        var text = Assert.IsType<ScreenshotTextAnnotation>(Assert.Single(window.Annotations));
+        Assert.Equal(new LogicalPoint(150, 100), text.Origin);
+        Assert.Equal("可拖拽文字", text.Text);
+    }
+
+    [AvaloniaFact]
     public void ToolbarExposesAllStyleSelectionsForActiveAnnotationTools()
     {
         var toolbar = new ScreenshotToolbar();
