@@ -110,6 +110,93 @@ public sealed class ScreenshotCompletionWorkflowTests
     }
 
     [AvaloniaFact]
+    public void SaveDialogIsNotCoveredAndCancelRestoresTheOverlay()
+    {
+        ScreenshotOverlayWindow? overlay = null;
+        var saveDialog = new VisibilityCheckingSaveDialog(
+            () => overlay?.IsVisible == true,
+            () => overlay?.AnnotationOptionsPopupSuspended == true);
+        var frame = CreateFrame(600, 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(100, 100));
+        using var window = overlay = new ScreenshotOverlayWindow(
+            capturedScreen,
+            saveDialog,
+            new CapturingClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.R, RawInputModifiers.None, PhysicalKey.R, "r");
+
+        window.KeyPress(Key.S, CommandModifier, PhysicalKey.S, "s");
+
+        Assert.False(saveDialog.OverlayWasVisible);
+        Assert.True(saveDialog.AnnotationOptionsPopupWasSuspended);
+        Assert.True(window.IsVisible);
+        Assert.False(window.AnnotationOptionsPopupSuspended);
+    }
+
+    [AvaloniaFact]
+    public void CancelingSaveRestoresTheActiveTextDraftWithoutAddingHistory()
+    {
+        var frame = CreateFrame(600, 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(100, 100));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new RecordingSaveDialog(path: null),
+            new CapturingClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        window.KeyTextInput("未提交草稿");
+
+        window.KeyPress(Key.S, CommandModifier, PhysicalKey.S, "s");
+
+        Assert.True(window.IsVisible);
+        Assert.True(window.TextEditorVisible);
+        Assert.Equal(ScreenshotAnnotationTool.Text, window.ActiveAnnotationTool);
+        Assert.Equal("未提交草稿", window.TextEdit?.Text);
+        Assert.Empty(window.Annotations);
+        Assert.False(window.CanUndo);
+    }
+
+    [AvaloniaFact]
+    public async Task SavingCommitsAnActiveTextDraftWhileTheOverlayIsHidden()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"snaploom-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "text-draft.png");
+        var frame = CreateFrame(600, 400);
+        try
+        {
+            using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(100, 100));
+            using var window = new ScreenshotOverlayWindow(
+                capturedScreen,
+                new RecordingSaveDialog(path),
+                new CapturingClipboard(),
+                new NullOverlayConfigurator());
+            window.Show();
+            Drag(window, new Point(50, 50), new Point(500, 300));
+            window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+            Click(window, new Point(100, 120));
+            window.KeyTextInput("保存文字草稿");
+
+            window.KeyPress(Key.S, CommandModifier, PhysicalKey.S, "s");
+            await WaitForAsync(() =>
+                File.Exists(path) && !window.IsVisible && window.OutputCompleted);
+
+            Assert.True(window.OutputCompleted);
+            using var bitmap = SKBitmap.Decode(path);
+            Assert.Contains(bitmap.Pixels, pixel => pixel.Red > pixel.Green);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [AvaloniaFact]
     public void EnterCopiesPhysicalPixelsAndExitsAtTwoHundredPercentDpi()
     {
         var pixels = new byte[400 * 200 * 4];
@@ -203,6 +290,30 @@ public sealed class ScreenshotCompletionWorkflowTests
         Assert.False(window.OutputCompleted);
     }
 
+    [AvaloniaFact]
+    public void RightClickExitsWithoutCopyingOrSaving()
+    {
+        var frame = CreateFrame(600, 400);
+        var clipboard = new CapturingClipboard();
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(100, 100));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new RecordingSaveDialog(path: null),
+            clipboard,
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+
+        window.MouseDown(
+            new Point(200, 160),
+            MouseButton.Right,
+            RawInputModifiers.RightMouseButton);
+
+        Assert.False(window.IsVisible);
+        Assert.False(window.OutputCompleted);
+        Assert.Empty(clipboard.Png);
+    }
+
     private static RawInputModifiers CommandModifier => OperatingSystem.IsMacOS()
         ? RawInputModifiers.Meta
         : RawInputModifiers.Control;
@@ -262,6 +373,23 @@ public sealed class ScreenshotCompletionWorkflowTests
             SuggestedFileName = suggestedFileName;
             InitialDirectory = initialDirectory;
             return path;
+        }
+    }
+
+    private sealed class VisibilityCheckingSaveDialog(
+        Func<bool> isOverlayVisible,
+        Func<bool> isAnnotationOptionsPopupSuspended)
+        : IPngSaveDialogService
+    {
+        public bool OverlayWasVisible { get; private set; }
+
+        public bool AnnotationOptionsPopupWasSuspended { get; private set; }
+
+        public string? ShowSaveDialog(string suggestedFileName, string? initialDirectory)
+        {
+            OverlayWasVisible = isOverlayVisible();
+            AnnotationOptionsPopupWasSuspended = isAnnotationOptionsPopupSuspended();
+            return null;
         }
     }
 

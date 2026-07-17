@@ -144,6 +144,14 @@ public enum AnnotationResizeHandle
 {
     Start,
     End,
+    TopLeft,
+    Top,
+    TopRight,
+    Right,
+    BottomRight,
+    Bottom,
+    BottomLeft,
+    Left,
 }
 
 public sealed class ScreenshotAnnotationSession
@@ -459,8 +467,14 @@ public sealed class ScreenshotAnnotationSession
 
     public bool BeginResizeSelected(AnnotationResizeHandle handle)
     {
-        if (SelectedAnnotation is not (ScreenshotRectangleAnnotation or
-            ScreenshotArrowAnnotation) || IsTransforming)
+        var supported = SelectedAnnotation switch
+        {
+            ScreenshotRectangleAnnotation => true,
+            ScreenshotArrowAnnotation => handle is AnnotationResizeHandle.Start or
+                AnnotationResizeHandle.End,
+            _ => false,
+        };
+        if (!supported || IsTransforming)
         {
             return false;
         }
@@ -702,14 +716,64 @@ public sealed class ScreenshotAnnotationSession
         LogicalPoint point) =>
         annotation switch
         {
-            ScreenshotRectangleAnnotation rectangle when handle == AnnotationResizeHandle.Start =>
-                rectangle with { Start = point },
-            ScreenshotRectangleAnnotation rectangle => rectangle with { End = point },
+            ScreenshotRectangleAnnotation rectangle => ResizeRectangle(rectangle, handle, point),
             ScreenshotArrowAnnotation arrow when handle == AnnotationResizeHandle.Start =>
                 arrow with { Start = point },
-            ScreenshotArrowAnnotation arrow => arrow with { End = point },
+            ScreenshotArrowAnnotation arrow when handle == AnnotationResizeHandle.End =>
+                arrow with { End = point },
             _ => throw new InvalidOperationException("The selected annotation cannot be resized."),
         };
+
+    private static ScreenshotRectangleAnnotation ResizeRectangle(
+        ScreenshotRectangleAnnotation rectangle,
+        AnnotationResizeHandle handle,
+        LogicalPoint point)
+    {
+        handle = handle switch
+        {
+            AnnotationResizeHandle.Start => AnnotationResizeHandle.TopLeft,
+            AnnotationResizeHandle.End => AnnotationResizeHandle.BottomRight,
+            _ => handle,
+        };
+        var left = Math.Min(rectangle.Start.X, rectangle.End.X);
+        var top = Math.Min(rectangle.Start.Y, rectangle.End.Y);
+        var right = Math.Max(rectangle.Start.X, rectangle.End.X);
+        var bottom = Math.Max(rectangle.Start.Y, rectangle.End.Y);
+
+        if (handle is AnnotationResizeHandle.TopLeft or
+            AnnotationResizeHandle.BottomLeft or
+            AnnotationResizeHandle.Left)
+        {
+            left = Math.Min(point.X, right - 1);
+        }
+
+        if (handle is AnnotationResizeHandle.TopRight or
+            AnnotationResizeHandle.Right or
+            AnnotationResizeHandle.BottomRight)
+        {
+            right = Math.Max(point.X, left + 1);
+        }
+
+        if (handle is AnnotationResizeHandle.TopLeft or
+            AnnotationResizeHandle.Top or
+            AnnotationResizeHandle.TopRight)
+        {
+            top = Math.Min(point.Y, bottom - 1);
+        }
+
+        if (handle is AnnotationResizeHandle.BottomLeft or
+            AnnotationResizeHandle.Bottom or
+            AnnotationResizeHandle.BottomRight)
+        {
+            bottom = Math.Max(point.Y, top + 1);
+        }
+
+        return rectangle with
+        {
+            Start = new LogicalPoint(left, top),
+            End = new LogicalPoint(right, bottom),
+        };
+    }
 
     private static IScreenshotAnnotation TranslateAnnotation(
         IScreenshotAnnotation annotation,

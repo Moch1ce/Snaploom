@@ -24,6 +24,8 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     private readonly Border _sizeBadge;
     private readonly ScreenshotToolbar _toolbar;
     private readonly TextBox _textEditor;
+    private readonly Grid _textEditorHost;
+    private readonly Avalonia.Controls.Shapes.Ellipse[] _textEditorControlPoints;
     private readonly TranslateTransform _sizeBadgeTransform = new();
     private readonly TranslateTransform _toolbarTransform = new();
     private readonly TranslateTransform _textEditorTransform = new();
@@ -41,9 +43,18 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     internal Point ToolbarOrigin => new(_toolbarTransform.X, _toolbarTransform.Y);
 
-    internal bool TextEditorVisible => _textEditor.IsVisible;
+    internal bool TextEditorVisible => _textEditorHost.IsVisible;
 
     internal TextBox TextEditor => _textEditor;
+
+    internal double TextEditorVisualWidth => _textEditorHost.Width;
+
+    internal double TextEditorVisualHeight => _textEditorHost.Height;
+
+    internal int TextEditorControlPointCount => _textEditorControlPoints.Length;
+
+    internal bool AnnotationOptionsPopupSuspended =>
+        _toolbar.AnnotationOptionsPopupSuspended;
 
     internal IReadOnlyList<IScreenshotAnnotation> Annotations => _selectionCanvas.Annotations;
 
@@ -94,7 +105,8 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
         _selectionCanvas = new ScreenshotSelectionCanvas(
             capturedScreen.Frame,
-            capturedScreen.WindowCandidates);
+            capturedScreen.WindowCandidates,
+            capturedScreen.CursorPosition);
         _selectionCanvas.SelectionChanged += HandleSelectionChanged;
         _selectionCanvas.SelectionDoubleClicked += HandleConfirm;
         _selectionCanvas.AnnotationStarted += HandleAnnotationStarted;
@@ -146,15 +158,43 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
             FontFamily = FontFamily.Default,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Padding = new Thickness(ScreenshotUiTheme.TextEditorHorizontalPadding, 0),
+            BorderThickness = new Thickness(0),
+            Background = ScreenshotUiTheme.TransparentBrush,
+            CaretBrush = ScreenshotUiTheme.AccentBrush,
+        };
+        _textEditorControlPoints =
+        [
+            CreateTextEditorControlPoint(HorizontalAlignment.Left, VerticalAlignment.Top),
+            CreateTextEditorControlPoint(HorizontalAlignment.Right, VerticalAlignment.Top),
+            CreateTextEditorControlPoint(HorizontalAlignment.Left, VerticalAlignment.Bottom),
+            CreateTextEditorControlPoint(HorizontalAlignment.Right, VerticalAlignment.Bottom),
+        ];
+        _textEditorHost = new Grid
+        {
+            Width = ScreenshotUiTheme.TextEditorMinimumWidth,
+            Height = ScreenshotTextStyle.Default.FontSize *
+                ScreenshotUiTheme.TextEditorLineHeightMultiplier,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
-            Padding = new Thickness(2, 0),
-            BorderThickness = new Thickness(1),
-            BorderBrush = ScreenshotUiTheme.AccentBrush,
-            Background = new SolidColorBrush(Color.FromArgb(88, 0, 0, 0)),
+            ClipToBounds = false,
             IsVisible = false,
             RenderTransform = _textEditorTransform,
         };
+        _textEditorHost.Children.Add(new Border
+        {
+            Background = ScreenshotUiTheme.TransparentBrush,
+            BorderBrush = ScreenshotUiTheme.TextEditorBorderBrush,
+            BorderThickness = new Thickness(ScreenshotUiTheme.FloatingBorderThickness),
+            Child = _textEditor,
+        });
+        foreach (var controlPoint in _textEditorControlPoints)
+        {
+            _textEditorHost.Children.Add(controlPoint);
+        }
+
         _textEditor.TextChanged += HandleTextChanged;
         _textEditor.KeyDown += HandleTextEditorKeyDown;
 
@@ -162,7 +202,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         root.Children.Add(_selectionCanvas);
         root.Children.Add(_sizeBadge);
         root.Children.Add(_toolbar);
-        root.Children.Add(_textEditor);
+        root.Children.Add(_textEditorHost);
         Content = root;
 
         Opened += HandleOpened;
@@ -173,6 +213,16 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     {
         DisposeResources();
         base.OnClosed(e);
+    }
+
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
+        {
+            e.Handled = true;
+            Close();
+        }
     }
 
     public void Dispose()
@@ -275,15 +325,15 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     private async void HandleSave(object? sender, EventArgs e)
     {
-        CommitTextEditing();
         if (_selectionCanvas.Session.Selection is not { } selection ||
             _selectionCanvas.Session.State != ScreenshotSessionState.Selected)
         {
             return;
         }
 
+        var textEditingWasVisible = _textEditorHost.IsVisible;
         _selectionCanvas.Session.BeginSave();
-        _toolbar.SetSelectionActionsEnabled(isEnabled: false);
+        _toolbar.SuspendAnnotationOptionsPopup();
         _sizeText.Text = ScreenshotUiText.ChoosingSaveLocation;
         if (_selectionCanvas.LogicalSelection is { } logicalSelection)
         {
@@ -293,16 +343,20 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         try
         {
             var suggestedName = $"Snaploom_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.png";
+            Hide();
             var path = _saveDialogService.ShowSaveDialog(
                 suggestedName,
                 _settings?.Current.LastSaveDirectory ?? s_rememberedSaveDirectory);
             if (path is null)
             {
                 _selectionCanvas.Session.CancelSave();
+                RestoreOverlayAfterSaveDialog(textEditingWasVisible);
+                _toolbar.ResumeAnnotationOptionsPopup();
                 RestoreSelectedUi(selection);
                 return;
             }
 
+            CommitTextEditing(force: textEditingWasVisible);
             path = Path.ChangeExtension(path, ".png");
             s_rememberedSaveDirectory = Path.GetDirectoryName(path);
             _settings?.Update(current => current with
@@ -322,9 +376,31 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
                 _selectionCanvas.Session.CancelSave();
             }
 
+            RestoreOverlayAfterSaveDialog(
+                textEditingWasVisible && _selectionCanvas.TextEdit is not null);
+            _toolbar.ResumeAnnotationOptionsPopup();
             _toolbar.SetSelectionActionsEnabled(isEnabled: true);
             _sizeText.Text = ScreenshotUiText.SaveFailed;
             ToolTip.SetTip(_sizeBadge, ScreenshotUiText.SaveFailed);
+        }
+    }
+
+    private void RestoreOverlayAfterSaveDialog(bool restoreTextEditor)
+    {
+        if (!IsVisible)
+        {
+            Show();
+        }
+
+        _textEditorHost.IsVisible = restoreTextEditor;
+        Activate();
+        if (restoreTextEditor)
+        {
+            _textEditor.Focus();
+        }
+        else
+        {
+            _selectionCanvas.Focus();
         }
     }
 
@@ -457,14 +533,10 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             _textEditor.FontSize = edit.Style.FontSize;
             _textEditor.Foreground = new SolidColorBrush(
                 Color.FromRgb(color.Red, color.Green, color.Blue));
-            _textEditor.Width = Math.Max(1, edit.MaxWidth);
-            _textEditor.MinHeight = edit.Style.FontSize * 1.35;
-            _textEditor.MaxHeight = Math.Max(
-                _textEditor.MinHeight,
-                selection.Height - edit.Origin.Y);
             _textEditorTransform.X = selection.X + edit.Origin.X;
             _textEditorTransform.Y = selection.Y + edit.Origin.Y;
-            _textEditor.IsVisible = true;
+            ResizeTextEditor(edit, selection);
+            _textEditorHost.IsVisible = true;
             _textEditor.Focus();
             if (edit.AnnotationIndex is not null)
             {
@@ -481,6 +553,54 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         }
     }
 
+    private static Avalonia.Controls.Shapes.Ellipse CreateTextEditorControlPoint(
+        HorizontalAlignment horizontalAlignment,
+        VerticalAlignment verticalAlignment)
+    {
+        var halfSize = ScreenshotUiTheme.TextEditorControlPointSize / 2;
+        return new Avalonia.Controls.Shapes.Ellipse
+        {
+            Width = ScreenshotUiTheme.TextEditorControlPointSize,
+            Height = ScreenshotUiTheme.TextEditorControlPointSize,
+            HorizontalAlignment = horizontalAlignment,
+            VerticalAlignment = verticalAlignment,
+            Margin = new Thickness(
+                horizontalAlignment == HorizontalAlignment.Left ? -halfSize : 0,
+                verticalAlignment == VerticalAlignment.Top ? -halfSize : 0,
+                horizontalAlignment == HorizontalAlignment.Right ? -halfSize : 0,
+                verticalAlignment == VerticalAlignment.Bottom ? -halfSize : 0),
+            Fill = ScreenshotUiTheme.FloatingSurfaceBrush,
+            Stroke = ScreenshotUiTheme.TextEditorBorderBrush,
+            StrokeThickness = ScreenshotUiTheme.FloatingBorderThickness,
+            IsHitTestVisible = false,
+        };
+    }
+
+    private void ResizeTextEditor(ScreenshotTextEdit edit, Rect selection)
+    {
+        var text = string.IsNullOrEmpty(edit.Text) ? "I" : edit.Text;
+        var measured = ScreenshotAnnotationRenderer.MeasureText(new ScreenshotTextAnnotation(
+            new LogicalPoint(0, 0),
+            text,
+            edit.MaxWidth,
+            edit.Style));
+        var maximumWidth = Math.Max(1, edit.MaxWidth);
+        var minimumWidth = Math.Min(ScreenshotUiTheme.TextEditorMinimumWidth, maximumWidth);
+        var width = Math.Clamp(
+            measured.Width + ScreenshotUiTheme.TextEditorMeasuredWidthPadding,
+            minimumWidth,
+            maximumWidth);
+        var minimumHeight = edit.Style.FontSize *
+            ScreenshotUiTheme.TextEditorLineHeightMultiplier;
+        var maximumHeight = Math.Max(1, selection.Height - edit.Origin.Y);
+        minimumHeight = Math.Min(minimumHeight, maximumHeight);
+        _textEditorHost.Width = width;
+        _textEditorHost.Height = Math.Clamp(
+            measured.Height + ScreenshotUiTheme.TextEditorMeasuredHeightPadding,
+            minimumHeight,
+            maximumHeight);
+    }
+
     private void HandleTextChanged(object? sender, TextChangedEventArgs e)
     {
         if (!_changingTextEditor && _selectionCanvas.TextEdit is not null)
@@ -488,6 +608,11 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             _selectionCanvas.UpdateTextDraft(
                 _textEditor.Text ?? string.Empty,
                 isComposing: false);
+            if (_selectionCanvas.TextEdit is { } edit &&
+                _selectionCanvas.LogicalSelection is { } selection)
+            {
+                ResizeTextEditor(edit, selection);
+            }
         }
     }
 
@@ -510,9 +635,9 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         }
     }
 
-    private void CommitTextEditing()
+    private void CommitTextEditing(bool force = false)
     {
-        if (!_textEditor.IsVisible || _changingTextEditor)
+        if ((!_textEditorHost.IsVisible && !force) || _changingTextEditor)
         {
             return;
         }
@@ -528,7 +653,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
                 _selectionCanvas.CommitTextEdit();
             }
 
-            _textEditor.IsVisible = false;
+            _textEditorHost.IsVisible = false;
             _selectionCanvas.Focus();
         }
         finally
@@ -539,7 +664,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     private void CancelTextEditing()
     {
-        if (!_textEditor.IsVisible)
+        if (!_textEditorHost.IsVisible)
         {
             return;
         }
@@ -548,7 +673,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         try
         {
             _selectionCanvas.CancelTextEdit();
-            _textEditor.IsVisible = false;
+            _textEditorHost.IsVisible = false;
             _selectionCanvas.Focus();
         }
         finally
@@ -566,7 +691,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     private void HandleKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_textEditor.IsVisible)
+        if (_textEditorHost.IsVisible)
         {
             var editorCommandModifier = OperatingSystem.IsMacOS()
                 ? e.KeyModifiers.HasFlag(KeyModifiers.Meta)
@@ -579,7 +704,6 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             else if (editorCommandModifier && e.Key == Key.S)
             {
                 e.Handled = true;
-                CommitTextEditing();
                 HandleSave(this, EventArgs.Empty);
             }
             else if (editorCommandModifier && e.Key == Key.C)

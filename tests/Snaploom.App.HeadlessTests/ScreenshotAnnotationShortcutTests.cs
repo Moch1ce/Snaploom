@@ -104,6 +104,24 @@ public sealed class ScreenshotAnnotationShortcutTests
     }
 
     [AvaloniaFact]
+    public void ToolSettingsOpenWithoutChangingTheMainToolbarWidth()
+    {
+        var toolbar = new ScreenshotToolbar
+        {
+            IsVisible = true,
+        };
+        toolbar.SetSelectionActionsEnabled(isEnabled: true);
+        toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var widthBefore = toolbar.DesiredSize.Width;
+
+        toolbar.SelectTool(ScreenshotAnnotationTool.Rectangle);
+        toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+
+        Assert.True(toolbar.AnnotationOptionsVisible);
+        Assert.Equal(widthBefore, toolbar.DesiredSize.Width);
+    }
+
+    [AvaloniaFact]
     public void OverlayTextEditorCommitsWithThePlatformModifierAndEnter()
     {
         var frame = CreateFrame(width: 600, height: 400);
@@ -139,6 +157,67 @@ public sealed class ScreenshotAnnotationShortcutTests
         var text = Assert.IsType<ScreenshotTextAnnotation>(
             Assert.Single(window.Annotations));
         Assert.Equal("输入法 中文\nEnglish 123", text.Text);
+    }
+
+    [AvaloniaFact]
+    public void TextEditorStartsCompactAndGrowsInsideItsSelection()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        window.MouseDown(
+            new Point(100, 120),
+            MouseButton.Left,
+            RawInputModifiers.LeftMouseButton);
+        window.MouseUp(
+            new Point(100, 120),
+            MouseButton.Left,
+            RawInputModifiers.None);
+
+        var initialWidth = window.TextEditorVisualWidth;
+        Assert.InRange(initialWidth, 20, 48);
+        Assert.Equal(4, window.TextEditorControlPointCount);
+        Assert.Equal(0, Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(window.TextEditor.Background).Color.A);
+
+        window.KeyTextInput("一段会让输入框横向增长的文字");
+
+        Assert.True(
+            window.TextEditorVisualWidth > initialWidth,
+            $"initial={initialWidth}, current={window.TextEditorVisualWidth}, text={window.TextEdit?.Text}");
+        Assert.InRange(window.TextEditorVisualWidth, 20, 400);
+    }
+
+    [AvaloniaFact]
+    public void TextEditorStaysInsideTheSelectionNearItsBottomEdge()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        window.MouseDown(
+            new Point(100, 296),
+            MouseButton.Left,
+            RawInputModifiers.LeftMouseButton);
+        window.MouseUp(
+            new Point(100, 296),
+            MouseButton.Left,
+            RawInputModifiers.None);
+
+        Assert.True(window.TextEditorVisible);
+        Assert.InRange(window.TextEditorVisualHeight, 1, 4);
     }
 
     [AvaloniaFact]

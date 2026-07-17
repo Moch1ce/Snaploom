@@ -254,6 +254,56 @@ public sealed class ScreenshotAnnotationSessionTests
             Assert.IsType<ScreenshotRectangleAnnotation>(session.SelectedAnnotation).Style.Color);
     }
 
+    [Theory]
+    [InlineData(AnnotationResizeHandle.TopLeft, 5, 6, 5, 6, 40, 30)]
+    [InlineData(AnnotationResizeHandle.Top, 20, 6, 10, 6, 40, 30)]
+    [InlineData(AnnotationResizeHandle.TopRight, 50, 6, 10, 6, 50, 30)]
+    [InlineData(AnnotationResizeHandle.Right, 50, 20, 10, 10, 50, 30)]
+    [InlineData(AnnotationResizeHandle.BottomRight, 50, 40, 10, 10, 50, 40)]
+    [InlineData(AnnotationResizeHandle.Bottom, 20, 40, 10, 10, 40, 40)]
+    [InlineData(AnnotationResizeHandle.BottomLeft, 5, 40, 5, 10, 40, 40)]
+    [InlineData(AnnotationResizeHandle.Left, 5, 20, 5, 10, 40, 30)]
+    public void RectangleCanResizeFromAllEightControlPoints(
+        AnnotationResizeHandle handle,
+        double pointerX,
+        double pointerY,
+        double expectedLeft,
+        double expectedTop,
+        double expectedRight,
+        double expectedBottom)
+    {
+        var session = new ScreenshotAnnotationSession();
+        DrawRectangle(session, new LogicalPoint(10, 10), new LogicalPoint(40, 30));
+        Assert.True(session.Select(0));
+
+        Assert.True(session.BeginResizeSelected(handle));
+        session.UpdateSelectedTransform(new LogicalPoint(pointerX, pointerY));
+        Assert.True(session.CompleteSelectedTransform());
+
+        var rectangle = Assert.IsType<ScreenshotRectangleAnnotation>(session.SelectedAnnotation);
+        Assert.Equal(new LogicalPoint(expectedLeft, expectedTop), rectangle.Start);
+        Assert.Equal(new LogicalPoint(expectedRight, expectedBottom), rectangle.End);
+    }
+
+    [Fact]
+    public void MovingAnArrowEndpointChangesItsLengthAndDirection()
+    {
+        var session = new ScreenshotAnnotationSession();
+        session.SetTool(ScreenshotAnnotationTool.Arrow);
+        session.Begin(new LogicalPoint(10, 10));
+        session.Update(new LogicalPoint(40, 10));
+        Assert.True(session.Complete());
+        Assert.True(session.Select(0));
+
+        Assert.True(session.BeginResizeSelected(AnnotationResizeHandle.End));
+        session.UpdateSelectedTransform(new LogicalPoint(20, 40));
+        Assert.True(session.CompleteSelectedTransform());
+
+        var arrow = Assert.IsType<ScreenshotArrowAnnotation>(session.SelectedAnnotation);
+        Assert.Equal(new LogicalPoint(10, 10), arrow.Start);
+        Assert.Equal(new LogicalPoint(20, 40), arrow.End);
+    }
+
     [Fact]
     public void TextAndMosaicCanMoveAndChangeStyleButMosaicCannotResize()
     {
