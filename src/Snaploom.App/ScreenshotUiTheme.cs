@@ -46,7 +46,7 @@ internal static class ScreenshotUiTheme
     internal const double TextEditorLineHeightMultiplier = 1.35;
     internal const double TextEditorMeasuredWidthPadding = 8;
     internal const double TextEditorMeasuredHeightPadding = 4;
-    internal const double AnnotationOptionsPopupVerticalOffset = 4;
+    internal const double AnnotationOptionsFlyoutVerticalOffset = 4;
     internal const double AnnotationOptionsPointerWidth = 12;
     internal const double AnnotationOptionsPointerHeight = 7;
     internal const double AnnotationOptionsPointerLeftMargin = 14;

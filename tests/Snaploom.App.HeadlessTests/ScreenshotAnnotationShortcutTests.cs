@@ -34,6 +34,7 @@ public sealed class ScreenshotAnnotationShortcutTests
 
         window.KeyPress(Key.R, RawInputModifiers.None, PhysicalKey.R, "r");
         Assert.Equal(ScreenshotAnnotationTool.Rectangle, window.ActiveAnnotationTool);
+        Assert.False(window.AnnotationOptionsFlyoutOpen);
 
         window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
         Assert.Equal(ScreenshotAnnotationTool.Select, window.ActiveAnnotationTool);
@@ -119,6 +120,79 @@ public sealed class ScreenshotAnnotationShortcutTests
 
         Assert.True(toolbar.AnnotationOptionsVisible);
         Assert.Equal(widthBefore, toolbar.DesiredSize.Width);
+    }
+
+    [AvaloniaFact]
+    public void RectangleSettingsFlyoutOpensWhenTheToolbarIsAttached()
+    {
+        var toolbar = new ScreenshotToolbar
+        {
+            IsVisible = true,
+        };
+        toolbar.SetSelectionActionsEnabled(isEnabled: true);
+        var window = new Avalonia.Controls.Window
+        {
+            Width = 800,
+            Height = 200,
+            Content = toolbar,
+        };
+        try
+        {
+            window.Show();
+
+            toolbar.SelectTool(ScreenshotAnnotationTool.Rectangle);
+
+            Assert.False(toolbar.AnnotationOptionsFlyoutSuspended);
+            Assert.True(toolbar.AnnotationOptionsFlyoutOpen);
+            Assert.True(toolbar.ColorOptionsVisible);
+            Assert.True(toolbar.LineWidthOptionsVisible);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void RectangleSettingsFlyoutAppliesClickedColorAndLineWidth()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 200));
+        var toolbarOrigin = window.ToolbarOrigin;
+        Click(window, new Point(
+            toolbarOrigin.X + ScreenshotUiTheme.FloatingBorderThickness +
+            ScreenshotUiTheme.ToolbarHorizontalPadding +
+            (ScreenshotUiTheme.ToolbarButtonSize / 2),
+            toolbarOrigin.Y + (ScreenshotUiTheme.ToolbarHeight / 2)));
+
+        Assert.Equal(ScreenshotAnnotationTool.Rectangle, window.ActiveAnnotationTool);
+        Assert.True(window.AnnotationOptionsFlyoutOpen);
+
+        var flyoutOrigin = window.AnnotationOptionsFlyoutOrigin;
+        var optionCenterY = ScreenshotUiTheme.AnnotationOptionsPointerHeight -
+            ScreenshotUiTheme.AnnotationOptionsPointerOverlap +
+            (ScreenshotUiTheme.ToolbarHeight / 2);
+        Click(window, new Point(
+            flyoutOrigin.X + ScreenshotUiTheme.AnnotationOptionsSurfaceHorizontalPadding +
+            (3.5 * ScreenshotUiTheme.ToolbarButtonSize),
+            flyoutOrigin.Y + optionCenterY));
+        Click(window, new Point(
+            flyoutOrigin.X + 365,
+            flyoutOrigin.Y + optionCenterY));
+
+        Drag(window, new Point(100, 100), new Point(220, 160));
+
+        var rectangle = Assert.IsType<ScreenshotRectangleAnnotation>(
+            Assert.Single(window.Annotations));
+        Assert.Equal(ScreenshotAnnotationColor.Blue, rectangle.Style.Color);
+        Assert.Equal(8, rectangle.Style.LineWidth);
     }
 
     [AvaloniaFact]
@@ -299,6 +373,12 @@ public sealed class ScreenshotAnnotationShortcutTests
         window.MouseDown(start, MouseButton.Left, RawInputModifiers.LeftMouseButton);
         window.MouseMove(end, RawInputModifiers.LeftMouseButton);
         window.MouseUp(end, MouseButton.Left, RawInputModifiers.None);
+    }
+
+    private static void Click(ScreenshotOverlayWindow window, Point point)
+    {
+        window.MouseDown(point, MouseButton.Left, RawInputModifiers.LeftMouseButton);
+        window.MouseUp(point, MouseButton.Left, RawInputModifiers.None);
     }
 
     private sealed class NullSaveDialog : IPngSaveDialogService

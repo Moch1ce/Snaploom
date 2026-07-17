@@ -115,7 +115,7 @@ public sealed class ScreenshotCompletionWorkflowTests
         ScreenshotOverlayWindow? overlay = null;
         var saveDialog = new VisibilityCheckingSaveDialog(
             () => overlay?.IsVisible == true,
-            () => overlay?.AnnotationOptionsPopupSuspended == true);
+            () => overlay?.AnnotationOptionsFlyoutSuspended == true);
         var frame = CreateFrame(600, 400);
         using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(100, 100));
         using var window = overlay = new ScreenshotOverlayWindow(
@@ -125,14 +125,21 @@ public sealed class ScreenshotCompletionWorkflowTests
             new NullOverlayConfigurator());
         window.Show();
         Drag(window, new Point(50, 50), new Point(500, 300));
-        window.KeyPress(Key.R, RawInputModifiers.None, PhysicalKey.R, "r");
+        var toolbarOrigin = window.ToolbarOrigin;
+        Click(window, new Point(
+            toolbarOrigin.X + ScreenshotUiTheme.FloatingBorderThickness +
+            ScreenshotUiTheme.ToolbarHorizontalPadding +
+            (ScreenshotUiTheme.ToolbarButtonSize / 2),
+            toolbarOrigin.Y + (ScreenshotUiTheme.ToolbarHeight / 2)));
+        Assert.True(window.AnnotationOptionsFlyoutOpen);
 
         window.KeyPress(Key.S, CommandModifier, PhysicalKey.S, "s");
 
         Assert.False(saveDialog.OverlayWasVisible);
-        Assert.True(saveDialog.AnnotationOptionsPopupWasSuspended);
+        Assert.True(saveDialog.AnnotationOptionsFlyoutWasSuspended);
         Assert.True(window.IsVisible);
-        Assert.False(window.AnnotationOptionsPopupSuspended);
+        Assert.False(window.AnnotationOptionsFlyoutSuspended);
+        Assert.True(window.AnnotationOptionsFlyoutOpen);
     }
 
     [AvaloniaFact]
@@ -378,17 +385,17 @@ public sealed class ScreenshotCompletionWorkflowTests
 
     private sealed class VisibilityCheckingSaveDialog(
         Func<bool> isOverlayVisible,
-        Func<bool> isAnnotationOptionsPopupSuspended)
+        Func<bool> isAnnotationOptionsFlyoutSuspended)
         : IPngSaveDialogService
     {
         public bool OverlayWasVisible { get; private set; }
 
-        public bool AnnotationOptionsPopupWasSuspended { get; private set; }
+        public bool AnnotationOptionsFlyoutWasSuspended { get; private set; }
 
         public string? ShowSaveDialog(string suggestedFileName, string? initialDirectory)
         {
             OverlayWasVisible = isOverlayVisible();
-            AnnotationOptionsPopupWasSuspended = isAnnotationOptionsPopupSuspended();
+            AnnotationOptionsFlyoutWasSuspended = isAnnotationOptionsFlyoutSuspended();
             return null;
         }
     }

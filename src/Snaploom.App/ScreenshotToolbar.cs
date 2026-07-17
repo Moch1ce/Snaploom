@@ -1,6 +1,5 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -18,7 +17,7 @@ internal sealed class ScreenshotToolbar : Border
     private readonly ScreenshotToolbarButton _confirmButton;
     private readonly ScreenshotToolbarButton _undoButton;
     private readonly ScreenshotToolbarButton _redoButton;
-    private readonly Popup _annotationOptionsPopup;
+    private readonly StackPanel _annotationOptionsFlyout;
     private readonly StackPanel _annotationOptions;
     private readonly StackPanel _colorOptions = new()
     {
@@ -45,7 +44,8 @@ internal sealed class ScreenshotToolbar : Border
     private readonly Dictionary<int, ScreenshotToolbarButton> _fontSizeButtons = [];
     private readonly Dictionary<int, ScreenshotToolbarButton> _mosaicBrushButtons = [];
     private ScreenshotAnnotationTool? _selectedObjectTool;
-    private bool _annotationOptionsPopupSuspended;
+    private bool _annotationOptionsFlyoutRequested;
+    private bool _annotationOptionsFlyoutSuspended;
 
     internal ScreenshotToolbar(
         ScreenshotAnnotationStyle? annotationStyle = null,
@@ -145,18 +145,8 @@ internal sealed class ScreenshotToolbar : Border
         content.Children.Add(cancelButton);
         content.Children.Add(_confirmButton);
 
-        _annotationOptionsPopup = new Popup
-        {
-            Placement = PlacementMode.BottomEdgeAlignedLeft,
-            VerticalOffset = ScreenshotUiTheme.AnnotationOptionsPopupVerticalOffset,
-            IsLightDismissEnabled = false,
-            Topmost = true,
-            Child = CreateAnnotationOptionsPopupContent(),
-        };
-        var root = new Grid();
-        root.Children.Add(content);
-        root.Children.Add(_annotationOptionsPopup);
-        Child = root;
+        _annotationOptionsFlyout = CreateAnnotationOptionsFlyoutContent();
+        Child = content;
     }
 
     internal event EventHandler? SaveRequested;
@@ -184,11 +174,24 @@ internal sealed class ScreenshotToolbar : Border
     internal ScreenshotMosaicStyle MosaicStyle { get; private set; } =
         ScreenshotMosaicStyle.Default;
 
-    internal bool AnnotationOptionsVisible => _annotationOptions.IsVisible;
+    internal bool AnnotationOptionsVisible => _annotationOptionsFlyout.IsVisible;
 
-    internal bool AnnotationOptionsPopupOpen => _annotationOptionsPopup.IsOpen;
+    internal Control AnnotationOptionsFlyout => _annotationOptionsFlyout;
 
-    internal bool AnnotationOptionsPopupSuspended => _annotationOptionsPopupSuspended;
+    internal bool AnnotationOptionsFlyoutOpen => _annotationOptionsFlyout.IsVisible;
+
+    internal bool AnnotationOptionsFlyoutSuspended => _annotationOptionsFlyoutSuspended;
+
+    internal double AnnotationOptionsHorizontalOffset =>
+        ScreenshotUiTheme.FloatingBorderThickness +
+        ScreenshotUiTheme.ToolbarHorizontalPadding +
+        (EffectiveTool switch
+        {
+            ScreenshotAnnotationTool.Arrow => 1,
+            ScreenshotAnnotationTool.Text => 2,
+            ScreenshotAnnotationTool.Mosaic => 3,
+            _ => 0,
+        }) * ScreenshotUiTheme.ToolbarButtonSize;
 
     internal bool ColorOptionsVisible => _colorOptions.IsVisible;
 
@@ -198,15 +201,15 @@ internal sealed class ScreenshotToolbar : Border
 
     internal bool MosaicBrushOptionsVisible => _mosaicBrushOptions.IsVisible;
 
-    internal void SuspendAnnotationOptionsPopup()
+    internal void SuspendAnnotationOptionsFlyout()
     {
-        _annotationOptionsPopupSuspended = true;
-        _annotationOptionsPopup.IsOpen = false;
+        _annotationOptionsFlyoutSuspended = true;
+        _annotationOptionsFlyout.IsVisible = false;
     }
 
-    internal void ResumeAnnotationOptionsPopup()
+    internal void ResumeAnnotationOptionsFlyout()
     {
-        _annotationOptionsPopupSuspended = false;
+        _annotationOptionsFlyoutSuspended = false;
         UpdateOptionVisibility();
     }
 
@@ -230,10 +233,15 @@ internal sealed class ScreenshotToolbar : Border
         _redoButton.SetEnabled(canRedo);
     }
 
-    internal void SelectTool(ScreenshotAnnotationTool tool)
+    internal void SelectTool(
+        ScreenshotAnnotationTool tool,
+        bool showAnnotationOptions = true)
     {
+        _annotationOptionsFlyoutRequested =
+            showAnnotationOptions && tool != ScreenshotAnnotationTool.Select;
         if (ActiveTool == tool)
         {
+            UpdateOptionVisibility();
             return;
         }
 
@@ -262,6 +270,10 @@ internal sealed class ScreenshotToolbar : Border
             ScreenshotMosaicAnnotation => ScreenshotAnnotationTool.Mosaic,
             _ => null,
         };
+        if (ActiveTool == ScreenshotAnnotationTool.Select)
+        {
+            _annotationOptionsFlyoutRequested = annotation is not null;
+        }
         switch (annotation)
         {
             case ScreenshotRectangleAnnotation rectangle:
@@ -362,7 +374,7 @@ internal sealed class ScreenshotToolbar : Border
         return options;
     }
 
-    private StackPanel CreateAnnotationOptionsPopupContent()
+    private StackPanel CreateAnnotationOptionsFlyoutContent()
     {
         var pointer = new Avalonia.Controls.Shapes.Path
         {
@@ -397,6 +409,9 @@ internal sealed class ScreenshotToolbar : Border
         {
             Orientation = Orientation.Vertical,
             Spacing = 0,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            IsVisible = false,
         };
         content.Children.Add(pointer);
         content.Children.Add(surface);
@@ -506,35 +521,18 @@ internal sealed class ScreenshotToolbar : Border
     private void UpdateOptionVisibility()
     {
         var tool = EffectiveTool;
-        var optionsVisible = tool != ScreenshotAnnotationTool.Select;
-        _annotationOptions.IsVisible = optionsVisible;
+        var optionsAvailable = tool != ScreenshotAnnotationTool.Select;
+        _annotationOptions.IsVisible = optionsAvailable;
         _colorOptions.IsVisible = tool is ScreenshotAnnotationTool.Rectangle or
             ScreenshotAnnotationTool.Arrow or ScreenshotAnnotationTool.Text;
         _lineWidthOptions.IsVisible = tool is ScreenshotAnnotationTool.Rectangle or
             ScreenshotAnnotationTool.Arrow;
         _fontSizeOptions.IsVisible = tool == ScreenshotAnnotationTool.Text;
         _mosaicBrushOptions.IsVisible = tool == ScreenshotAnnotationTool.Mosaic;
-        _annotationOptionsPopup.PlacementTarget = tool switch
-        {
-            ScreenshotAnnotationTool.Rectangle => _rectangleButton,
-            ScreenshotAnnotationTool.Arrow => _arrowButton,
-            ScreenshotAnnotationTool.Text => _textButton,
-            ScreenshotAnnotationTool.Mosaic => _mosaicButton,
-            _ => null,
-        };
-        var shouldOpenPopup = optionsVisible &&
-            !_annotationOptionsPopupSuspended &&
-            TopLevel.GetTopLevel(this) is not null;
-        try
-        {
-            _annotationOptionsPopup.IsOpen = shouldOpenPopup;
-        }
-        catch (InvalidOperationException)
-        {
-            // Headless Avalonia hosts have neither a native popup implementation nor an
-            // overlay layer. The flyout state remains measurable for interaction tests.
-            _annotationOptionsPopup.IsOpen = false;
-        }
+        _annotationOptionsFlyout.IsVisible =
+            optionsAvailable &&
+            _annotationOptionsFlyoutRequested &&
+            !_annotationOptionsFlyoutSuspended;
     }
 
     private void ToggleTool(ScreenshotAnnotationTool tool) =>

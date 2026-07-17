@@ -28,6 +28,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     private readonly Avalonia.Controls.Shapes.Ellipse[] _textEditorControlPoints;
     private readonly TranslateTransform _sizeBadgeTransform = new();
     private readonly TranslateTransform _toolbarTransform = new();
+    private readonly TranslateTransform _annotationOptionsFlyoutTransform = new();
     private readonly TranslateTransform _textEditorTransform = new();
     private Rect _availableUiBounds;
     private bool _floatingUiFrozen;
@@ -43,6 +44,9 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     internal Point ToolbarOrigin => new(_toolbarTransform.X, _toolbarTransform.Y);
 
+    internal Point AnnotationOptionsFlyoutOrigin =>
+        new(_annotationOptionsFlyoutTransform.X, _annotationOptionsFlyoutTransform.Y);
+
     internal bool TextEditorVisible => _textEditorHost.IsVisible;
 
     internal TextBox TextEditor => _textEditor;
@@ -53,8 +57,10 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     internal int TextEditorControlPointCount => _textEditorControlPoints.Length;
 
-    internal bool AnnotationOptionsPopupSuspended =>
-        _toolbar.AnnotationOptionsPopupSuspended;
+    internal bool AnnotationOptionsFlyoutOpen => _toolbar.AnnotationOptionsFlyoutOpen;
+
+    internal bool AnnotationOptionsFlyoutSuspended =>
+        _toolbar.AnnotationOptionsFlyoutSuspended;
 
     internal IReadOnlyList<IScreenshotAnnotation> Annotations => _selectionCanvas.Annotations;
 
@@ -142,6 +148,8 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         {
             RenderTransform = _toolbarTransform,
         };
+        _toolbar.AnnotationOptionsFlyout.RenderTransform =
+            _annotationOptionsFlyoutTransform;
         _toolbar.SaveRequested += HandleSave;
         _toolbar.ConfirmRequested += HandleConfirm;
         _toolbar.CancelRequested += HandleCancel;
@@ -203,6 +211,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         root.Children.Add(_sizeBadge);
         root.Children.Add(_toolbar);
         root.Children.Add(_textEditorHost);
+        root.Children.Add(_toolbar.AnnotationOptionsFlyout);
         Content = root;
 
         Opened += HandleOpened;
@@ -303,24 +312,33 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
     private void PositionFloatingUi(Rect selection)
     {
-        if (_floatingUiFrozen)
+        if (!_floatingUiFrozen)
         {
-            return;
+            var availableSize = _selectionCanvas.Bounds.Size;
+            _sizeBadge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            _toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+
+            var placement = ScreenshotFloatingUiLayout.Place(
+                selection,
+                _availableUiBounds.Intersect(new Rect(availableSize)),
+                _sizeBadge.DesiredSize,
+                _toolbar.DesiredSize);
+            _sizeBadgeTransform.X = placement.BadgeOrigin.X;
+            _sizeBadgeTransform.Y = placement.BadgeOrigin.Y;
+            _toolbarTransform.X = placement.ToolbarOrigin.X;
+            _toolbarTransform.Y = placement.ToolbarOrigin.Y;
         }
 
-        var availableSize = _selectionCanvas.Bounds.Size;
-        _sizeBadge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        _toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        PositionAnnotationOptionsFlyout();
+    }
 
-        var placement = ScreenshotFloatingUiLayout.Place(
-            selection,
-            _availableUiBounds.Intersect(new Rect(availableSize)),
-            _sizeBadge.DesiredSize,
-            _toolbar.DesiredSize);
-        _sizeBadgeTransform.X = placement.BadgeOrigin.X;
-        _sizeBadgeTransform.Y = placement.BadgeOrigin.Y;
-        _toolbarTransform.X = placement.ToolbarOrigin.X;
-        _toolbarTransform.Y = placement.ToolbarOrigin.Y;
+    private void PositionAnnotationOptionsFlyout()
+    {
+        _annotationOptionsFlyoutTransform.X =
+            _toolbarTransform.X + _toolbar.AnnotationOptionsHorizontalOffset;
+        _annotationOptionsFlyoutTransform.Y =
+            _toolbarTransform.Y + ScreenshotUiTheme.ToolbarHeight +
+            ScreenshotUiTheme.AnnotationOptionsFlyoutVerticalOffset;
     }
 
     private async void HandleSave(object? sender, EventArgs e)
@@ -333,7 +351,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
         var textEditingWasVisible = _textEditorHost.IsVisible;
         _selectionCanvas.Session.BeginSave();
-        _toolbar.SuspendAnnotationOptionsPopup();
+        _toolbar.SuspendAnnotationOptionsFlyout();
         _sizeText.Text = ScreenshotUiText.ChoosingSaveLocation;
         if (_selectionCanvas.LogicalSelection is { } logicalSelection)
         {
@@ -351,7 +369,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             {
                 _selectionCanvas.Session.CancelSave();
                 RestoreOverlayAfterSaveDialog(textEditingWasVisible);
-                _toolbar.ResumeAnnotationOptionsPopup();
+                _toolbar.ResumeAnnotationOptionsFlyout();
                 RestoreSelectedUi(selection);
                 return;
             }
@@ -378,7 +396,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
             RestoreOverlayAfterSaveDialog(
                 textEditingWasVisible && _selectionCanvas.TextEdit is not null);
-            _toolbar.ResumeAnnotationOptionsPopup();
+            _toolbar.ResumeAnnotationOptionsFlyout();
             _toolbar.SetSelectionActionsEnabled(isEnabled: true);
             _sizeText.Text = ScreenshotUiText.SaveFailed;
             ToolTip.SetTip(_sizeBadge, ScreenshotUiText.SaveFailed);
@@ -492,6 +510,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         try
         {
             _toolbar.SetSelectedAnnotation(_selectionCanvas.SelectedAnnotation);
+            PositionAnnotationOptionsFlyout();
         }
         finally
         {
@@ -799,7 +818,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
                 Key.T => ScreenshotAnnotationTool.Text,
                 Key.M => ScreenshotAnnotationTool.Mosaic,
                 _ => ScreenshotAnnotationTool.Select,
-            });
+            }, showAnnotationOptions: false);
             return;
         }
 
