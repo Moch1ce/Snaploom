@@ -58,7 +58,8 @@ public sealed class ScreenshotCompletionWorkflowTests
                 CommandModifier,
                 PhysicalKey.S,
                 "s");
-            await WaitForAsync(() => File.Exists(finalPath) && !window.IsVisible);
+            await WaitForAsync(() =>
+                File.Exists(finalPath) && !window.IsVisible && window.OutputCompleted);
 
             Assert.Matches(
                 @"^Snaploom_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.png$",
