@@ -19,6 +19,7 @@ internal static class ScreenshotUiTheme
     internal static readonly IBrush FloatingBorderBrush = new SolidColorBrush(Color.Parse("#D8DADF"));
     internal static readonly IBrush TextEditorBorderBrush = new SolidColorBrush(Color.Parse("#8F949B"));
     internal static readonly IBrush TextEditorControlPointBrush = Brushes.White;
+    internal static readonly IBrush MoveCursorOutlineBrush = Brushes.White;
     internal static readonly IBrush TextEditorSelectionBrush = new SolidColorBrush(
         Color.FromArgb(64, AccentColor.R, AccentColor.G, AccentColor.B));
     internal static readonly IBrush SeparatorBrush = new SolidColorBrush(Color.Parse("#E1E3E7"));
@@ -28,6 +29,12 @@ internal static class ScreenshotUiTheme
     internal static readonly IBrush DimBrush = new SolidColorBrush(Color.FromArgb(115, 0, 0, 0));
     internal static readonly Geometry AnnotationOptionsPointerGeometry =
         Geometry.Parse("M 0 7 L 6 0 L 12 7 Z");
+    internal static readonly Geometry MoveCursorGeometry = Geometry.Parse(
+        "M 14 3 L 14 25 M 3 14 L 25 14 " +
+        "M 14 3 L 9 8 M 14 3 L 19 8 " +
+        "M 14 25 L 9 20 M 14 25 L 19 20 " +
+        "M 3 14 L 8 9 M 3 14 L 8 19 " +
+        "M 25 14 L 20 9 M 25 14 L 20 19");
     internal static readonly BoxShadows FloatingShadow = new(
         new BoxShadow
         {
@@ -63,6 +70,9 @@ internal static class ScreenshotUiTheme
     internal const double SelectedToolBackgroundSize = 24;
     internal const double SelectionHandleSize = 8;
     internal const double IconSize = 18;
+    internal const int MoveCursorBitmapSize = 28;
+    internal const double MoveCursorOutlineWidth = 4;
+    internal const double MoveCursorStrokeWidth = 2;
     internal const double TextEditorMinimumWidth = 24;
     internal const double TextEditorCornerRadius = 2;
     internal const double TextEditorControlPointSize = 6;
