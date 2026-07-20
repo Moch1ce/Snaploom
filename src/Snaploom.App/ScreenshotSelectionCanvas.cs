@@ -37,7 +37,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     private readonly WriteableBitmap _bitmap;
     private readonly ScreenshotPixelInspector _pixelInspector;
     private readonly Cursor _crosshairCursor = new(StandardCursorType.Cross);
-    private readonly Cursor _moveCursor = new(StandardCursorType.SizeAll);
+    private readonly ScreenshotMoveCursor _moveCursor = new();
     private readonly Cursor _textCursor = new(StandardCursorType.Ibeam);
     private readonly Cursor _defaultCursor = new(StandardCursorType.Arrow);
     private readonly Cursor _horizontalResizeCursor = new(StandardCursorType.SizeWestEast);
@@ -546,7 +546,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         _pendingTextAnnotationInteraction = new(textIndex, position);
         _annotationBitmapDirty = true;
         _mosaicCacheDirty = true;
-        SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
+        SetPointerCursor(_moveCursor.Cursor, ScreenshotPointerFeedback.MoveAnnotation);
         AnnotationSelectionChanged?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
         return true;
@@ -605,7 +605,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                         pendingTextInteraction.Start.Y),
                     new LogicalPoint(rawPosition.X, rawPosition.Y)))
             {
-                SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
+                SetPointerCursor(_moveCursor.Cursor, ScreenshotPointerFeedback.MoveAnnotation);
                 e.Handled = true;
                 return;
             }
@@ -668,7 +668,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                 if (_annotationSession.ActiveTool == ScreenshotAnnotationTool.Text &&
                     HitTestTextAnnotation(rawPosition) is not null)
                 {
-                    SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
+                    SetPointerCursor(_moveCursor.Cursor, ScreenshotPointerFeedback.MoveAnnotation);
                     return;
                 }
 
@@ -797,7 +797,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
             _session.Select(snapTarget.Bounds);
             _hoveredSnapTarget = null;
             ReleasePointerCapture();
-            SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveSelection);
+            SetPointerCursor(_moveCursor.Cursor, ScreenshotPointerFeedback.MoveSelection);
             SelectionChanged?.Invoke(this, EventArgs.Empty);
             InvalidateVisual();
             e.Handled = true;
@@ -809,7 +809,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
             _session.UpdateMoveSelection(ToPhysicalPoint(e.GetPosition(this)));
             _session.CompleteMoveSelection();
             ReleasePointerCapture();
-            SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveSelection);
+            SetPointerCursor(_moveCursor.Cursor, ScreenshotPointerFeedback.MoveSelection);
             SelectionChanged?.Invoke(this, EventArgs.Empty);
             InvalidateVisual();
             e.Handled = true;
@@ -1116,7 +1116,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
             case ScreenshotAnnotationTool.Select when
                 _session.State == ScreenshotSessionState.Selected &&
                 !_selectionHasBeenEdited:
-                SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveSelection);
+                SetPointerCursor(_moveCursor.Cursor, ScreenshotPointerFeedback.MoveSelection);
                 break;
             case ScreenshotAnnotationTool.Select when
                 _session.State == ScreenshotSessionState.Selected:
@@ -1162,13 +1162,13 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
         if (HitTestAnnotation(relativePoint) is not null)
         {
-            SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
+            SetPointerCursor(_moveCursor.Cursor, ScreenshotPointerFeedback.MoveAnnotation);
             return;
         }
 
         if (!_selectionHasBeenEdited)
         {
-            SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveSelection);
+            SetPointerCursor(_moveCursor.Cursor, ScreenshotPointerFeedback.MoveSelection);
             return;
         }
 
