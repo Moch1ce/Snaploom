@@ -10,7 +10,7 @@ const prefix = process.platform === "win32" ? "" : "lib";
 const library = process.argv[2] ?? join(root, "sdk", "target", "release", `${prefix}snaploom_capture.${extension}`);
 const expected = (await readFile(join(root, "sdk", "c-abi", "abi-symbols-v1.txt"), "utf8"))
   .trim()
-  .split("\n")
+  .split(/\r?\n/)
   .sort();
 
 const command = process.platform === "win32" ? findDumpbin() : "nm";

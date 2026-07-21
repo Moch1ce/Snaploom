@@ -155,7 +155,7 @@ try {
       "utf8",
     )
       .trim()
-      .split("\n")
+      .split(/\r?\n/)
       .sort();
     const actual = [
       ...new Set(members.match(/snaploom_capture_[a-z0-9_]+_v1/g) ?? []),
