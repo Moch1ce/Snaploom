@@ -74,6 +74,8 @@ jobs:
   web-contracts:
     name: Pinned Chromium render goldens
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48 # v1.61.1-noble
     timeout-minutes: 15
 
     steps:
@@ -93,9 +95,6 @@ jobs:
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Install pinned headless Chromium
-        run: pnpm --filter @snaploom/overlay-editor exec playwright install --with-deps --only-shell chromium
 
       - name: Compare final PNG pixels with committed goldens
         run: pnpm --filter @snaploom/overlay-editor run test:visual

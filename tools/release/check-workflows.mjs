@@ -35,7 +35,7 @@ if (
 if (
   !pullRequestCi.includes("web-contracts:") ||
   !pullRequestCi.includes(
-    "playwright install --with-deps --only-shell chromium",
+    "mcr.microsoft.com/playwright@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48",
   ) ||
   !pullRequestCi.includes("- web-contracts")
 ) {

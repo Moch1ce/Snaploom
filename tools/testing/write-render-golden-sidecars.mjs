@@ -1,6 +1,7 @@
 // Copyright (C) 2026 Snaploom contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -24,6 +25,7 @@ const playwrightTestPackagePath = overlayRequire.resolve(
   "@playwright/test/package.json",
 );
 const playwrightRequire = createRequire(playwrightTestPackagePath);
+const { chromium: playwrightChromium } = playwrightRequire("playwright");
 const playwrightCorePackagePath = createRequire(
   playwrightRequire.resolve("playwright/package.json"),
 ).resolve("playwright-core/package.json");
@@ -37,6 +39,11 @@ const chromium = browsers.browsers.find(
 if (!chromium) {
   throw new Error("pinned Chromium headless-shell revision is unavailable");
 }
+const chromiumVersion = execFileSync(
+  playwrightChromium.executablePath(),
+  ["--version"],
+  { encoding: "utf8" },
+).trim();
 
 const suites = [
   {
@@ -93,6 +100,7 @@ for (const suite of suites) {
         playwright: playwrightPackage.version,
         browser: chromium.name,
         revision: chromium.revision,
+        version: chromiumVersion,
       },
       fixture: fixtureMetadata,
       physicalSize: { width: fixture.width, height: fixture.height },

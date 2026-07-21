@@ -4,7 +4,8 @@
   "generator": {
     "playwright": "1.61.1",
     "browser": "chromium-headless-shell",
-    "revision": "1228"
+    "revision": "1228",
+    "version": "Chromium 149.0.7827.0"
   },
   "fixture": {
     "name": "textarea-composition",

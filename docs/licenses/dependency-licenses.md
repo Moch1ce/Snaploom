@@ -43,7 +43,7 @@ cargo run --manifest-path Cargo.toml --locked --bin windows-bindings -- --check
 | 依赖或资产 | 版本 | 许可证 / 分发边界 |
 | --- | --- | --- |
 | `@playwright/test` / Playwright | 1.61.1 | Apache-2.0；只用于测试 |
-| Chromium headless shell | Playwright revision 1228 | Chromium BSD 风格许可证及其第三方声明；由 CI/Playwright 下载，只用于比较金图，不随产品分发 |
+| Chromium headless shell | `Chromium 149.0.7827.0` / Playwright revision 1228 | Chromium BSD 风格许可证及其第三方声明；来自固定摘要的 Playwright 测试镜像，只用于比较金图，不随产品分发 |
 | `@fontsource/inter` | 5.3.0 | OFL-1.1；测试专用受控字体 |
 | `@fontsource/noto-sans-sc` | 5.3.0 | OFL-1.1；测试专用受控字体 |
 
@@ -55,4 +55,4 @@ cargo run --manifest-path Cargo.toml --locked --bin windows-bindings -- --check
 cargo run --locked --bin xtask -- goldens-update
 ```
 
-该入口只允许 Ubuntu 24.04 更新；CI 永远只比较已提交 PNG 和 sidecar，不自动重写基线。
+该入口只允许 Ubuntu 24.04 更新；CI 使用固定镜像 `mcr.microsoft.com/playwright@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48`，永远只比较已提交 PNG 和 sidecar，不自动重写基线。sidecar 同时记录浏览器 revision 与实际二进制版本，避免同一 revision 的下载产物漂移。
