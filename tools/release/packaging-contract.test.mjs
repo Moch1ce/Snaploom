@@ -16,6 +16,7 @@ const verifier = readFileSync(
 
 test("Windows installer and verifier use the same textual AppId", () => {
   assert.match(installer, /^AppId=Snaploom\.Desktop$/m);
+  assert.match(installer, /^UninstallDisplayName=Snaploom$/m);
   assert.match(
     verifier,
     /Uninstall\\Snaploom\.Desktop_is1/,

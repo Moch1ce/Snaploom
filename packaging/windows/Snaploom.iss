@@ -31,6 +31,7 @@ SolidCompression=yes
 OutputDir={#OutputDir}
 OutputBaseFilename=snaploom-{#AppVersion}-windows-x64-setup
 SetupIconFile={#IconPath}
+UninstallDisplayName=Snaploom
 UninstallDisplayIcon={app}\snaploom-desktop.exe
 CloseApplications=yes
 RestartApplications=no

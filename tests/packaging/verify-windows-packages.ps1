@@ -89,9 +89,14 @@ try {
         throw 'Installed Host differs from the standalone Host asset.'
     }
     $uninstall = Get-ItemProperty $registryPath
-    if ($uninstall.DisplayName -ne 'Snaploom' -or $uninstall.DisplayVersion -ne $Version -or
-        $uninstall.InstallLocation.TrimEnd('\') -ne $installDirectory.TrimEnd('\')) {
-        throw 'Per-user uninstall metadata is invalid.'
+    if ($uninstall.DisplayName -ne 'Snaploom') {
+        throw "Per-user uninstall DisplayName is '$($uninstall.DisplayName)', expected 'Snaploom'."
+    }
+    if ($uninstall.DisplayVersion -ne $Version) {
+        throw "Per-user uninstall DisplayVersion is '$($uninstall.DisplayVersion)', expected '$Version'."
+    }
+    if ($uninstall.InstallLocation.TrimEnd('\') -ne $installDirectory.TrimEnd('\')) {
+        throw "Per-user InstallLocation is '$($uninstall.InstallLocation)', expected '$installDirectory'."
     }
     $hostRegistration = Get-ItemProperty $hostRegistryPath
     if ($hostRegistration.Executable -ne $installedHost) { throw 'Capture Host registration is invalid.' }
