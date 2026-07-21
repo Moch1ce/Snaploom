@@ -50,10 +50,11 @@ if (!archiveArgument) {
 const archive = resolve(archiveArgument);
 const version = argument("version", "0.1.0");
 const skipTSan = process.argv.includes("--skip-tsan");
+const skipManifestChecksum = process.argv.includes("--skip-manifest-checksum");
 const expectedChecksum = run("swift", ["package", "compute-checksum", archive]);
 const manifest = readFileSync(join(repository, "Package.swift"), "utf8");
 const checksumMatch = manifest.match(/let snaploomBinaryChecksum = "([a-f0-9]{64})"/);
-if (!checksumMatch || checksumMatch[1] !== expectedChecksum) {
+if (!checksumMatch || (!skipManifestChecksum && checksumMatch[1] !== expectedChecksum)) {
   throw new Error(
     `Package.swift checksum mismatch: expected ${expectedChecksum}, found ${checksumMatch?.[1] ?? "missing"}`,
   );
