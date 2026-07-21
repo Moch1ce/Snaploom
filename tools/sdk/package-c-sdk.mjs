@@ -133,6 +133,10 @@ try {
     join(repository, "sdk", "distribution", "THIRD-PARTY-NOTICES.txt"),
     join(root, "THIRD-PARTY-NOTICES.txt"),
   );
+  cpSync(
+    join(repository, "sdk", "distribution", "sbom.cdx.json"),
+    join(root, "sbom.cdx.json"),
+  );
 
   writeFileSync(
     join(cmake, "SnaploomCaptureConfig.cmake"),

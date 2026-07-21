@@ -89,6 +89,7 @@ try {
     "LICENSES/Apache-2.0.txt",
     "NOTICE",
     "THIRD-PARTY-NOTICES.txt",
+    "sbom.cdx.json",
     "README.md",
   ];
   for (const relative of required) {

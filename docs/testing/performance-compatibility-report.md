@@ -2,6 +2,12 @@
 
 本报告随所在 Git commit 固定，验收目标来自 #18。自动性能门槛已有可重复执行的工具；兼容性矩阵只把实际完成的组合标记为通过。
 
+> 下方 2026-07-16 数据来自迁移前 .NET/Avalonia 实现，只保留为 PERF-02 回退参考，不是当前
+> Rust/Tauri 实现的发布证据。当前实现的稳定 Release 必须通过
+> `.github/workflows/release-qualification.yml`，其 JSON 会由
+> `tools/release/verify-machine-evidence.mjs` 重新计算 PERF-01，并精确绑定 release version/commit。
+> Headless、synthetic 或旧 commit 的结果会被硬拒绝。
+
 ## 指标口径
 
 - `1 MB = 1,000,000 bytes`。

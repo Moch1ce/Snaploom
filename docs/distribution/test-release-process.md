@@ -1,42 +1,53 @@
-# 测试版发布流程
+# 候选构建与 Release 门禁
 
-Snaploom 使用 `.github/workflows/release.yml` 从 `vX.Y.Z` 标签生成 Windows x64 与 macOS Apple Silicon 测试版。当前 macOS 包固定使用 ad hoc 签名；Windows 安装包不带代码签名。
+Snaploom 的普通 CI 会生成完整但不可作为稳定版发布的候选资产。Windows 明确为
+`candidate-unsigned`，macOS 明确为 `adhoc` 且不公证；候选资产只作为短期 Actions artifact，
+不能因为构建成功就转换为稳定 Release。
 
-## 发布前条件
+## 每次 CI 的原子资产合同
 
-1. 标签必须指向默认分支 `main` 可达的提交。
-2. CI 必须已通过，性能与多设备兼容性 Issue `#18` 必须由维护者验收并以 `completed` 原因关闭；`not planned` 或其他关闭原因不能通过发布门禁。
-3. 仓库中不能已有相同标签的草稿或公开 Release。
-4. 面向仓库外用户发布前，仓库必须可公开访问。应用不会保存 GitHub 凭据，私有仓库的匿名 Releases API 无法用于“检查更新”。
+`Atomic release contract` 等待 Windows、macOS、C/C++、.NET、Swift consumer 和合规作业全部
+成功，再汇总同一 commit 的以下 12 个 payload：
 
-满足条件后，由维护者创建并推送带注释的版本标签：
+- Windows x64 Desktop 用户级 installer 与 standalone Capture Host；
+- macOS 14+ arm64 Desktop DMG 与 standalone Capture Host；
+- Windows/macOS C SDK、双 RID NuGet 与 symbols、Swift XCFramework；
+- 精确 commit 的 corresponding source、聚合 CycloneDX SBOM 和 NOTICE 索引。
 
-```bash
-git switch main
-git pull --ff-only
-git tag -a v0.1.0 -m "Snaploom 0.1.0 test release"
-git push origin v0.1.0
-```
+汇总器拒绝重复、缺失、额外或空资产，检查 SDK 不含 Host/Tauri/GPL 产品路径，为每个 payload
+生成独立 `.sha256`，并生成稳定排序的 `SHA256SUMS` 与 `release-manifest.json`。输出目录非空时
+直接失败，不覆盖已有资产。所有 Actions 引用必须固定到完整 commit SHA，workflow 静态检查拒绝
+`gh release upload --clobber`。
 
-流水线会在两个平台重新执行完整无头测试，生成并验证安装包及 SHA256。发布作业只上传 EXE、DMG 和两个对应校验文件；发布页明确标记为 prerelease，并包含 SmartScreen、ad hoc 与 Gatekeeper 风险说明。
+对应源码从精确 commit 以固定 prefix 生成，两次独立构建必须逐字节相同；它包含三个 workspace、
+锁文件、协议/生成输入、打包脚本和许可证，但不包含签名凭据、缓存或用户数据。
 
-## 失败与重试
+## 平台包验证
 
-平台构建、测试或安装包验证失败时不会创建 Release。上传阶段先创建不可见草稿，四个制品全部存在且非空后才公开；上传或核对失败最多留下草稿，不会形成看似完整的公开 Release。
+Windows CI 使用 Inno Setup 6.7.1 构建普通用户安装包，并真实执行静默安装、Desktop 启动、
+覆盖升级、Host 登记、一致性比较和卸载。macOS arm64 CI 构建并挂载 DMG，验证 Desktop 内嵌 Host
+与 standalone Host 文件树完全相同、全部 Mach-O 为 arm64/minOS 14、权限文案、签名、启动和卸载。
+两个应用安装包都硬限制为 `50,000,000` bytes。
 
-流水线不使用 `--clobber`。同标签已存在草稿或公开 Release 时，后续运行会停止，避免重复或覆盖错误版本。维护者应先检查失败日志和草稿内容；确认草稿确实属于失败的同一次发布后，手动删除草稿，再重新运行原标签工作流。不得移动或复用已经公开发布过的标签。
+## 真机与性能门禁
 
-## Developer ID 升级路径
+`.github/workflows/release-qualification.yml` 只调度带交互桌面的专用 self-hosted runner：
 
-`scripts/build-macos-dmg.sh` 已将认证发布设计为严格模式：必须同时提供 `Developer ID Application` 身份、App Store Connect API Key 文件、Key ID 和 Issuer ID，并强制执行公证和 stapling；任何凭据或公证步骤失败都会停止，不能自动降级为 ad hoc。
+- Windows 10 22H2 x64；
+- Windows 11 x64；
+- macOS 14+ Apple Silicon。
 
-取得证书后，把证书、私钥和公证凭据写入 GitHub Secrets，在受保护的发布环境中临时导入钥匙串并调用：
+每台 runner 提供 `SNAPLOOM_MACHINE_EVIDENCE_PATH` 指向本机原始 JSON。校验器要求证据精确匹配
+version/commit，并覆盖普通用户安装/升级/卸载、复制/保存、单双屏、4K、混合 DPI/Retina、热插拔、
+睡眠唤醒及失败恢复。PERF-01 必须来自独占的真实 3840×2160 Desktop、真实捕获 backend 和真实
+WebView compositor；synthetic/headless 数据不能通过。原始样本要求至少 30 次快捷键/编辑和 20 次
+PNG/成功资源循环，按 nearest-rank P95 与尾段两个 5 次窗口中位数重新计算。
 
-```bash
-./scripts/build-macos-dmg.sh \
-  --version 1.0.0 \
-  --developer-id "Developer ID Application: Example (TEAMID)" \
-  --notarize
-```
+## 稳定版不可降级规则
 
-升级流水线时必须同时把验证步骤切换为 `--expected-signing developer-id`，并通过 `codesign`、`stapler` 和 `spctl` 验证。未完成这些步骤前，发布页必须继续使用“ad hoc 测试版”描述。
+稳定资产必须使用 Authenticode SHA-256 + RFC3161、Developer ID + hardened runtime + notarization +
+stapling，并通过 Gatekeeper/签名复验。缺少任一签名、公证、真机、PERF-01、合规、SDK consumer、
+源码或 exact manifest 证据时只能保留 draft，不能发布 unsigned/ad hoc 或部分 Release。
+
+Issue #33 的真实外部律师签署只阻止 stable publish，不阻止构建和 draft；CI 不生成、补写或代签
+法律结论。稳定发布还必须使用同一 tag/commit 的已审核 draft 实物，不重建、不替换、不移动 tag。

@@ -84,26 +84,43 @@ try {
     framework,
   ]);
 
+  mkdirSync(join(temporary, "LICENSES"), { recursive: true });
+  cpSync(
+    join(repository, "LICENSES", "Apache-2.0.txt"),
+    join(temporary, "LICENSES", "Apache-2.0.txt"),
+  );
+  cpSync(
+    join(repository, "sdk", "distribution", "NOTICE"),
+    join(temporary, "NOTICE"),
+  );
+  cpSync(
+    join(repository, "sdk", "distribution", "THIRD-PARTY-NOTICES.txt"),
+    join(temporary, "THIRD-PARTY-NOTICES.txt"),
+  );
+  cpSync(
+    join(repository, "sdk", "distribution", "sbom.cdx.json"),
+    join(temporary, "sbom.cdx.json"),
+  );
+
   rmSync(archive, { force: true });
   const zipScript = [
     "import os,stat,sys,zipfile",
     "root=os.path.abspath(sys.argv[1])",
     "archive=os.path.abspath(sys.argv[2])",
-    "base=os.path.dirname(root)",
     "paths=[]",
     "for current,dirs,files in os.walk(root):",
     " dirs.sort(); files.sort()",
     " for name in files: paths.append(os.path.join(current,name))",
     "with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as output:",
     " for path in paths:",
-    "  relative=os.path.relpath(path,base).replace(os.sep,'/')",
+    "  relative=os.path.relpath(path,root).replace(os.sep,'/')",
     "  info=zipfile.ZipInfo(relative,(1980,1,1,0,0,0))",
     "  mode=0o755 if os.stat(path).st_mode & 0o111 else 0o644",
     "  info.external_attr=(stat.S_IFREG|mode)<<16",
     "  info.compress_type=zipfile.ZIP_DEFLATED",
     "  with open(path,'rb') as source: output.writestr(info,source.read(),compress_type=zipfile.ZIP_DEFLATED,compresslevel=9)",
   ].join("\n");
-  run("python3", ["-c", zipScript, framework, archive]);
+  run("python3", ["-c", zipScript, temporary, archive]);
 
   const checksum = run("swift", ["package", "compute-checksum", archive]);
   const manifest = readFileSync(join(repository, "Package.swift"), "utf8");

@@ -22,10 +22,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22.12.0
 
@@ -33,21 +33,21 @@ jobs:
         run: rustup toolchain install 1.97.1 --profile minimal
 
       - name: Audit binding generator Rust licenses and sources
-        uses: EmbarkStudios/cargo-deny-action@v2
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
         with:
           manifest-path: Cargo.toml
           command: check bans licenses sources
           arguments: --all-features --locked
 
       - name: Audit product Rust licenses and sources
-        uses: EmbarkStudios/cargo-deny-action@v2
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
         with:
           manifest-path: product/Cargo.toml
           command: check bans licenses sources
           arguments: --all-features --locked
 
       - name: Audit SDK Rust licenses and sources
-        uses: EmbarkStudios/cargo-deny-action@v2
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
         with:
           manifest-path: sdk/Cargo.toml
           command: check bans licenses sources
@@ -81,12 +81,14 @@ jobs:
             os: windows-2025
             expected_arch: x86_64
             sdk_rid: win-x64
+            release_output: windows-x64
             sdk_native_source: sdk/target/release/snaploom_capture.dll
             sdk_native_name: snaploom_capture.dll
           - name: macOS Apple Silicon
             os: macos-15
             expected_arch: arm64
             sdk_rid: osx-arm64
+            release_output: macos-arm64
             sdk_native_source: sdk/target/release/libsnaploom_capture.dylib
             sdk_native_name: libsnaploom_capture.dylib
     runs-on: ${{ matrix.os }}
@@ -94,7 +96,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Verify runner architecture
         shell: bash
@@ -103,12 +105,12 @@ jobs:
           test "$actual_arch" = "${{ matrix.expected_arch }}"
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22.12.0
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
           version: 10.17.0
           run_install: false
@@ -118,7 +120,7 @@ jobs:
         run: rustup toolchain install 1.97.1 --profile minimal --component clippy,rustfmt
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.13"
 
@@ -159,10 +161,12 @@ jobs:
         run: |
           asan=OFF
           platform=windows-x64
+          export RUSTFLAGS="--remap-path-prefix=${GITHUB_WORKSPACE}=."
           if [ "${RUNNER_OS}" = "macOS" ]; then
             asan=ON
             platform=macos-arm64
             export MACOSX_DEPLOYMENT_TARGET=14.0
+            export RUSTFLAGS="--remap-path-prefix=${GITHUB_WORKSPACE}=. --remap-path-prefix=/Users/runner/=user/"
           fi
           cargo build --manifest-path sdk/Cargo.toml --package snaploom-capture-c-abi --release --locked
           node tools/architecture/check-abi-symbols.mjs
@@ -172,6 +176,14 @@ jobs:
           archive="$(node tools/sdk/package-c-sdk.mjs --platform "${platform}" --output "${RUNNER_TEMP}/snaploom-sdk-package")"
           node tools/sdk/verify-c-sdk.mjs --platform "${platform}" --archive "${archive}"
 
+      - name: Upload C/C++ SDK archive
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: snaploom-c-sdk-${{ matrix.sdk_rid }}
+          path: ${{ runner.temp }}/snaploom-sdk-package/*
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Build and verify Swift package and XCFramework
         if: runner.os == 'macOS'
         shell: bash
@@ -179,7 +191,6 @@ jobs:
           archive="${RUNNER_TEMP}/snaploom-swift-sdk/CSnaploomCapture-0.1.0.xcframework.zip"
           export MACOSX_DEPLOYMENT_TARGET=14.0
           export RUSTFLAGS="--remap-path-prefix=${GITHUB_WORKSPACE}=. --remap-path-prefix=/Users/runner/=user/"
-          cargo build --manifest-path sdk/Cargo.toml --package snaploom-capture-c-abi --release --locked
           node tools/sdk/package-swift-sdk.mjs \
             --version 0.1.0 \
             --library sdk/target/release/libsnaploom_capture.dylib \
@@ -190,7 +201,7 @@ jobs:
 
       - name: Upload Swift XCFramework
         if: runner.os == 'macOS'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: snaploom-capture-swift
           path: ${{ runner.temp }}/snaploom-swift-sdk/CSnaploomCapture-0.1.0.xcframework.zip
@@ -204,7 +215,7 @@ jobs:
           cp "${{ matrix.sdk_native_source }}" "${RUNNER_TEMP}/snaploom-dotnet-native/${{ matrix.sdk_native_name }}"
 
       - name: Upload .NET native asset
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: snaploom-native-${{ matrix.sdk_rid }}
           path: ${{ runner.temp }}/snaploom-dotnet-native/${{ matrix.sdk_native_name }}
@@ -233,11 +244,42 @@ jobs:
       - name: Verify frontend
         run: pnpm run check
 
-      - name: Build Desktop Tauri binary
-        run: pnpm run tauri:desktop
+      - name: Verify release contract tooling
+        run: pnpm run check:release
 
-      - name: Build Capture Host Tauri binary
-        run: pnpm run tauri:host
+      - name: Install pinned Inno Setup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco upgrade innosetup --version=6.7.1 --allow-downgrade --yes --no-progress
+
+      - name: Build and verify Windows candidate packages
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./scripts/build-windows-packages.ps1 -Version 0.1.0 -SigningMode candidate-unsigned
+          ./tests/packaging/verify-windows-packages.ps1 `
+            -Directory ./artifacts/release/windows-x64 `
+            -Version 0.1.0 `
+            -ExpectedSigning candidate-unsigned
+
+      - name: Build and verify macOS candidate packages
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          export MACOSX_DEPLOYMENT_TARGET=14.0
+          ./scripts/build-macos-packages.sh --version 0.1.0 --adhoc
+          ./tests/packaging/verify-macos-packages.sh \
+            --directory ./artifacts/release/macos-arm64 \
+            --version 0.1.0 \
+            --expected-signing adhoc
+
+      - name: Upload platform candidate packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: snaploom-products-${{ matrix.sdk_rid }}
+          path: artifacts/release/${{ matrix.release_output }}/*
+          if-no-files-found: error
+          retention-days: 1
 
   dotnet-package:
     name: .NET package
@@ -247,20 +289,20 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22.12.0
 
       - name: Setup .NET 8
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: 8.0.x
 
       - name: Download staged native assets
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: snaploom-native-*
           path: ${{ runner.temp }}/snaploom-native-assets
@@ -292,7 +334,7 @@ jobs:
             --macos-native "${RUNNER_TEMP}/snaploom-native-assets/libsnaploom_capture.dylib"
 
       - name: Upload final NuGet packages
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: snaploom-capture-nuget
           path: |
@@ -329,20 +371,20 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22.12.0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: ${{ matrix.dotnet_version }}
 
       - name: Download final NuGet packages
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: snaploom-capture-nuget
           path: ${{ runner.temp }}/snaploom-nuget
@@ -356,3 +398,97 @@ jobs:
             --package "${package}" \
             --platform "${{ matrix.platform }}" \
             --framework "${{ matrix.framework }}"
+
+  release-contract:
+    name: Atomic release contract
+    needs:
+      - supply-chain
+      - verify
+      - dotnet-package
+      - dotnet-consumer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout immutable source commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.12.0
+
+      - name: Download product candidates
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: snaploom-products-*
+          path: ${{ runner.temp }}/release-input/products
+          merge-multiple: true
+
+      - name: Download C SDK candidates
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: snaploom-c-sdk-*
+          path: ${{ runner.temp }}/release-input/c-sdk
+          merge-multiple: true
+
+      - name: Download .NET packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: snaploom-capture-nuget
+          path: ${{ runner.temp }}/release-input/nuget
+
+      - name: Download Swift XCFramework
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: snaploom-capture-swift
+          path: ${{ runner.temp }}/release-input/swift
+
+      - name: Collect the exact cross-platform payload set
+        shell: bash
+        run: |
+          node tools/release/collect-payloads.mjs \
+            --input "${RUNNER_TEMP}/release-input" \
+            --output "${RUNNER_TEMP}/release-payloads" \
+            --version 0.1.0
+
+      - name: Rebuild corresponding source twice
+        shell: bash
+        run: |
+          command -v zstd
+          first="${RUNNER_TEMP}/release-payloads/snaploom-0.1.0-corresponding-source.tar.zst"
+          second="${RUNNER_TEMP}/source-rebuild.tar.zst"
+          ./scripts/build-corresponding-source.sh \
+            --version 0.1.0 --commit "${GITHUB_SHA}" --output "${first}"
+          ./scripts/build-corresponding-source.sh \
+            --version 0.1.0 --commit "${GITHUB_SHA}" --output "${second}"
+          cmp "${first}" "${second}"
+          ./tests/packaging/verify-corresponding-source.sh \
+            --archive "${first}" --version 0.1.0
+
+      - name: Generate release SBOM, notices, manifest, and checksums
+        shell: bash
+        run: |
+          node tools/release/generate-release-materials.mjs \
+            --directory "${RUNNER_TEMP}/release-payloads" --version 0.1.0
+          node tools/compliance/verify-cyclonedx.mjs \
+            "${RUNNER_TEMP}/release-payloads/snaploom-0.1.0-sbom.cdx.json"
+          node tools/release/assemble-release.mjs \
+            --payloads "${RUNNER_TEMP}/release-payloads" \
+            --output "${RUNNER_TEMP}/release-assets" \
+            --version 0.1.0 --tag v0.1.0 --commit "${GITHUB_SHA}" \
+            --mode candidate-unsigned --run-id "${GITHUB_RUN_ID}"
+          node tools/release/verify-release.mjs \
+            --directory "${RUNNER_TEMP}/release-assets" --version 0.1.0
+
+      - name: Upload verified atomic release candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: snaploom-atomic-release-candidate
+          path: ${{ runner.temp }}/release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

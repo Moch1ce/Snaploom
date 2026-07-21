@@ -76,6 +76,16 @@ try {
   if (!existsSync(framework)) {
     throw new Error("archive root does not contain CSnaploomCapture.xcframework");
   }
+  for (const relative of [
+    "LICENSES/Apache-2.0.txt",
+    "NOTICE",
+    "THIRD-PARTY-NOTICES.txt",
+    "sbom.cdx.json",
+  ]) {
+    if (!existsSync(join(extracted, relative))) {
+      throw new Error(`XCFramework archive is missing ${relative}`);
+    }
+  }
 
   const info = JSON.parse(
     run("plutil", ["-convert", "json", "-o", "-", join(framework, "Info.plist")]),

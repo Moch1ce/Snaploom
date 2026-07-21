@@ -1,0 +1,103 @@
+name: Release qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact X.Y.Z release version
+        required: true
+        type: string
+      commit:
+        description: Full 40-character release commit SHA
+        required: true
+        type: string
+
+concurrency:
+  group: release-qualification-${{ inputs.commit }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  machine:
+    name: True machine (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-10-x64
+            runner: snaploom-windows-10-x64
+          - platform: windows-11-x64
+            runner: snaploom-windows-11-x64
+          - platform: macos-14-arm64
+            runner: snaploom-macos-14-arm64
+    runs-on: [self-hosted, snaploom-release, "${{ matrix.runner }}"]
+    timeout-minutes: 60
+    environment: release-qualification
+
+    steps:
+      - name: Validate immutable release identity
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "${COMMIT}" =~ ^[0-9a-f]{40}$ ]]
+
+      - name: Checkout exact release commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+
+      - name: Evaluate runner-owned raw evidence
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          test -n "${SNAPLOOM_MACHINE_EVIDENCE_PATH:-}"
+          test -f "${SNAPLOOM_MACHINE_EVIDENCE_PATH}"
+          mkdir -p artifacts/qualification
+          node tools/release/verify-machine-evidence.mjs \
+            --input "${SNAPLOOM_MACHINE_EVIDENCE_PATH}" \
+            --output "artifacts/qualification/${PLATFORM}.json" \
+            --platform "${PLATFORM}" --version "${VERSION}" --commit "${COMMIT}"
+
+      - name: Upload qualified machine evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qualification-${{ matrix.platform }}
+          path: artifacts/qualification/${{ matrix.platform }}.json
+          if-no-files-found: error
+          retention-days: 30
+
+  qualification-set:
+    name: Complete true-machine and PERF-01 gate
+    needs: machine
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout verifier
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+
+      - name: Download all qualified evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: qualification-*
+          path: artifacts/qualification
+          merge-multiple: true
+
+      - name: Require the complete platform set
+        run: >-
+          node tools/release/verify-qualification-set.mjs
+          --directory artifacts/qualification
+          --version '${{ inputs.version }}'
+          --commit '${{ inputs.commit }}'
