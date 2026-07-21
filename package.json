@@ -1,0 +1,25 @@
+{
+  "name": "snaploom",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.17.0",
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "build": "pnpm -r --workspace-concurrency=1 build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "check:boundaries": "node tools/architecture/check-boundaries.mjs",
+    "check": "pnpm run check:boundaries && pnpm run typecheck && pnpm run test && pnpm run build",
+    "tauri:desktop": "tauri build --config product/apps/desktop/tauri.conf.json --no-bundle -- --package snaploom-desktop",
+    "tauri:host": "tauri build --config product/apps/capture-host/tauri.conf.json --no-bundle -- --package snaploom-capture-host"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4",
+    "typescript": "5.8.3",
+    "vite": "7.3.6",
+    "vitest": "3.2.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}

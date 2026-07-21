@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop-default",
+  "description": "Snaploom Desktop 最小本地窗口能力",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -1,0 +1,22 @@
+[workspace]
+members = [
+  "apps/desktop",
+  "apps/capture-host",
+  "capture-session",
+  "desktop-shell",
+  "platform/contract",
+  "platform/fake",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+authors = ["Snaploom contributors"]
+repository = "https://github.com/moch1ce/Snaploom"
+
+[workspace.dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+tauri = { version = "=2.11.5", features = [] }
+tauri-build = { version = "=2.6.3", features = [] }

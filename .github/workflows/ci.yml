@@ -2,19 +2,13 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
   pull_request:
 
 permissions:
   contents: read
 
-env:
-  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
-  DOTNET_NOLOGO: "1"
-
 jobs:
-  build-and-test:
+  verify:
     name: ${{ matrix.name }}
     strategy:
       fail-fast: false
@@ -25,63 +19,67 @@ jobs:
           - name: macOS Apple Silicon
             os: macos-15
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+      - name: Setup Node
+        uses: actions/setup-node@v6
         with:
-          global-json-file: global.json
+          node-version: 22.12.0
 
-      - name: Restore
-        run: dotnet restore Snaploom.sln
-
-      - name: Build
-        run: dotnet build Snaploom.sln --configuration Release --no-restore
-
-      - name: Test macOS native frame orientation
-        if: runner.os == 'macOS'
-        run: bash tests/native/macos/run-frame-orientation-test.sh
-
-      - name: Test
-        run: dotnet test Snaploom.sln --configuration Release --no-build
-
-      - name: Build ad hoc macOS DMG
-        if: runner.os == 'macOS'
-        run: ./scripts/build-macos-dmg.sh --version 1.0.0 --adhoc
-
-      - name: Verify ad hoc macOS DMG
-        if: runner.os == 'macOS'
-        run: ./tests/packaging/verify-macos-dmg.sh --dmg-directory ./artifacts/macos-arm64/dmg --version 1.0.0 --expected-signing adhoc
-
-      - name: Upload macOS DMG
-        if: runner.os == 'macOS'
-        uses: actions/upload-artifact@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          name: snaploom-macos-arm64-dmg
-          path: artifacts/macos-arm64/dmg/*
-          if-no-files-found: error
+          version: 10.17.0
+          run_install: false
 
-      - name: Install pinned Inno Setup
-        if: runner.os == 'Windows'
-        run: choco upgrade innosetup --version=6.7.1 --allow-downgrade --yes --no-progress
+      - name: Setup Rust
+        shell: bash
+        run: rustup toolchain install 1.97.1 --profile minimal --component clippy,rustfmt
 
-      - name: Build Windows user installer
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./scripts/build-windows-installer.ps1 -Version 1.0.0
-
-      - name: Verify Windows user installer
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./tests/packaging/verify-windows-installer.ps1 -InstallerDirectory ./artifacts/windows-x64/installer -Version 1.0.0
-
-      - name: Upload Windows installer
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v7
+      - name: Setup Python
+        uses: actions/setup-python@v6
         with:
-          name: snaploom-windows-x64-installer
-          path: artifacts/windows-x64/installer/*
-          if-no-files-found: error
+          python-version: "3.13"
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify licensing
+        shell: bash
+        run: |
+          python -m pip install reuse==6.2.0
+          reuse lint
+
+      - name: Verify dependency direction
+        run: pnpm run check:boundaries
+
+      - name: Format Rust
+        shell: bash
+        run: |
+          cargo fmt --manifest-path sdk/Cargo.toml --all -- --check
+          cargo fmt --manifest-path product/Cargo.toml --all -- --check
+
+      - name: Lint Rust
+        shell: bash
+        run: |
+          cargo clippy --manifest-path sdk/Cargo.toml --workspace --all-targets --locked -- -D warnings
+          cargo clippy --manifest-path product/Cargo.toml --workspace --all-targets --locked -- -D warnings
+
+      - name: Test Rust
+        shell: bash
+        run: |
+          cargo test --manifest-path sdk/Cargo.toml --workspace --locked
+          cargo test --manifest-path product/Cargo.toml --workspace --locked
+
+      - name: Verify frontend
+        run: pnpm run check
+
+      - name: Build Desktop Tauri binary
+        run: pnpm run tauri:desktop
+
+      - name: Build Capture Host Tauri binary
+        run: pnpm run tauri:host

@@ -1,0 +1,26 @@
+:root {
+  color: #fff;
+  background: #161616;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+#capture-surface {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: 1px solid var(--selection);
+}
+
+.snaploom-product-mark {
+  position: fixed;
+  inset: 20px auto auto 20px;
+}

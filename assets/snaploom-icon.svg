@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Snaploom">
+  <defs>
+    <linearGradient id="background" x1="80" y1="48" x2="432" y2="464" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4096ff" />
+      <stop offset="1" stop-color="#0958d9" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#background)" />
+  <path d="M148 174a26 26 0 0 1 26-26h70v28h-68v68h-28v-70Zm120-26h70a26 26 0 0 1 26 26v70h-28v-68h-68v-28Zm96 120v70a26 26 0 0 1-26 26h-70v-28h68v-68h28Zm-120 96h-70a26 26 0 0 1-26-26v-70h28v68h68v28Z" fill="#fff" />
+  <rect x="214" y="214" width="84" height="84" rx="18" fill="#fff" opacity=".96" />
+</svg>

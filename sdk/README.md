@@ -2,6 +2,8 @@
 
 `sdk/**` 是稳定 IPC schema、C/C++ 接口与官方语言封装的 Apache-2.0 许可边界。
 
+该目录拥有独立 `Cargo.toml`、`Cargo.lock` 与依赖许可策略，不与 GPL 产品共享 Cargo workspace。
+
 迁移实现必须保持以下约束：
 
 - SDK 只依赖 Apache-2.0 或更宽松且经审计的代码，不得依赖或复制 GPL 截图实现。
