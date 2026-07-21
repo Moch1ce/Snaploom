@@ -60,6 +60,22 @@ export const screenshotUiTheme = {
     horizontalPadding: 8,
     radius: 4,
   },
+  outputStatus: {
+    layer: 5,
+    top: 16,
+    horizontalCenterPercent: 50,
+    horizontalTranslatePercent: -50,
+    viewportInset: 16,
+    maxWidth: 480,
+    paddingBlock: 8,
+    paddingInline: 12,
+    foreground: "#FFFFFF",
+    background: "rgba(176, 36, 39, 0.94)",
+    fontSize: 13,
+    lineHeight: 20,
+    radius: 6,
+    shadow: "0 4px 16px rgba(0, 0, 0, 0.18)",
+  },
   workspaceInset: 8,
 } as const;
 

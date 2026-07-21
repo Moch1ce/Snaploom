@@ -14,6 +14,7 @@ import {
   type AnnotationStyle,
   type AnnotationTool,
 } from "./annotations";
+import type { PreparedOutput } from "./output-workflow";
 
 export const MAX_CAPTURE_BINARY_BYTES = 256 * 1024 * 1024;
 
@@ -500,7 +501,14 @@ export function cropRgba(
   return cropped;
 }
 
-const uiPointerRoles = new Set(["toolbar", "separator", "settings", "textarea", "size-label"]);
+const uiPointerRoles = new Set([
+  "toolbar",
+  "separator",
+  "settings",
+  "textarea",
+  "size-label",
+  "output-status",
+]);
 
 export type PointerRoute = "surface" | "ui" | "cancel";
 
@@ -823,46 +831,84 @@ export class OverlayEditor {
   }
 
   async composePng(): Promise<Uint8Array> {
+    const prepared = await this.prepareOutput();
+    prepared.commit();
+    return prepared.png;
+  }
+
+  async prepareOutput(): Promise<PreparedOutput> {
     this.#assertActive();
-    const textDraft = this.#annotations.snapshotState().textDraft;
-    if (textDraft?.isComposing) throw new Error("text composition is active");
-    if (textDraft) {
-      this.#annotations.commitTextDraft();
+    const checkpoint = this.#annotations.checkpoint();
+    try {
+      const textDraft = this.#annotations.snapshotState().textDraft;
+      if (textDraft?.isComposing) this.#annotations.compositionEnd(textDraft.preedit);
+      if (textDraft) this.#annotations.commitTextDraft();
       this.#options.onAnnotationStateChange?.(
         this.#annotations.snapshotState(),
       );
+      const selection = this.#model.snapshotState().selection;
+      if (!selection) throw new Error("selection required");
+      const png = await this.#encodePng(selection);
+      let settled = false;
+      return {
+        png,
+        pixelWidth: selection.width,
+        pixelHeight: selection.height,
+        commit: () => {
+          settled = true;
+        },
+        rollback: () => {
+          if (settled) return;
+          settled = true;
+          this.#annotations.restoreCheckpoint(checkpoint);
+          this.#annotationStateChanged();
+        },
+      };
+    } catch (error) {
+      this.#annotations.restoreCheckpoint(checkpoint);
+      this.#annotationStateChanged();
+      throw error;
     }
-    const selection = this.#model.snapshotState().selection;
-    if (!selection) throw new Error("selection required");
+  }
+
+  async #encodePng(selection: Rect): Promise<Uint8Array> {
     const pixels = cropRgba(
       this.#rgba,
       this.#snapshot.physicalSize.width,
       selection,
     );
-    const output = document.createElement("canvas");
-    output.width = selection.width;
-    output.height = selection.height;
-    const context = output.getContext("2d", { alpha: true });
-    if (!context) throw new Error("2D canvas unavailable");
-    context.putImageData(new ImageData(pixels, selection.width, selection.height), 0, 0);
-    renderAnnotations(context, this.#annotations.renderPlan(), {
-      scale: this.#model.scale,
-      offset: { x: selection.x, y: selection.y },
-      showSelection: false,
-      mosaic: {
-        source: this.#sourceCanvas,
-        cache: this.#mosaicCache,
-        frame: this.#snapshot.physicalSize,
-      },
-    });
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      output.toBlob(
-        (value) => (value ? resolve(value) : reject(new Error("PNG encoding failed"))),
-        "image/png",
+    try {
+      const output = document.createElement("canvas");
+      output.width = selection.width;
+      output.height = selection.height;
+      const context = output.getContext("2d", { alpha: true });
+      if (!context) throw new Error("2D canvas unavailable");
+      context.putImageData(
+        new ImageData(pixels, selection.width, selection.height),
+        0,
+        0,
       );
-    });
-    pixels.fill(0);
-    return new Uint8Array(await blob.arrayBuffer());
+      renderAnnotations(context, this.#annotations.renderPlan(), {
+        scale: this.#model.scale,
+        offset: { x: selection.x, y: selection.y },
+        showSelection: false,
+        mosaic: {
+          source: this.#sourceCanvas,
+          cache: this.#mosaicCache,
+          frame: this.#snapshot.physicalSize,
+        },
+      });
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        output.toBlob(
+          (value) =>
+            value ? resolve(value) : reject(new Error("PNG encoding failed")),
+          "image/png",
+        );
+      });
+      return new Uint8Array(await blob.arrayBuffer());
+    } finally {
+      pixels.fill(0);
+    }
   }
 
   dispose(): void {

@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { routePointerPath } from "../src/app";
 
 describe("root capture-phase pointer isolation", () => {
-  it.each(["toolbar", "separator", "settings", "textarea", "size-label"])(
+  it.each([
+    "toolbar",
+    "separator",
+    "settings",
+    "textarea",
+    "size-label",
+    "output-status",
+  ])(
     "keeps %s pointer gestures out of the screenshot surface",
     (role) => {
       expect(routePointerPath(0, [role, "root"])).toBe("ui");

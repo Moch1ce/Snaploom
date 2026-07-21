@@ -18,6 +18,23 @@ function createText(session: AnnotationSession, text = "中文\nEnglish"): strin
 }
 
 describe("text annotation and reusable IME draft", () => {
+  it("restores draft, tool, selection, and history from an output checkpoint", () => {
+    const session = new AnnotationSession({ selection, scale });
+    session.setTool("text", true);
+    session.pointerDown({ x: 100, y: 80 });
+    session.pointerUp({ x: 100, y: 80 });
+    session.updateTextDraft("中文 draft");
+    const checkpoint = session.checkpoint();
+    const before = session.snapshotState();
+
+    session.commitTextDraft();
+    session.setTool("rectangle", false);
+    expect(session.snapshotState()).not.toEqual(before);
+
+    session.restoreCheckpoint(checkpoint);
+    expect(session.snapshotState()).toEqual(before);
+  });
+
   it("tracks committed and pre-edit text without creating a permanent DOM object", () => {
     const session = new AnnotationSession({ selection, scale });
     session.setTool("text", true);

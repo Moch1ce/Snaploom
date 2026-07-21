@@ -130,6 +130,32 @@ body {
   border-radius: 4px;
 }
 
+.output-status {
+  position: absolute;
+  z-index: var(--output-status-layer);
+  top: var(--output-status-top);
+  left: var(--output-status-horizontal-center);
+  box-sizing: border-box;
+  max-width: min(
+    var(--output-status-max-width),
+    calc(100% - var(--output-status-viewport-margin))
+  );
+  padding: var(--output-status-padding-block)
+    var(--output-status-padding-inline);
+  color: var(--output-status-foreground);
+  font-size: var(--output-status-font-size);
+  line-height: var(--output-status-line-height);
+  text-align: center;
+  background: var(--output-status-background);
+  border-radius: var(--output-status-radius);
+  box-shadow: var(--output-status-shadow);
+  transform: translateX(var(--output-status-horizontal-translate));
+}
+
+.output-status[hidden] {
+  display: none;
+}
+
 .annotation-settings {
   position: absolute;
   z-index: 3;

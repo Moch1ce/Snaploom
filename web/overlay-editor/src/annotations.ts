@@ -116,6 +116,27 @@ export interface AnnotationState {
   readonly textDraft: TextDraft | null;
 }
 
+interface AnnotationCheckpointHistory {
+  readonly objects: readonly AnnotationObject[];
+  readonly selectedId: string | null;
+}
+
+/** Editor transaction snapshot used only to roll back failed native output. */
+export interface AnnotationCheckpoint {
+  readonly selection: Rect;
+  readonly objects: readonly AnnotationObject[];
+  readonly selectedId: string | null;
+  readonly tool: AnnotationTool;
+  readonly style: AnnotationStyle;
+  readonly settingsOpen: "rectangle" | "arrow" | "text" | "mosaic" | null;
+  readonly undo: readonly AnnotationCheckpointHistory[];
+  readonly redo: readonly AnnotationCheckpointHistory[];
+  readonly textDraft: TextDraft | null;
+  readonly textDraftBefore: AnnotationCheckpointHistory | null;
+  readonly everEdited: boolean;
+  readonly nextId: number;
+}
+
 export interface ShortcutInput {
   readonly key: string;
   readonly metaKey?: boolean;
@@ -232,6 +253,23 @@ function cloneObject(object: AnnotationObject): AnnotationObject {
 
 function cloneObjects(objects: readonly AnnotationObject[]): AnnotationObject[] {
   return objects.map(cloneObject);
+}
+
+function cloneHistoryEntry(entry: HistoryEntry): HistoryEntry {
+  return {
+    objects: cloneObjects(entry.objects),
+    selectedId: entry.selectedId,
+  };
+}
+
+function cloneTextDraft(draft: TextDraft | null): TextDraft | null {
+  return draft
+    ? {
+        ...draft,
+        origin: clonePoint(draft.origin),
+        style: cloneStyle(draft.style),
+      }
+    : null;
 }
 
 function distanceToSegment(point: Point, start: Point, end: Point): number {
@@ -973,13 +1011,47 @@ export class AnnotationSession {
       everEdited: this.#everEdited,
       gestureActive: this.#gesture !== null,
       textDraft: this.#textDraft
-        ? {
-            ...this.#textDraft,
-            origin: clonePoint(this.#textDraft.origin),
-            style: cloneStyle(this.#textDraft.style),
-          }
+        ? cloneTextDraft(this.#textDraft)
         : null,
     };
+  }
+
+  checkpoint(): AnnotationCheckpoint {
+    if (this.#gesture) throw new Error("cannot checkpoint an active annotation gesture");
+    return {
+      selection: { ...this.#selection },
+      objects: cloneObjects(this.#objects),
+      selectedId: this.#selectedId,
+      tool: this.#tool,
+      style: cloneStyle(this.#style),
+      settingsOpen: this.#settingsOpen,
+      undo: this.#undo.map(cloneHistoryEntry),
+      redo: this.#redo.map(cloneHistoryEntry),
+      textDraft: cloneTextDraft(this.#textDraft),
+      textDraftBefore: this.#textDraftBefore
+        ? cloneHistoryEntry(this.#textDraftBefore)
+        : null,
+      everEdited: this.#everEdited,
+      nextId: this.#nextId,
+    };
+  }
+
+  restoreCheckpoint(checkpoint: AnnotationCheckpoint): void {
+    this.#selection = { ...checkpoint.selection };
+    this.#objects = cloneObjects(checkpoint.objects);
+    this.#selectedId = checkpoint.selectedId;
+    this.#tool = checkpoint.tool;
+    this.#style = cloneStyle(checkpoint.style);
+    this.#settingsOpen = checkpoint.settingsOpen;
+    this.#undo = checkpoint.undo.map(cloneHistoryEntry);
+    this.#redo = checkpoint.redo.map(cloneHistoryEntry);
+    this.#gesture = null;
+    this.#textDraft = cloneTextDraft(checkpoint.textDraft);
+    this.#textDraftBefore = checkpoint.textDraftBefore
+      ? cloneHistoryEntry(checkpoint.textDraftBefore)
+      : null;
+    this.#everEdited = checkpoint.everEdited;
+    this.#nextId = checkpoint.nextId;
   }
 
   renderPlan(): AnnotationRenderPlan {

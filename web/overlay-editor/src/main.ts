@@ -18,16 +18,29 @@ import {
   type CaptureSnapshot,
   type OverlayEditorState,
 } from "./app";
+import {
+  OutputWorkflow,
+  type NativeOutputPort,
+  type OutputEvent,
+  type OutputOutcome,
+  type OutputWorkflowState,
+} from "./output-workflow";
 import "./style.css";
 
 declare global {
   interface Window {
+    __SNAPLOOM_NATIVE_OUTPUT__?: NativeOutputPort;
+    __TAURI_INTERNALS__?: unknown;
     __SNAPLOOM_OVERLAY__: {
       readonly editor: OverlayEditor;
       readonly snapshot: CaptureSnapshot;
       lastPng: Uint8Array | null;
+      lastNativeClipboard: Uint8Array | null;
+      lastNativeSave: Uint8Array | null;
       readonly cancel: () => void;
-      readonly complete: () => Promise<Uint8Array>;
+      readonly complete: () => Promise<OutputOutcome>;
+      readonly copyAndContinue: () => Promise<OutputOutcome>;
+      readonly save: () => Promise<OutputOutcome>;
     };
   }
 }
@@ -43,10 +56,67 @@ root.style.setProperty("--surface", screenshotUiTheme.colors.surface);
 root.style.setProperty("--border", screenshotUiTheme.colors.border);
 root.style.setProperty("--hover", screenshotUiTheme.colors.hover);
 root.style.setProperty("--selected", screenshotUiTheme.colors.selected);
+root.style.setProperty(
+  "--output-status-layer",
+  String(screenshotUiTheme.outputStatus.layer),
+);
+root.style.setProperty(
+  "--output-status-top",
+  `${screenshotUiTheme.outputStatus.top}px`,
+);
+root.style.setProperty(
+  "--output-status-horizontal-center",
+  `${screenshotUiTheme.outputStatus.horizontalCenterPercent}%`,
+);
+root.style.setProperty(
+  "--output-status-horizontal-translate",
+  `${screenshotUiTheme.outputStatus.horizontalTranslatePercent}%`,
+);
+root.style.setProperty(
+  "--output-status-viewport-margin",
+  `${screenshotUiTheme.outputStatus.viewportInset * 2}px`,
+);
+root.style.setProperty(
+  "--output-status-max-width",
+  `${screenshotUiTheme.outputStatus.maxWidth}px`,
+);
+root.style.setProperty(
+  "--output-status-padding-block",
+  `${screenshotUiTheme.outputStatus.paddingBlock}px`,
+);
+root.style.setProperty(
+  "--output-status-padding-inline",
+  `${screenshotUiTheme.outputStatus.paddingInline}px`,
+);
+root.style.setProperty(
+  "--output-status-foreground",
+  screenshotUiTheme.outputStatus.foreground,
+);
+root.style.setProperty(
+  "--output-status-background",
+  screenshotUiTheme.outputStatus.background,
+);
+root.style.setProperty(
+  "--output-status-font-size",
+  `${screenshotUiTheme.outputStatus.fontSize}px`,
+);
+root.style.setProperty(
+  "--output-status-line-height",
+  `${screenshotUiTheme.outputStatus.lineHeight}px`,
+);
+root.style.setProperty(
+  "--output-status-radius",
+  `${screenshotUiTheme.outputStatus.radius}px`,
+);
+root.style.setProperty(
+  "--output-status-shadow",
+  screenshotUiTheme.outputStatus.shadow,
+);
 
 const canvas = document.createElement("canvas");
 canvas.id = "capture-surface";
 canvas.dataset.overlayRole = "canvas";
+canvas.tabIndex = 0;
 canvas.setAttribute("aria-label", "截图编辑画布");
 
 const sizeLabel = document.createElement("output");
@@ -72,25 +142,149 @@ for (const corner of ["nw", "ne", "se", "sw"] as const) {
 textEditorFrame.append(textEditor);
 
 let editor: OverlayEditor;
+let outputWorkflow: OutputWorkflow | undefined;
 let lastPng: Uint8Array | null = null;
+let lastNativeClipboard: Uint8Array | null = null;
+let lastNativeSave: Uint8Array | null = null;
+
+const outputStatus = document.createElement("output");
+outputStatus.className = "output-status";
+outputStatus.dataset.overlayUi = "output-status";
+outputStatus.setAttribute("aria-live", "assertive");
+outputStatus.hidden = true;
 
 function cancel(): void {
+  outputWorkflow?.dispose();
+  clearLocalCaptureResult();
   editor.dispose();
   root.dataset.status = "cancelled";
   root.hidden = true;
 }
 
-async function complete(): Promise<Uint8Array> {
-  const selection = editor.model.snapshotState().selection;
-  const png = await editor.composePng();
+function clearLocalCaptureResult(): void {
   lastPng?.fill(0);
-  lastPng = png;
-  window.__SNAPLOOM_OVERLAY__.lastPng = png;
-  root.dataset.pngBytes = String(png.byteLength);
-  root.dataset.pngWidth = String(selection?.width ?? 0);
-  root.dataset.pngHeight = String(selection?.height ?? 0);
-  root.dataset.status = "completed";
-  return png;
+  lastPng = null;
+  if (window.__SNAPLOOM_OVERLAY__) {
+    window.__SNAPLOOM_OVERLAY__.lastPng = null;
+  }
+  delete root.dataset.pngBytes;
+  delete root.dataset.pngWidth;
+  delete root.dataset.pngHeight;
+}
+
+function invalidateOutput(): void {
+  if (!outputWorkflow || outputWorkflow.snapshot().busy) return;
+  outputWorkflow.invalidate();
+  clearLocalCaptureResult();
+}
+
+function applyOutputOutcome(outcome: OutputOutcome): OutputOutcome {
+  if (outcome.kind === "completed" || outcome.kind === "continued") {
+    const png = outcome.png.slice();
+    lastPng?.fill(0);
+    lastPng = png;
+    window.__SNAPLOOM_OVERLAY__.lastPng = png;
+    root.dataset.pngBytes = String(png.byteLength);
+    root.dataset.pngWidth = String(outcome.pixelWidth);
+    root.dataset.pngHeight = String(outcome.pixelHeight);
+    root.dataset.status = outcome.kind === "completed" ? "completed" : "copied";
+  } else if (outcome.kind === "save-cancelled") {
+    root.dataset.status = "ready";
+  } else if (outcome.kind === "recoverable-error") {
+    root.dataset.status = "error";
+  }
+  return outcome;
+}
+
+async function complete(): Promise<OutputOutcome> {
+  return applyOutputOutcome(await outputWorkflow!.complete());
+}
+
+async function copyAndContinue(): Promise<OutputOutcome> {
+  return applyOutputOutcome(await outputWorkflow!.copyAndContinue());
+}
+
+async function save(): Promise<OutputOutcome> {
+  return applyOutputOutcome(await outputWorkflow!.save());
+}
+
+function updateOutputUi(state: OutputWorkflowState): void {
+  root.dataset.outputBusy = String(state.busy);
+  root.dataset.outputError = state.error ?? "";
+  for (const action of ["save", "complete"] as const) {
+    const button = toolbar.querySelector<HTMLButtonElement>(
+      `[data-action="${action}"]`,
+    );
+    if (button) button.disabled = state.busy;
+  }
+  outputStatus.hidden = state.error === null;
+  outputStatus.textContent =
+    state.error === "clipboard-write-failed"
+      ? "复制失败，请重试"
+      : state.error === "save-failed"
+        ? "保存失败，请更换位置后重试"
+        : state.error === "png-encode-failed"
+          ? "图片生成失败，请重试"
+          : state.error === "overlay-close-failed"
+            ? "截图窗口关闭失败"
+            : state.error === "overlay-restore-failed"
+              ? "截图窗口恢复失败，请重新唤起截图"
+            : "";
+}
+
+function browserOutputPort(): NativeOutputPort {
+  return {
+    async writePngClipboard(png) {
+      lastNativeClipboard?.fill(0);
+      lastNativeClipboard = png.slice();
+      window.__SNAPLOOM_OVERLAY__.lastNativeClipboard = lastNativeClipboard;
+    },
+    async savePng(_request, png) {
+      const scripted =
+        root.dataset.nextSaveDisposition ??
+        new URLSearchParams(window.location.search).get("save");
+      delete root.dataset.nextSaveDisposition;
+      if (scripted === "failed") throw new Error("scripted native save failure");
+      if (scripted === "cancelled") return "cancelled";
+      lastNativeSave?.fill(0);
+      lastNativeSave = png.slice();
+      window.__SNAPLOOM_OVERLAY__.lastNativeSave = lastNativeSave;
+      return "saved";
+    },
+    async setOverlayVisible(visible) {
+      root.hidden = !visible;
+      root.dataset.overlayVisible = String(visible);
+    },
+    async closeOverlay() {
+      root.hidden = true;
+      root.dataset.overlayVisible = "false";
+    },
+  };
+}
+
+function unavailableOutputPort(): NativeOutputPort {
+  const unavailable = async (): Promise<never> => {
+    throw new Error("native output port unavailable");
+  };
+  return {
+    writePngClipboard: unavailable,
+    savePng: unavailable,
+    setOverlayVisible: unavailable,
+    closeOverlay: unavailable,
+  };
+}
+
+function resolveOutputPort(): NativeOutputPort {
+  if (window.__SNAPLOOM_NATIVE_OUTPUT__) return window.__SNAPLOOM_NATIVE_OUTPUT__;
+  if (window.__TAURI_INTERNALS__) return unavailableOutputPort();
+  return window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "localhost"
+    ? browserOutputPort()
+    : unavailableOutputPort();
+}
+
+function recordOutputEvent(event: OutputEvent): void {
+  root.dataset.lastOutputEvent = event;
 }
 
 function onToolbarAction(action: ScreenshotToolbarAction): void {
@@ -104,6 +298,7 @@ function onToolbarAction(action: ScreenshotToolbarAction): void {
   }
   if (action === "undo") editor.undoAnnotation();
   if (action === "redo") editor.redoAnnotation();
+  if (action === "save") void save();
   if (action === "cancel") cancel();
   if (action === "complete") void complete();
 }
@@ -114,6 +309,7 @@ const toolbar = createScreenshotToolbar({
     "arrow",
     "text",
     "mosaic",
+    "save",
     "cancel",
     "complete",
   ]),
@@ -208,7 +404,14 @@ settingsFlyout.append(
   mosaicBrushGroup,
   mosaicBlockGroup,
 );
-root.append(canvas, sizeLabel, toolbar, settingsFlyout, textEditorFrame);
+root.append(
+  canvas,
+  sizeLabel,
+  toolbar,
+  settingsFlyout,
+  textEditorFrame,
+  outputStatus,
+);
 
 function updateAnnotationUi(state: AnnotationState): void {
   root.dataset.annotationTool = state.tool;
@@ -345,22 +548,38 @@ editor = new OverlayEditor(
       canvas.dataset.status = "ready";
     },
     onStateChange: (state: OverlayEditorState) => {
+      invalidateOutput();
       root.dataset.phase = state.phase;
       root.dataset.hasSelection = String(state.selection !== null);
     },
-    onAnnotationStateChange: updateAnnotationUi,
+    onAnnotationStateChange: (state) => {
+      invalidateOutput();
+      updateAnnotationUi(state);
+    },
   },
 );
 updateAnnotationUi(editor.annotations.snapshotState());
 new Uint8Array(capture.binary).fill(0);
 capture.binary = new ArrayBuffer(0);
 
+outputWorkflow = new OutputWorkflow({
+  composer: { prepare: () => editor.prepareOutput() },
+  port: resolveOutputPort(),
+  record: recordOutputEvent,
+  onStateChange: updateOutputUi,
+});
+updateOutputUi(outputWorkflow.snapshot());
+
 window.__SNAPLOOM_OVERLAY__ = {
   editor,
   snapshot: capture.snapshot,
   lastPng,
+  lastNativeClipboard,
+  lastNativeSave,
   cancel,
   complete,
+  copyAndContinue,
+  save,
 };
 
 function localPoint(
@@ -426,6 +645,16 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     event.preventDefault();
     cancel();
+    return;
+  }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c") {
+    event.preventDefault();
+    void copyAndContinue();
+    return;
+  }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    void save();
     return;
   }
   const textDraft = editor.annotations.snapshotState().textDraft;
