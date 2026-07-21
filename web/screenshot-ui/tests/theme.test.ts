@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  projectMagnifier,
+  projectPixelSample,
   projectFloatingUi,
   screenshotUiTheme,
   toolbarLogicalWidth,
@@ -25,6 +27,14 @@ describe("Screenshot UI contract", () => {
       radius: 8,
     });
     expect(screenshotUiTheme.selection.outlineWidth).toBe(2);
+    expect(screenshotUiTheme.magnifier).toMatchObject({
+      size: 132,
+      samplePhysicalSize: 55,
+      pointerGap: 16,
+      viewportInset: 8,
+      crosshairSize: 16,
+      crosshairWidth: 2,
+    });
     expect(screenshotUiTheme.outputStatus).toEqual({
       layer: 5,
       top: 16,
@@ -45,6 +55,31 @@ describe("Screenshot UI contract", () => {
 
   it("keeps the nine-button toolbar width stable", () => {
     expect(toolbarLogicalWidth()).toBe(430);
+  });
+
+  it("projects the pixel magnifier beside the pointer and flips at viewport edges", () => {
+    const viewport = { x: 0, y: 0, width: 800, height: 450 };
+    expect(projectMagnifier({ x: 320, y: 240 }, viewport)).toEqual({
+      x: 336,
+      y: 256,
+      width: 132,
+      height: 132,
+    });
+    expect(projectMagnifier({ x: 790, y: 440 }, viewport)).toEqual({
+      x: 642,
+      y: 292,
+      width: 132,
+      height: 132,
+    });
+  });
+
+  it("keeps a 55 physical-pixel sample centered and clamped to the frame", () => {
+    expect(
+      projectPixelSample({ x: 320, y: 240 }, { width: 1280, height: 720 }),
+    ).toEqual({ x: 293, y: 213, width: 55, height: 55 });
+    expect(
+      projectPixelSample({ x: 2, y: 719 }, { width: 1280, height: 720 }),
+    ).toEqual({ x: 0, y: 665, width: 55, height: 55 });
   });
 
   it("places toolbar below, inside, or above without crossing workspace", () => {

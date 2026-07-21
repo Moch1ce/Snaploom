@@ -8,6 +8,11 @@ export interface Rect extends Point {
   readonly height: number;
 }
 
+export interface Size {
+  readonly width: number;
+  readonly height: number;
+}
+
 export type ToolbarPlacement = "below" | "inside" | "above";
 
 export interface FloatingUiProjection {
@@ -60,6 +65,19 @@ export const screenshotUiTheme = {
     horizontalPadding: 8,
     radius: 4,
   },
+  magnifier: {
+    size: 132,
+    samplePhysicalSize: 55,
+    pointerGap: 16,
+    viewportInset: 8,
+    radius: 8,
+    borderWidth: 1,
+    crosshairSize: 16,
+    crosshairWidth: 2,
+    shadowColor: "rgba(0, 0, 0, 0.18)",
+    shadowBlur: 20,
+    shadowOffsetY: 6,
+  },
   outputStatus: {
     layer: 5,
     top: 16,
@@ -95,6 +113,53 @@ export function toolbarLogicalWidth(): number {
 function clamp(value: number, minimum: number, maximum: number): number {
   if (maximum < minimum) return minimum;
   return Math.min(Math.max(value, minimum), maximum);
+}
+
+export function projectMagnifier(pointer: Point, viewport: Rect): Rect {
+  const magnifier = screenshotUiTheme.magnifier;
+  const right = viewport.x + viewport.width - magnifier.viewportInset;
+  const bottom = viewport.y + viewport.height - magnifier.viewportInset;
+  const minimumX = viewport.x + magnifier.viewportInset;
+  const minimumY = viewport.y + magnifier.viewportInset;
+  const preferredX = pointer.x + magnifier.pointerGap;
+  const preferredY = pointer.y + magnifier.pointerGap;
+  const x =
+    preferredX + magnifier.size <= right
+      ? preferredX
+      : pointer.x - magnifier.pointerGap - magnifier.size;
+  const y =
+    preferredY + magnifier.size <= bottom
+      ? preferredY
+      : pointer.y - magnifier.pointerGap - magnifier.size;
+  return {
+    x: clamp(x, minimumX, right - magnifier.size),
+    y: clamp(y, minimumY, bottom - magnifier.size),
+    width: magnifier.size,
+    height: magnifier.size,
+  };
+}
+
+export function projectPixelSample(pointerPhysical: Point, frame: Size): Rect {
+  const sampleSize = Math.min(
+    screenshotUiTheme.magnifier.samplePhysicalSize,
+    frame.width,
+    frame.height,
+  );
+  const sampleRadius = Math.floor(sampleSize / 2);
+  return {
+    x: clamp(
+      Math.floor(pointerPhysical.x) - sampleRadius,
+      0,
+      frame.width - sampleSize,
+    ),
+    y: clamp(
+      Math.floor(pointerPhysical.y) - sampleRadius,
+      0,
+      frame.height - sampleSize,
+    ),
+    width: sampleSize,
+    height: sampleSize,
+  };
 }
 
 export function projectFloatingUi(

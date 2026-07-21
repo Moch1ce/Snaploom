@@ -1,4 +1,6 @@
 import {
+  projectMagnifier,
+  projectPixelSample,
   projectFloatingUi,
   screenshotUiTheme,
   type FloatingUiProjection,
@@ -55,6 +57,7 @@ export interface OverlayEditorState {
   readonly previewSelection: Rect | null;
   readonly snapCandidate: WindowCandidate | null;
   readonly snapEnabled: boolean;
+  readonly pointerPhysical: Point;
   readonly phase: "idle" | "selecting" | "moving" | "resizing" | "disposed";
 }
 
@@ -218,6 +221,7 @@ export class OverlayEditorModel {
   #selection: Rect | null = null;
   #snapCandidate: WindowCandidate | null = null;
   #snapEnabled = false;
+  #pointerPhysical: Point;
   #drag: DragState | null = null;
   #disposed = false;
 
@@ -227,6 +231,7 @@ export class OverlayEditorModel {
       scaleX: snapshot.physicalSize.width / snapshot.logicalSize.width,
       scaleY: snapshot.physicalSize.height / snapshot.logicalSize.height,
     };
+    this.#pointerPhysical = snapshot.pointerPhysical;
   }
 
   get scale(): SnapshotScale {
@@ -243,6 +248,7 @@ export class OverlayEditorModel {
   pointerDown(point: Point): void {
     this.#assertActive();
     const physical = logicalPointToPhysical(point, this.#scale);
+    this.#pointerPhysical = physical;
     const handle = this.#selection
       ? this.#hitHandle(physical, 6 * Math.max(this.#scale.scaleX, this.#scale.scaleY))
       : null;
@@ -268,6 +274,7 @@ export class OverlayEditorModel {
 
   pointerMove(point: Point): void {
     this.#assertActive();
+    this.#pointerPhysical = logicalPointToPhysical(point, this.#scale);
     const initialPointerLogical = {
       x: this.#snapshot.pointerPhysical.x / this.#scale.scaleX,
       y: this.#snapshot.pointerPhysical.y / this.#scale.scaleY,
@@ -292,6 +299,7 @@ export class OverlayEditorModel {
 
   pointerUp(point: Point): void {
     this.#assertActive();
+    this.#pointerPhysical = logicalPointToPhysical(point, this.#scale);
     if (!this.#drag) return;
     this.#drag.current = point;
     if (this.#drag.kind === "select") {
@@ -334,6 +342,7 @@ export class OverlayEditorModel {
       previewSelection,
       snapCandidate: this.#snapCandidate,
       snapEnabled: this.#snapEnabled,
+      pointerPhysical: this.#pointerPhysical,
       phase: this.#disposed
         ? "disposed"
         : this.#drag?.kind === "select"
@@ -752,6 +761,7 @@ export class OverlayEditor {
     if (!selection) {
       this.#elements.toolbar.style.visibility = "hidden";
       this.#elements.sizeLabel.style.visibility = "hidden";
+      this.#drawMagnifier(context, state.pointerPhysical);
       return;
     }
     context.fillStyle = screenshotUiTheme.colors.overlayMask;
@@ -977,6 +987,88 @@ export class OverlayEditor {
     label.visibility = "visible";
     this.#elements.sizeLabel.dataset.placement = projection.sizeLabel.placement;
     return projection;
+  }
+
+  #drawMagnifier(
+    context: CanvasRenderingContext2D,
+    pointerPhysical: Point,
+  ): void {
+    const scale = this.#model.scale;
+    const magnifier = screenshotUiTheme.magnifier;
+    const card = projectMagnifier(
+      {
+        x: pointerPhysical.x / scale.scaleX,
+        y: pointerPhysical.y / scale.scaleY,
+      },
+      {
+        x: 0,
+        y: 0,
+        width: this.#snapshot.logicalSize.width,
+        height: this.#snapshot.logicalSize.height,
+      },
+    );
+    const sample = projectPixelSample(
+      pointerPhysical,
+      this.#snapshot.physicalSize,
+    );
+    const x = card.x * scale.scaleX;
+    const y = card.y * scale.scaleY;
+    const width = card.width * scale.scaleX;
+    const height = card.height * scale.scaleY;
+    const radius = magnifier.radius * Math.min(scale.scaleX, scale.scaleY);
+    const borderX = magnifier.borderWidth * scale.scaleX;
+    const borderY = magnifier.borderWidth * scale.scaleY;
+
+    context.save();
+    context.fillStyle = screenshotUiTheme.colors.surface;
+    context.shadowColor = magnifier.shadowColor;
+    context.shadowBlur =
+      magnifier.shadowBlur * Math.min(scale.scaleX, scale.scaleY);
+    context.shadowOffsetY = magnifier.shadowOffsetY * scale.scaleY;
+    context.beginPath();
+    context.roundRect(x, y, width, height, radius);
+    context.fill();
+    context.restore();
+
+    context.save();
+    context.beginPath();
+    context.roundRect(x, y, width, height, radius);
+    context.clip();
+    context.imageSmoothingEnabled = false;
+    context.drawImage(
+      this.#sourceCanvas,
+      sample.x,
+      sample.y,
+      sample.width,
+      sample.height,
+      x + borderX,
+      y + borderY,
+      width - borderX * 2,
+      height - borderY * 2,
+    );
+    context.restore();
+
+    context.save();
+    context.strokeStyle = screenshotUiTheme.colors.border;
+    context.lineWidth =
+      magnifier.borderWidth * Math.min(scale.scaleX, scale.scaleY);
+    context.beginPath();
+    context.roundRect(x, y, width, height, radius);
+    context.stroke();
+    context.strokeStyle = screenshotUiTheme.colors.brand;
+    context.lineWidth =
+      magnifier.crosshairWidth * Math.min(scale.scaleX, scale.scaleY);
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+    const halfCrosshairX = (magnifier.crosshairSize * scale.scaleX) / 2;
+    const halfCrosshairY = (magnifier.crosshairSize * scale.scaleY) / 2;
+    context.beginPath();
+    context.moveTo(centerX - halfCrosshairX, centerY);
+    context.lineTo(centerX + halfCrosshairX, centerY);
+    context.moveTo(centerX, centerY - halfCrosshairY);
+    context.lineTo(centerX, centerY + halfCrosshairY);
+    context.stroke();
+    context.restore();
   }
 
   #assertActive(): void {

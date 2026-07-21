@@ -58,11 +58,13 @@ describe("OverlayEditor physical selection contract", () => {
   it("suppresses initial snap until movement, then picks visual frontmost window", () => {
     const model = new OverlayEditorModel(snapshot);
     expect(model.snapshotState().snapCandidate).toBeNull();
+    expect(model.snapshotState().pointerPhysical).toEqual({ x: 100, y: 120 });
     model.pointerDown({ x: 80, y: 60 });
     model.pointerUp({ x: 80, y: 60 });
     expect(model.snapshotState().selection).toBeNull();
 
     model.pointerMove({ x: 81, y: 61 });
+    expect(model.snapshotState().pointerPhysical).toEqual({ x: 101, y: 122 });
     expect(model.snapshotState().snapCandidate?.stableId).toBe("front");
     model.pointerDown({ x: 81, y: 61 });
     model.pointerUp({ x: 81, y: 61 });
