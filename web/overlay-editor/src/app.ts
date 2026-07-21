@@ -5,6 +5,13 @@ import {
   type Point,
   type Rect,
 } from "@snaploom/screenshot-ui";
+import {
+  AnnotationSession,
+  renderAnnotations,
+  type AnnotationState,
+  type AnnotationStyle,
+  type AnnotationTool,
+} from "./annotations";
 
 export const MAX_CAPTURE_BINARY_BYTES = 256 * 1024 * 1024;
 
@@ -221,6 +228,13 @@ export class OverlayEditorModel {
 
   get scale(): SnapshotScale {
     return this.#scale;
+  }
+
+  selectionHandleAt(point: Point): SelectionHandle["kind"] | null {
+    return this.#hitHandle(
+      logicalPointToPhysical(point, this.#scale),
+      6 * Math.max(this.#scale.scaleX, this.#scale.scaleY),
+    );
   }
 
   pointerDown(point: Point): void {
@@ -505,6 +519,7 @@ export interface OverlayEditorElements {
 export interface OverlayEditorOptions {
   readonly onReady?: () => void;
   readonly onStateChange?: (state: OverlayEditorState) => void;
+  readonly onAnnotationStateChange?: (state: AnnotationState) => void;
 }
 
 export class OverlayEditor {
@@ -512,9 +527,12 @@ export class OverlayEditor {
   readonly #elements: OverlayEditorElements;
   readonly #options: OverlayEditorOptions;
   readonly #model: OverlayEditorModel;
+  readonly #annotations: AnnotationSession;
   #rgba: Uint8ClampedArray;
   #frameRequest: number | null = null;
   #disposed = false;
+  #gestureOwner: "selection" | "annotation" | null = null;
+  #frozenFloatingUi: FloatingUiProjection | null = null;
 
   constructor(
     snapshot: CaptureSnapshot,
@@ -527,6 +545,15 @@ export class OverlayEditor {
     this.#elements = elements;
     this.#options = options;
     this.#model = new OverlayEditorModel(snapshot);
+    this.#annotations = new AnnotationSession({
+      selection: {
+        x: 0,
+        y: 0,
+        width: snapshot.physicalSize.width,
+        height: snapshot.physicalSize.height,
+      },
+      scale,
+    });
     const source = new Uint8Array(binary);
     this.#rgba = bgraToRgba(
       source,
@@ -553,18 +580,93 @@ export class OverlayEditor {
     return this.#model;
   }
 
+  get annotations(): AnnotationSession {
+    return this.#annotations;
+  }
+
+  setTool(tool: AnnotationTool, openSettings = false): void {
+    this.#annotations.setTool(tool, openSettings);
+    this.#annotationStateChanged();
+  }
+
+  setAnnotationStyle(style: Partial<AnnotationStyle>): void {
+    this.#annotations.setStyle(style);
+    this.#annotationStateChanged();
+  }
+
+  undoAnnotation(): boolean {
+    const changed = this.#annotations.undo();
+    if (changed) this.#annotationStateChanged();
+    return changed;
+  }
+
+  redoAnnotation(): boolean {
+    const changed = this.#annotations.redo();
+    if (changed) this.#annotationStateChanged();
+    return changed;
+  }
+
+  deleteSelectedAnnotation(): boolean {
+    const changed = this.#annotations.deleteSelected();
+    if (changed) this.#annotationStateChanged();
+    return changed;
+  }
+
+  cursorAt(point: Point): string {
+    return this.#annotations.cursorAt(
+      logicalPointToPhysical(point, this.#model.scale),
+    );
+  }
+
   pointerDown(point: Point): void {
+    const state = this.#model.snapshotState();
+    const selection = state.selection;
+    const physical = logicalPointToPhysical(point, this.#model.scale);
+    const annotationState = this.#annotations.snapshotState();
+    if (selection && contains(selection, physical)) {
+      const selectionHandle = this.#model.selectionHandleAt(point);
+      if (!selectionHandle && this.#annotations.pointerDown(physical)) {
+        this.#gestureOwner = "annotation";
+        this.#annotationStateChanged();
+        return;
+      }
+      if (!selectionHandle && annotationState.everEdited) {
+        this.#gestureOwner = null;
+        this.#annotationStateChanged();
+        return;
+      }
+    } else if (selection) {
+      this.#annotations.clear();
+      this.#frozenFloatingUi = null;
+    }
+    this.#gestureOwner = "selection";
     this.#model.pointerDown(point);
     this.#stateChanged();
   }
 
   pointerMove(point: Point): void {
-    this.#model.pointerMove(point);
-    this.#stateChanged();
+    if (this.#gestureOwner === "annotation") {
+      this.#annotations.pointerMove(logicalPointToPhysical(point, this.#model.scale));
+      this.#annotationStateChanged();
+    } else {
+      this.#model.pointerMove(point);
+      this.#stateChanged();
+    }
   }
 
   pointerUp(point: Point): void {
-    this.#model.pointerUp(point);
+    if (this.#gestureOwner === "annotation") {
+      this.#annotations.pointerUp(logicalPointToPhysical(point, this.#model.scale));
+      this.#gestureOwner = null;
+      this.#annotationStateChanged();
+      return;
+    }
+    if (this.#gestureOwner === "selection") {
+      this.#model.pointerUp(point);
+      const selection = this.#model.snapshotState().selection;
+      if (selection) this.#annotations.setSelection(selection);
+    }
+    this.#gestureOwner = null;
     this.#stateChanged();
   }
 
@@ -599,6 +701,22 @@ export class OverlayEditor {
       width,
       height - selection.y - selection.height,
     );
+    if (state.selection) {
+      context.save();
+      context.beginPath();
+      context.rect(
+        state.selection.x,
+        state.selection.y,
+        state.selection.width,
+        state.selection.height,
+      );
+      context.clip();
+      renderAnnotations(context, this.#annotations.renderPlan(), {
+        scale: this.#model.scale,
+        showSelection: true,
+      });
+      context.restore();
+    }
     context.save();
     context.strokeStyle = screenshotUiTheme.colors.brand;
     context.lineWidth =
@@ -647,6 +765,11 @@ export class OverlayEditor {
     const context = output.getContext("2d", { alpha: true });
     if (!context) throw new Error("2D canvas unavailable");
     context.putImageData(new ImageData(pixels, selection.width, selection.height), 0, 0);
+    renderAnnotations(context, this.#annotations.renderPlan(), {
+      scale: this.#model.scale,
+      offset: { x: selection.x, y: selection.y },
+      showSelection: false,
+    });
     const blob = await new Promise<Blob>((resolve, reject) => {
       output.toBlob(
         (value) => (value ? resolve(value) : reject(new Error("PNG encoding failed"))),
@@ -667,6 +790,9 @@ export class OverlayEditor {
     this.#elements.canvas.width = 0;
     this.#elements.canvas.height = 0;
     this.#model.dispose();
+    this.#annotations.clear();
+    this.#gestureOwner = null;
+    this.#frozenFloatingUi = null;
   }
 
   #stateChanged(): void {
@@ -680,13 +806,31 @@ export class OverlayEditor {
     }
   }
 
+  #annotationStateChanged(): void {
+    const state = this.#annotations.snapshotState();
+    this.#options.onAnnotationStateChange?.(state);
+    if (this.#frameRequest === null) {
+      this.#frameRequest = requestAnimationFrame(() => {
+        this.#frameRequest = null;
+        this.render();
+      });
+    }
+  }
+
   #projectFloatingUi(selection: Rect): FloatingUiProjection {
     const logicalSelection = logicalRect(selection, this.#model.scale);
-    const projection = projectFloatingUi(
-      logicalSelection,
-      this.#snapshot.workAreaLogical,
-      this.#elements.sizeLabel.offsetWidth || 92,
-    );
+    const annotationState = this.#annotations.snapshotState();
+    const projection =
+      annotationState.everEdited && this.#frozenFloatingUi
+        ? this.#frozenFloatingUi
+        : projectFloatingUi(
+            logicalSelection,
+            this.#snapshot.workAreaLogical,
+            this.#elements.sizeLabel.offsetWidth || 92,
+          );
+    if (annotationState.everEdited && !this.#frozenFloatingUi) {
+      this.#frozenFloatingUi = projection;
+    }
     const toolbar = this.#elements.toolbar.style;
     toolbar.left = `${projection.toolbar.x}px`;
     toolbar.top = `${projection.toolbar.y}px`;

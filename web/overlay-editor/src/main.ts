@@ -4,6 +4,12 @@ import {
   type ScreenshotToolbarAction,
 } from "@snaploom/screenshot-ui";
 import {
+  ANNOTATION_COLORS,
+  ANNOTATION_STROKE_WIDTHS,
+  annotationShortcut,
+  type AnnotationState,
+} from "./annotations";
+import {
   OverlayEditor,
   routePointerPath,
   type CaptureSnapshot,
@@ -68,15 +74,89 @@ async function complete(): Promise<Uint8Array> {
 }
 
 function onToolbarAction(action: ScreenshotToolbarAction): void {
+  if (action === "rectangle" || action === "arrow") {
+    editor.setTool(action, true);
+  }
+  if (action === "undo") editor.undoAnnotation();
+  if (action === "redo") editor.redoAnnotation();
   if (action === "cancel") cancel();
   if (action === "complete") void complete();
 }
 
 const toolbar = createScreenshotToolbar({
-  enabledActions: new Set(["cancel", "complete"]),
+  enabledActions: new Set(["rectangle", "arrow", "cancel", "complete"]),
   onAction: onToolbarAction,
 });
-root.append(canvas, sizeLabel, toolbar);
+
+const settingsFlyout = document.createElement("section");
+settingsFlyout.className = "annotation-settings";
+settingsFlyout.dataset.overlayUi = "settings";
+settingsFlyout.setAttribute("aria-label", "标注样式");
+settingsFlyout.hidden = true;
+const colorGroup = document.createElement("div");
+colorGroup.className = "annotation-settings__group";
+colorGroup.setAttribute("aria-label", "颜色");
+for (const color of ANNOTATION_COLORS) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "annotation-settings__color";
+  button.dataset.color = color;
+  button.dataset.overlayUi = "settings";
+  button.setAttribute("aria-label", `颜色 ${color}`);
+  button.style.setProperty("--swatch", color);
+  button.addEventListener("click", () => editor.setAnnotationStyle({ color }));
+  colorGroup.append(button);
+}
+const widthGroup = document.createElement("div");
+widthGroup.className = "annotation-settings__group";
+widthGroup.setAttribute("aria-label", "线宽");
+for (const strokeWidth of ANNOTATION_STROKE_WIDTHS) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "annotation-settings__width";
+  button.dataset.strokeWidth = String(strokeWidth);
+  button.dataset.overlayUi = "settings";
+  button.setAttribute("aria-label", `线宽 ${strokeWidth}`);
+  const sample = document.createElement("span");
+  sample.style.height = `${Math.min(strokeWidth, 6)}px`;
+  button.append(sample);
+  button.addEventListener("click", () => editor.setAnnotationStyle({ strokeWidth }));
+  widthGroup.append(button);
+}
+settingsFlyout.append(colorGroup, widthGroup);
+root.append(canvas, sizeLabel, toolbar, settingsFlyout);
+
+function updateAnnotationUi(state: AnnotationState): void {
+  root.dataset.annotationTool = state.tool;
+  root.dataset.annotationCount = String(state.objects.length);
+  for (const action of ["rectangle", "arrow"] as const) {
+    const button = toolbar.querySelector<HTMLButtonElement>(`[data-action="${action}"]`);
+    button?.setAttribute("aria-pressed", String(state.tool === action));
+  }
+  const undo = toolbar.querySelector<HTMLButtonElement>('[data-action="undo"]');
+  const redo = toolbar.querySelector<HTMLButtonElement>('[data-action="redo"]');
+  if (undo) undo.disabled = !state.canUndo;
+  if (redo) redo.disabled = !state.canRedo;
+  settingsFlyout.hidden = state.settingsOpen === null;
+  if (state.settingsOpen) {
+    const anchor = toolbar.querySelector<HTMLElement>(
+      `[data-action="${state.settingsOpen}"]`,
+    );
+    const toolbarLeft = Number.parseFloat(toolbar.style.left || "0");
+    const toolbarTop = Number.parseFloat(toolbar.style.top || "0");
+    settingsFlyout.style.left = `${toolbarLeft + (anchor?.offsetLeft ?? 14)}px`;
+    settingsFlyout.style.top = `${toolbarTop + 52}px`;
+  }
+  for (const button of settingsFlyout.querySelectorAll<HTMLButtonElement>("[data-color]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.color === state.style.color));
+  }
+  for (const button of settingsFlyout.querySelectorAll<HTMLButtonElement>("[data-stroke-width]")) {
+    button.setAttribute(
+      "aria-pressed",
+      String(Number(button.dataset.strokeWidth) === state.style.strokeWidth),
+    );
+  }
+}
 
 function fakeCaptureSnapshot(): { snapshot: CaptureSnapshot; binary: ArrayBuffer } {
   const logicalWidth = 800;
@@ -138,8 +218,10 @@ editor = new OverlayEditor(
       root.dataset.phase = state.phase;
       root.dataset.hasSelection = String(state.selection !== null);
     },
+    onAnnotationStateChange: updateAnnotationUi,
   },
 );
+updateAnnotationUi(editor.annotations.snapshotState());
 new Uint8Array(capture.binary).fill(0);
 capture.binary = new ArrayBuffer(0);
 
@@ -184,7 +266,11 @@ canvas.addEventListener("pointerdown", (event) => {
   canvas.setPointerCapture(event.pointerId);
   editor.pointerDown(localPoint(event));
 });
-canvas.addEventListener("pointermove", (event) => editor.pointerMove(localPoint(event)));
+canvas.addEventListener("pointermove", (event) => {
+  const point = localPoint(event);
+  canvas.style.cursor = editor.cursorAt(point);
+  editor.pointerMove(point);
+});
 canvas.addEventListener("pointerup", (event) => {
   if (event.button !== 0) return;
   editor.pointerUp(localPoint(event));
@@ -201,5 +287,26 @@ window.addEventListener("keydown", (event) => {
   } else if (event.key === "Enter" && editor.model.snapshotState().selection) {
     event.preventDefault();
     void complete();
+  } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+    event.preventDefault();
+    if (event.shiftKey) editor.redoAnnotation();
+    else editor.undoAnnotation();
+  } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "y") {
+    event.preventDefault();
+    editor.redoAnnotation();
+  } else if (event.key === "Delete" || event.key === "Backspace") {
+    if (editor.deleteSelectedAnnotation()) event.preventDefault();
+  } else {
+    const tool = annotationShortcut({
+      key: event.key,
+      metaKey: event.metaKey,
+      ctrlKey: event.ctrlKey,
+      altKey: event.altKey,
+      isComposing: event.isComposing,
+    });
+    if (tool === "rectangle" || tool === "arrow" || tool === "select") {
+      event.preventDefault();
+      editor.setTool(tool, false);
+    }
   }
 });

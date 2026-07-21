@@ -75,6 +75,12 @@ body {
   background: var(--hover);
 }
 
+.screenshot-toolbar__button[aria-pressed="true"]::before {
+  width: 24px;
+  height: 24px;
+  background: var(--selected);
+}
+
 .screenshot-toolbar__button:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: -4px;
@@ -122,4 +128,88 @@ body {
   white-space: nowrap;
   background: rgb(32 33 36 / 92%);
   border-radius: 4px;
+}
+
+.annotation-settings {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 42px;
+  padding: 6px 8px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+}
+
+.annotation-settings::before {
+  position: absolute;
+  top: -5px;
+  left: 16px;
+  width: 8px;
+  height: 8px;
+  content: "";
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  transform: rotate(45deg);
+}
+
+.annotation-settings[hidden] {
+  display: none;
+}
+
+.annotation-settings__group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.annotation-settings__group + .annotation-settings__group {
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+.annotation-settings button {
+  position: relative;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  place-items: center;
+}
+
+.annotation-settings button:hover,
+.annotation-settings button[aria-pressed="true"] {
+  background: var(--hover);
+}
+
+.annotation-settings__color::after {
+  width: 14px;
+  height: 14px;
+  content: "";
+  background: var(--swatch);
+  border: 1px solid rgb(32 33 36 / 20%);
+  border-radius: 50%;
+}
+
+.annotation-settings__color[aria-pressed="true"]::before {
+  position: absolute;
+  inset: 3px;
+  content: "";
+  border: 1px solid var(--brand);
+  border-radius: 4px;
+}
+
+.annotation-settings__width span {
+  display: block;
+  width: 16px;
+  background: currentcolor;
+  border-radius: 999px;
 }
