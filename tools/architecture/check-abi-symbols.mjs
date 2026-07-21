@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { findDumpbin } from "../sdk/windows-tools.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const extension = process.platform === "win32" ? "dll" : process.platform === "darwin" ? "dylib" : "so";
@@ -12,7 +13,7 @@ const expected = (await readFile(join(root, "sdk", "c-abi", "abi-symbols-v1.txt"
   .split("\n")
   .sort();
 
-const command = process.platform === "win32" ? "dumpbin" : "nm";
+const command = process.platform === "win32" ? findDumpbin() : "nm";
 const args = process.platform === "win32"
   ? ["/exports", library]
   : process.platform === "darwin"

@@ -11,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { findDumpbin } from "./windows-tools.mjs";
 
 const repository = fileURLToPath(new URL("../../", import.meta.url));
 
@@ -142,12 +143,13 @@ try {
     }
   } else if (platform === "windows-x64") {
     const dll = join(prefix, "bin", "snaploom_capture.dll");
-    const headers = run("dumpbin", ["/headers", dll]);
+    const dumpbin = findDumpbin();
+    const headers = run(dumpbin, ["/headers", dll]);
     if (!/machine \(x64\)/i.test(headers)) {
       throw new Error("Windows C SDK DLL is not x64");
     }
     const importLibrary = join(prefix, "lib", "snaploom_capture.lib");
-    const members = run("dumpbin", ["/linkermember:1", importLibrary]);
+    const members = run(dumpbin, ["/linkermember:1", importLibrary]);
     const expected = readFileSync(
       join(repository, "sdk", "c-abi", "abi-symbols-v1.txt"),
       "utf8",
