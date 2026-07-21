@@ -1,0 +1,454 @@
+{
+  "schema_version": 1,
+  "contracts": [
+    {
+      "id": "ARCH-01",
+      "title": "授权与二进制边界",
+      "status": "required",
+      "implementation": ["product", "sdk"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "tools/architecture/check-boundaries.mjs", "contains": "Apache SDK boundary violation"}
+      ]
+    },
+    {
+      "id": "APP-01",
+      "title": "常驻形态",
+      "status": "required",
+      "implementation": ["product/apps/desktop", "product/desktop-shell"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "product/apps/desktop/tests/lifecycle_contract.rs", "contains": "desktop_is_tray_only_with_a_hidden_fixed_light_settings_window"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/windows-t03-validation.md", "contains": "Windows 10 22H2 x64 与 Windows 11 x64"}
+      ]
+    },
+    {
+      "id": "APP-02",
+      "title": "单实例",
+      "status": "required",
+      "implementation": ["product/apps/desktop/src/lib.rs"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "product/apps/desktop/tests/lifecycle_contract.rs", "contains": "single_instance_is_initialized_before_other_desktop_plugins"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/macos-t02-validation.md", "contains": "真实捕获必须从已安装且稳定签名的 Snaploom"}
+      ]
+    },
+    {
+      "id": "APP-03",
+      "title": "单 Capture Session",
+      "status": "required",
+      "implementation": ["product/capture-session", "sdk/client"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "product/capture-session/src/lib.rs", "contains": "concurrent_app_and_sdk_requests_have_one_global_winner"}
+      ]
+    },
+    {
+      "id": "APP-04",
+      "title": "默认与可配置快捷键",
+      "status": "required",
+      "implementation": ["product/platform/windows/src/shortcut.rs", "product/platform/macos/src/shell.rs"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "product/platform/windows/src/shortcut.rs", "contains": "conflict_or_rollback_failure_preserves_the_previous_setting"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/windows-t03-validation.md", "contains": "睡眠/唤醒重注册"}
+      ]
+    },
+    {
+      "id": "CAP-01",
+      "title": "当前显示器捕获",
+      "status": "required",
+      "implementation": ["product/platform/contract", "product/platform/windows", "product/platform/macos"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "product/platform/contract/tests/capture_snapshot.rs", "contains": "accepts_only_exact_bounded_premultiplied_bgra_frames"},
+        {"category": "platform", "status": "pending-external", "issue": "#44", "path": "docs/testing/windows-t03-validation.md", "contains": "只覆盖鼠标所在显示器"}
+      ]
+    },
+    {
+      "id": "CAP-02",
+      "title": "平台权限",
+      "status": "required",
+      "implementation": ["product/platform/macos/src/sys.rs", "product/apps/desktop/src/lib.rs"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "product/apps/desktop/tests/lifecycle_contract.rs", "contains": "desktop_permission_commands_use_capture_host_ipc"},
+        {"category": "platform", "status": "pending-external", "issue": "#45", "path": "docs/testing/macos-t02-validation.md", "contains": "首次授权与撤销竞态"}
+      ]
+    },
+    {
+      "id": "CAP-03",
+      "title": "捕获错误恢复",
+      "status": "required",
+      "implementation": ["product/apps/desktop/src/lib.rs", "product/capture-session/src/lib.rs"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "product/apps/desktop/tests/lifecycle_contract.rs", "contains": "recoverable_capture_failures_open_settings_without_disabling_capture"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/macos-t02-validation.md", "contains": "撤销“屏幕与系统音频录制”权限"}
+      ]
+    },
+    {
+      "id": "CAP-04",
+      "title": "窗口候选与桌面回退",
+      "status": "required",
+      "implementation": ["product/platform/windows/src/window_catalog.rs", "product/platform/macos/src/window_catalog.rs", "web/overlay-editor/src/app.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "product/platform/windows/src/window_catalog.rs", "contains": "rejects_each_forbidden_window_class_and_own_process"},
+        {"category": "platform", "status": "pending-external", "issue": "#44", "path": "docs/testing/windows-t03-validation.md", "contains": "核对 Z 序与过滤"}
+      ]
+    },
+    {
+      "id": "CAP-05",
+      "title": "初始吸附抑制",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/app.ts", "web/screenshot-ui/src/index.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/app.test.ts", "contains": "suppresses initial snap until movement"},
+        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "截图浮层刚出现且指针尚未离开"}
+      ]
+    },
+    {
+      "id": "SEL-01",
+      "title": "框选阈值与坐标",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/app.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/app.test.ts", "contains": "rejects sub-threshold and sub-8px selections"}
+      ]
+    },
+    {
+      "id": "SEL-02",
+      "title": "选区显示与缩放",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/app.ts", "web/screenshot-ui/src/index.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/app.test.ts", "contains": "projects exactly eight deterministic resize handles"},
+        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "共 8 个控制点"}
+      ]
+    },
+    {
+      "id": "SEL-03",
+      "title": "整体移动与标注锁定",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/app.ts", "web/overlay-editor/src/annotations.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/app.test.ts", "contains": "moves, clamps, resizes, and replaces an existing selection"}
+      ]
+    },
+    {
+      "id": "SEL-04",
+      "title": "替换选区",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/app.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/app.test.ts", "contains": "replaces an existing selection"}
+      ]
+    },
+    {
+      "id": "UI-01",
+      "title": "固定浅色与品牌令牌",
+      "status": "required",
+      "implementation": ["web/screenshot-ui/src/index.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/screenshot-ui/tests/theme.test.ts", "contains": "freezes the documented light theme and brand geometry"},
+        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "固定使用浅色界面"}
+      ]
+    },
+    {
+      "id": "UI-02",
+      "title": "尺寸标签与工具栏",
+      "status": "required",
+      "implementation": ["web/screenshot-ui/src/index.ts", "web/overlay-editor/src/app.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/screenshot-ui/tests/theme.test.ts", "contains": "keeps the nine-button toolbar width stable"},
+        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "矩形、箭头、文字和马赛克"}
+      ]
+    },
+    {
+      "id": "UI-03",
+      "title": "浮动 UI 定位",
+      "status": "required",
+      "implementation": ["web/screenshot-ui/src/index.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/screenshot-ui/tests/theme.test.ts", "contains": "places toolbar below, inside, or above without crossing workspace"},
+        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "选区内部右下角"}
+      ]
+    },
+    {
+      "id": "UI-04",
+      "title": "工具设置浮层",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/app.ts", "web/overlay-editor/src/style.css"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/annotations.test.ts", "contains": "settingsOpen: \"rectangle\""},
+        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "独立同窗浮层"}
+      ]
+    },
+    {
+      "id": "ANN-01",
+      "title": "对象模型与渲染顺序",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/annotations.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/annotations.test.ts", "contains": "creates non-destructive objects in visual order"},
+        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "非破坏性对象保存"}
+      ]
+    },
+    {
+      "id": "ANN-02",
+      "title": "工具与快捷键",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/annotations.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/annotations.test.ts", "contains": "maps unmodified R/A/V shortcuts and leaves modified keys alone"}
+      ]
+    },
+    {
+      "id": "ANN-03",
+      "title": "样式预设",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/annotations.ts", "product/apps/capture-host/src/preferences.rs"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/annotations.test.ts", "contains": "freezes the six-color and three-width style contract"},
+        {"category": "automatic", "status": "verified", "path": "product/apps/capture-host/src/preferences.rs", "contains": "round_trips_valid_style_and_recent_directory"},
+        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "标注色板固定为"}
+      ]
+    },
+    {
+      "id": "ANN-04",
+      "title": "选择、移动与缩放",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/annotations.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/annotations.test.ts", "contains": "moves, resizes, styles, deletes, undoes, and redoes selected objects"}
+      ]
+    },
+    {
+      "id": "ANN-05",
+      "title": "光标反馈",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/app.ts", "web/overlay-editor/src/annotations.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/annotations.test.ts", "contains": "cursorAt({ x: 110, y: 150 })"},
+        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "悬停在标注对象上显示移动光标"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/windows-t03-validation.md", "contains": "overlay 可交互"}
+      ]
+    },
+    {
+      "id": "ANN-06",
+      "title": "文字输入与 IME",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/annotations.ts", "web/overlay-editor/src/app.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/text-annotations.test.ts", "contains": "tracks committed and pre-edit text without creating a permanent DOM object"},
+        {"category": "visual", "status": "pending-external", "issue": "#41", "path": "docs/ui/screenshot-ui.md", "contains": "系统输入法和组合输入"},
+        {"category": "platform", "status": "pending-external", "issue": "#41", "path": "docs/testing/macos-t02-validation.md", "contains": "hosted runner 的编译与单元测试不能替代这些真机结论"}
+      ]
+    },
+    {
+      "id": "ANN-07",
+      "title": "撤销、重做与删除",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/annotations.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/annotations.test.ts", "contains": "does not jump history while a transform preview is active"}
+      ]
+    },
+    {
+      "id": "ANN-08",
+      "title": "马赛克缓存语义",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/annotations.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/mosaic.test.ts", "contains": "damages only 128px tiles touched by the stroke"},
+        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "马赛克"},
+        {"category": "performance", "status": "pending-external", "issue": "#34", "path": "docs/testing/performance-compatibility-report.md", "contains": "Headless、synthetic 或旧 commit 的结果会被硬拒绝"}
+      ]
+    },
+    {
+      "id": "OUT-01",
+      "title": "完成并退出",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/output-workflow.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/output-workflow.test.ts", "contains": "completes only after native clipboard accepts the exact PNG bytes"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/windows-t03-validation.md", "contains": "剪贴板"}
+      ]
+    },
+    {
+      "id": "OUT-02",
+      "title": "复制但继续编辑",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/output-workflow.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/output-workflow.test.ts", "contains": "copies and then saves one frozen encoding without changing its bytes"}
+      ]
+    },
+    {
+      "id": "OUT-03",
+      "title": "PNG 另存为",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/output-workflow.ts", "product/platform/windows/src/shell.rs", "product/platform/macos/src/shell.rs"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/output-workflow.test.ts", "contains": "restores the full prepared editor transaction after save cancellation"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/macos-t02-validation.md", "contains": "app-modal 原生保存对话框"}
+      ]
+    },
+    {
+      "id": "OUT-04",
+      "title": "取消与资源释放",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/output-workflow.ts", "product/capture-session/src/lib.rs"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "product/capture-session/src/lib.rs", "contains": "disconnect_only_cancels_the_owning_session_and_cleanup_releases_gate"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/windows-t03-validation.md", "contains": "释放"}
+      ]
+    },
+    {
+      "id": "IMG-01",
+      "title": "最终图像格式",
+      "status": "required",
+      "implementation": ["web/overlay-editor/src/app.ts", "web/overlay-editor/src/annotations.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/app.test.ts", "contains": "converts premultiplied BGRA and crops decoded RGBA without DOM capture"},
+        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "PNG 导出统一使用"}
+      ]
+    },
+    {
+      "id": "CFG-01",
+      "title": "设置持久化",
+      "status": "required",
+      "implementation": ["product/desktop-shell/src/settings.rs", "product/apps/capture-host/src/preferences.rs"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "product/desktop-shell/src/settings.rs", "contains": "corrupt_and_future_settings_fall_back_safely"},
+        {"category": "automatic", "status": "verified", "path": "product/apps/capture-host/src/preferences.rs", "contains": "failed_write_does_not_change_the_in_memory_snapshot"}
+      ]
+    },
+    {
+      "id": "CFG-02",
+      "title": "本地化",
+      "status": "required",
+      "implementation": ["product/desktop-shell/src/localization.rs", "web/desktop-settings/src/app.ts", "web/overlay-editor/src/localization.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/desktop-settings/tests/app.test.ts", "contains": "keeps complete key parity between Chinese and English"},
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/localization.test.ts", "contains": "keeps Chinese and English resource keys aligned"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/macos-t02-validation.md", "contains": "本地化"}
+      ]
+    },
+    {
+      "id": "PRIV-01",
+      "title": "本地处理与隐私日志",
+      "status": "required",
+      "implementation": ["product/desktop-shell/src/privacy_log.rs", "web/overlay-editor/src/output-workflow.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "product/desktop-shell/src/privacy_log.rs", "contains": "rotates_at_the_configured_limits_without_sensitive_payloads"}
+      ]
+    },
+    {
+      "id": "UPDATE-01",
+      "title": "仅手动检查更新",
+      "status": "required",
+      "implementation": ["product/desktop-shell/src/update.rs", "product/apps/desktop/src/lib.rs"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "product/apps/desktop/tests/lifecycle_contract.rs", "contains": "update_network_access_exists_only_behind_the_manual_command"}
+      ]
+    },
+    {
+      "id": "ERR-01",
+      "title": "错误模式与可恢复状态",
+      "status": "required",
+      "implementation": ["product/apps/desktop/src/lib.rs", "web/overlay-editor/src/output-workflow.ts"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/output-workflow.test.ts", "contains": "restores and remains retryable after save or clipboard failures"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/windows-t03-validation.md", "contains": "保存失败"}
+      ]
+    },
+    {
+      "id": "PERF-01",
+      "title": "硬门槛",
+      "status": "required",
+      "implementation": ["tools/performance/evaluate-evidence.mjs", ".github/workflows/release-qualification.yml"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "tools/performance/evaluate-evidence.test.mjs", "contains": "headless or synthetic evidence cannot satisfy PERF-01"},
+        {"category": "performance", "status": "pending-external", "issue": "#34", "path": "docs/testing/performance-compatibility-report.md", "contains": "当前实现的稳定 Release 必须通过"}
+      ]
+    },
+    {
+      "id": "DIST-01",
+      "title": "CI",
+      "status": "required",
+      "implementation": [".github/workflows/ci.yml"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "tools/release/check-workflows.mjs", "contains": "verified immutable action/release references"},
+        {"category": "installation", "status": "pending-external", "issue": "#34", "path": "docs/testing/windows-installer-validation.md", "contains": "自动候选验收"}
+      ]
+    },
+    {
+      "id": "DIST-02",
+      "title": "Windows 用户级安装包",
+      "status": "required",
+      "implementation": ["packaging/windows/Snaploom.iss", "scripts/build-windows-packages.ps1", "tests/packaging/verify-windows-packages.ps1"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "tools/release/packaging-contract.test.mjs", "contains": "Windows installer and verifier use the same textual AppId"},
+        {"category": "installation", "status": "pending-external", "issue": "#34", "path": "docs/testing/windows-installer-validation.md", "contains": "Windows Server hosted runner"}
+      ]
+    },
+    {
+      "id": "DIST-03",
+      "title": "macOS DMG",
+      "status": "required",
+      "implementation": ["scripts/build-macos-packages.sh", "tests/packaging/verify-macos-packages.sh", "packaging/macos/Snaploom.entitlements"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "tests/packaging/verify-macos-packages.sh", "contains": "macOS DMG, standalone Host, signing, architecture, install, launch, and boundary checks passed"},
+        {"category": "installation", "status": "pending-external", "issue": "#34", "path": "docs/testing/macos-dmg-validation.md", "contains": "不能替代带真实交互"},
+        {"category": "signing", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "Developer ID hardened-runtime"}
+      ]
+    },
+    {
+      "id": "DIST-04",
+      "title": "Release 原子性与门禁",
+      "status": "required",
+      "implementation": ["tools/release/release-contract.mjs", ".github/workflows/release-legal-rc.yml"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "tools/release/release-contract.test.mjs", "contains": "assembles and verifies the exact candidate asset set"},
+        {"category": "release", "status": "verified", "path": "tools/release/verify-draft-release.test.mjs", "contains": "rejects public, partial, extra, or digest-mismatched releases"},
+        {"category": "installation", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "完整 CI、最终签名"},
+        {"category": "signing", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "当前已有的公开 `v0.1.0` prerelease"}
+      ]
+    },
+    {
+      "id": "QA-01",
+      "title": "自动测试接缝",
+      "status": "required",
+      "implementation": ["product/capture-session", "web/overlay-editor", "product/platform/contract"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "product/platform/fake/tests/scripted_capture.rs", "contains": "one_deep_adapter_contract_covers_overlay_output_shell_and_resume"}
+      ]
+    },
+    {
+      "id": "QA-02",
+      "title": "必须执行的自动矩阵",
+      "status": "required",
+      "implementation": [".github/workflows/ci.yml", "web/overlay-editor/tests", "product/platform"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": ".github/workflows/ci.yml", "contains": "Test product Rust"},
+        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "预览、完成对象与 PNG 导出统一"},
+        {"category": "performance", "status": "pending-external", "issue": "#34", "path": "docs/testing/performance-compatibility-report.md", "contains": "真实选区移动帧率必须由真机矩阵确认"}
+      ]
+    },
+    {
+      "id": "QA-03",
+      "title": "真机矩阵",
+      "status": "required",
+      "implementation": [".github/workflows/release-qualification.yml", "tools/release/verify-qualification-set.mjs"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "tools/release/verify-qualification-set.mjs", "contains": "windows-10"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/windows-t03-validation.md", "contains": "真机验收"},
+        {"category": "performance", "status": "pending-external", "issue": "#34", "path": "docs/testing/performance-compatibility-report.md", "contains": "独占运行"},
+        {"category": "installation", "status": "pending-external", "issue": "#34", "path": "docs/testing/macos-dmg-validation.md", "contains": "真机证据"}
+      ]
+    },
+    {
+      "id": "QA-04",
+      "title": "完成判定",
+      "status": "required",
+      "implementation": ["tools/testing/check-contract-map.mjs", "testing/contract-map/contracts.yml"],
+      "evidence": [
+        {"category": "automatic", "status": "verified", "path": "tools/testing/check-contract-map.test.mjs", "contains": "rejects missing, extra, duplicate, and renamed evidence anchors"},
+        {"category": "signing", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "签名法律 RC draft 流程"}
+      ]
+    }
+  ]
+}
