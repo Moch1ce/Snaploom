@@ -54,11 +54,9 @@ const skipManifestChecksum = process.argv.includes("--skip-manifest-checksum");
 const expectedChecksum = run("swift", ["package", "compute-checksum", archive]);
 const manifest = readFileSync(join(repository, "Package.swift"), "utf8");
 const checksumMatch = manifest.match(/let snaploomBinaryChecksum = "([a-f0-9]{64})"/);
-if (!checksumMatch || (!skipManifestChecksum && checksumMatch[1] !== expectedChecksum)) {
-  throw new Error(
-    `Package.swift checksum mismatch: expected ${expectedChecksum}, found ${checksumMatch?.[1] ?? "missing"}`,
-  );
-}
+const manifestChecksumMismatch =
+  !skipManifestChecksum &&
+  (!checksumMatch || checksumMatch[1] !== expectedChecksum);
 const expectedUrl = `https://github.com/Moch1ce/Snaploom/releases/download/v${version}/CSnaploomCapture-${version}.xcframework.zip`;
 if (!manifest.includes(expectedUrl)) {
   throw new Error(`Package.swift is missing release URL ${expectedUrl}`);
@@ -264,6 +262,11 @@ try {
   writeFileSync(damaged, bytes);
   if (run("swift", ["package", "compute-checksum", damaged]) === expectedChecksum) {
     throw new Error("checksum mismatch negative path did not change the digest");
+  }
+  if (manifestChecksumMismatch) {
+    throw new Error(
+      `Package.swift checksum mismatch: expected ${expectedChecksum}, found ${checksumMatch?.[1] ?? "missing"}`,
+    );
   }
 
   process.stdout.write(

@@ -177,6 +177,7 @@ jobs:
         shell: bash
         run: |
           archive="${RUNNER_TEMP}/snaploom-swift-sdk/CSnaploomCapture-0.1.0.xcframework.zip"
+          export MACOSX_DEPLOYMENT_TARGET=14.0
           export RUSTFLAGS="--remap-path-prefix=${GITHUB_WORKSPACE}=. --remap-path-prefix=/Users/runner/=user/"
           cargo build --manifest-path sdk/Cargo.toml --package snaploom-capture-c-abi --release --locked
           node tools/sdk/package-swift-sdk.mjs \
