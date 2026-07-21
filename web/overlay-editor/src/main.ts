@@ -5,6 +5,7 @@ import {
 } from "@snaploom/screenshot-ui";
 import {
   ANNOTATION_COLORS,
+  ANNOTATION_FONT_SIZES,
   ANNOTATION_STROKE_WIDTHS,
   annotationShortcut,
   type AnnotationState,
@@ -51,6 +52,23 @@ sizeLabel.className = "screenshot-size-label";
 sizeLabel.dataset.overlayUi = "size-label";
 sizeLabel.setAttribute("aria-live", "polite");
 
+const textEditorFrame = document.createElement("div");
+textEditorFrame.className = "text-editor";
+textEditorFrame.dataset.overlayUi = "textarea";
+textEditorFrame.hidden = true;
+const textEditor = document.createElement("textarea");
+textEditor.dataset.overlayUi = "textarea";
+textEditor.setAttribute("aria-label", "文字标注输入");
+textEditor.setAttribute("wrap", "soft");
+textEditor.spellcheck = false;
+for (const corner of ["nw", "ne", "se", "sw"] as const) {
+  const handle = document.createElement("span");
+  handle.className = `text-editor__handle text-editor__handle--${corner}`;
+  handle.dataset.overlayUi = "textarea";
+  textEditorFrame.append(handle);
+}
+textEditorFrame.append(textEditor);
+
 let editor: OverlayEditor;
 let lastPng: Uint8Array | null = null;
 
@@ -74,7 +92,7 @@ async function complete(): Promise<Uint8Array> {
 }
 
 function onToolbarAction(action: ScreenshotToolbarAction): void {
-  if (action === "rectangle" || action === "arrow") {
+  if (action === "rectangle" || action === "arrow" || action === "text") {
     editor.setTool(action, true);
   }
   if (action === "undo") editor.undoAnnotation();
@@ -84,7 +102,7 @@ function onToolbarAction(action: ScreenshotToolbarAction): void {
 }
 
 const toolbar = createScreenshotToolbar({
-  enabledActions: new Set(["rectangle", "arrow", "cancel", "complete"]),
+  enabledActions: new Set(["rectangle", "arrow", "text", "cancel", "complete"]),
   onAction: onToolbarAction,
 });
 
@@ -123,13 +141,27 @@ for (const strokeWidth of ANNOTATION_STROKE_WIDTHS) {
   button.addEventListener("click", () => editor.setAnnotationStyle({ strokeWidth }));
   widthGroup.append(button);
 }
-settingsFlyout.append(colorGroup, widthGroup);
-root.append(canvas, sizeLabel, toolbar, settingsFlyout);
+const fontGroup = document.createElement("div");
+fontGroup.className = "annotation-settings__group";
+fontGroup.setAttribute("aria-label", "字号");
+for (const fontSize of ANNOTATION_FONT_SIZES) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "annotation-settings__font";
+  button.dataset.fontSize = String(fontSize);
+  button.dataset.overlayUi = "settings";
+  button.setAttribute("aria-label", `字号 ${fontSize}`);
+  button.textContent = String(fontSize);
+  button.addEventListener("click", () => editor.setAnnotationStyle({ fontSize }));
+  fontGroup.append(button);
+}
+settingsFlyout.append(colorGroup, widthGroup, fontGroup);
+root.append(canvas, sizeLabel, toolbar, settingsFlyout, textEditorFrame);
 
 function updateAnnotationUi(state: AnnotationState): void {
   root.dataset.annotationTool = state.tool;
   root.dataset.annotationCount = String(state.objects.length);
-  for (const action of ["rectangle", "arrow"] as const) {
+  for (const action of ["rectangle", "arrow", "text"] as const) {
     const button = toolbar.querySelector<HTMLButtonElement>(`[data-action="${action}"]`);
     button?.setAttribute("aria-pressed", String(state.tool === action));
   }
@@ -138,6 +170,8 @@ function updateAnnotationUi(state: AnnotationState): void {
   if (undo) undo.disabled = !state.canUndo;
   if (redo) redo.disabled = !state.canRedo;
   settingsFlyout.hidden = state.settingsOpen === null;
+  widthGroup.hidden = state.settingsOpen === "text";
+  fontGroup.hidden = state.settingsOpen !== "text";
   if (state.settingsOpen) {
     const anchor = toolbar.querySelector<HTMLElement>(
       `[data-action="${state.settingsOpen}"]`,
@@ -155,6 +189,34 @@ function updateAnnotationUi(state: AnnotationState): void {
       "aria-pressed",
       String(Number(button.dataset.strokeWidth) === state.style.strokeWidth),
     );
+  }
+  for (const button of settingsFlyout.querySelectorAll<HTMLButtonElement>("[data-font-size]")) {
+    button.setAttribute(
+      "aria-pressed",
+      String(Number(button.dataset.fontSize) === state.style.fontSize),
+    );
+  }
+  const projection = editor.textDraftProjection();
+  if (state.textDraft && projection) {
+    textEditorFrame.hidden = false;
+    textEditorFrame.style.left = `${projection.x}px`;
+    textEditorFrame.style.top = `${projection.y}px`;
+    textEditorFrame.style.width = `${projection.width}px`;
+    textEditorFrame.style.height = `${projection.height}px`;
+    textEditor.style.fontSize = `${state.textDraft.style.fontSize}px`;
+    textEditor.style.color = state.textDraft.style.color;
+    if (!state.textDraft.isComposing && textEditor.value !== state.textDraft.value) {
+      textEditor.value = state.textDraft.value;
+    }
+    queueMicrotask(() => {
+      if (!textEditorFrame.hidden && document.activeElement !== textEditor) {
+        textEditor.focus({ preventScroll: true });
+        textEditor.setSelectionRange(textEditor.value.length, textEditor.value.length);
+      }
+    });
+  } else {
+    textEditorFrame.hidden = true;
+    if (document.activeElement === textEditor) textEditor.blur();
   }
 }
 
@@ -233,7 +295,9 @@ window.__SNAPLOOM_OVERLAY__ = {
   complete,
 };
 
-function localPoint(event: PointerEvent): { x: number; y: number } {
+function localPoint(
+  event: Pick<MouseEvent, "clientX" | "clientY">,
+): { x: number; y: number } {
   const rect = canvas.getBoundingClientRect();
   return { x: event.clientX - rect.left, y: event.clientY - rect.top };
 }
@@ -276,15 +340,40 @@ canvas.addEventListener("pointerup", (event) => {
   editor.pointerUp(localPoint(event));
   if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
 });
-canvas.addEventListener("dblclick", () => {
+canvas.addEventListener("dblclick", (event) => {
+  if (editor.beginTextEditAt(localPoint(event))) return;
   if (editor.model.snapshotState().selection) void complete();
+});
+textEditor.addEventListener("input", () => editor.updateTextDraft(textEditor.value));
+textEditor.addEventListener("compositionstart", () => editor.compositionStart());
+textEditor.addEventListener("compositionupdate", (event) => {
+  editor.compositionUpdate(event.data);
+});
+textEditor.addEventListener("compositionend", (event) => {
+  editor.compositionEnd(event.data);
+  editor.updateTextDraft(textEditor.value);
 });
 root.addEventListener("contextmenu", (event) => event.preventDefault());
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     event.preventDefault();
     cancel();
-  } else if (event.key === "Enter" && editor.model.snapshotState().selection) {
+    return;
+  }
+  const textDraft = editor.annotations.snapshotState().textDraft;
+  if (textDraft) {
+    if (
+      (event.metaKey || event.ctrlKey) &&
+      event.key === "Enter" &&
+      !event.isComposing &&
+      !textDraft.isComposing
+    ) {
+      event.preventDefault();
+      editor.commitTextDraft();
+    }
+    return;
+  }
+  if (event.key === "Enter" && editor.model.snapshotState().selection) {
     event.preventDefault();
     void complete();
   } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
@@ -304,7 +393,12 @@ window.addEventListener("keydown", (event) => {
       altKey: event.altKey,
       isComposing: event.isComposing,
     });
-    if (tool === "rectangle" || tool === "arrow" || tool === "select") {
+    if (
+      tool === "rectangle" ||
+      tool === "arrow" ||
+      tool === "text" ||
+      tool === "select"
+    ) {
       event.preventDefault();
       editor.setTool(tool, false);
     }

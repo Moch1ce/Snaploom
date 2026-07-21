@@ -22,6 +22,7 @@ describe("rectangle, arrow, and annotation history", () => {
     expect(new AnnotationSession({ selection, scale }).snapshotState().style).toEqual({
       color: "#FF4D4F",
       strokeWidth: 4,
+      fontSize: 24,
     });
   });
 

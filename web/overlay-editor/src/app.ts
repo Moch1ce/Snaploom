@@ -7,6 +7,7 @@ import {
 } from "@snaploom/screenshot-ui";
 import {
   AnnotationSession,
+  projectTextDraft,
   renderAnnotations,
   type AnnotationState,
   type AnnotationStyle,
@@ -612,6 +613,48 @@ export class OverlayEditor {
     return changed;
   }
 
+  beginTextEditAt(point: Point): boolean {
+    const started = this.#annotations.beginTextEditAt(
+      logicalPointToPhysical(point, this.#model.scale),
+    );
+    if (started) this.#annotationStateChanged();
+    return started;
+  }
+
+  updateTextDraft(value: string): void {
+    this.#annotations.updateTextDraft(value);
+    this.#annotationStateChanged();
+  }
+
+  compositionStart(): void {
+    this.#annotations.compositionStart();
+    this.#annotationStateChanged();
+  }
+
+  compositionUpdate(preedit: string): void {
+    this.#annotations.compositionUpdate(preedit);
+    this.#annotationStateChanged();
+  }
+
+  compositionEnd(committed: string): void {
+    this.#annotations.compositionEnd(committed);
+    this.#annotationStateChanged();
+  }
+
+  commitTextDraft(): boolean {
+    const committed = this.#annotations.commitTextDraft();
+    this.#annotationStateChanged();
+    return committed;
+  }
+
+  textDraftProjection(): Rect | null {
+    const draft = this.#annotations.snapshotState().textDraft;
+    const selection = this.#model.snapshotState().selection;
+    return draft && selection
+      ? projectTextDraft(draft, selection, this.#model.scale)
+      : null;
+  }
+
   cursorAt(point: Point): string {
     return this.#annotations.cursorAt(
       logicalPointToPhysical(point, this.#model.scale),
@@ -752,6 +795,14 @@ export class OverlayEditor {
 
   async composePng(): Promise<Uint8Array> {
     this.#assertActive();
+    const textDraft = this.#annotations.snapshotState().textDraft;
+    if (textDraft?.isComposing) throw new Error("text composition is active");
+    if (textDraft) {
+      this.#annotations.commitTextDraft();
+      this.#options.onAnnotationStateChange?.(
+        this.#annotations.snapshotState(),
+      );
+    }
     const selection = this.#model.snapshotState().selection;
     if (!selection) throw new Error("selection required");
     const pixels = cropRgba(

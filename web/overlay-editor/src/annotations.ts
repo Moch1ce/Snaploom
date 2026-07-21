@@ -15,9 +15,11 @@ export const ANNOTATION_COLORS = [
 ] as const;
 
 export const ANNOTATION_STROKE_WIDTHS = [2, 4, 8] as const;
+export const ANNOTATION_FONT_SIZES = [16, 24, 32] as const;
 
 export type AnnotationColor = (typeof ANNOTATION_COLORS)[number];
 export type AnnotationStrokeWidth = (typeof ANNOTATION_STROKE_WIDTHS)[number];
+export type AnnotationFontSize = (typeof ANNOTATION_FONT_SIZES)[number];
 export type AnnotationTool = "select" | "rectangle" | "arrow" | "text" | "mosaic";
 export type AnnotationCursor =
   | "default"
@@ -33,6 +35,7 @@ export type AnnotationCursor =
 export interface AnnotationStyle {
   readonly color: AnnotationColor;
   readonly strokeWidth: AnnotationStrokeWidth;
+  readonly fontSize: AnnotationFontSize;
 }
 
 export interface RectangleAnnotation {
@@ -50,7 +53,32 @@ export interface ArrowAnnotation {
   readonly style: AnnotationStyle;
 }
 
-export type AnnotationObject = RectangleAnnotation | ArrowAnnotation;
+export interface TextAnnotation {
+  readonly id: string;
+  readonly kind: "text";
+  readonly origin: Point;
+  readonly text: string;
+  readonly maxWidth: number;
+  readonly style: AnnotationStyle;
+}
+
+export type AnnotationObject = RectangleAnnotation | ArrowAnnotation | TextAnnotation;
+
+export interface TextDraft {
+  readonly editingId: string | null;
+  readonly origin: Point;
+  readonly value: string;
+  readonly preedit: string;
+  readonly isComposing: boolean;
+  readonly style: AnnotationStyle;
+}
+
+export interface TextLayout {
+  readonly lines: readonly string[];
+  readonly bounds: Rect;
+  readonly fontSizePhysical: number;
+  readonly lineHeight: number;
+}
 
 export interface AnnotationRenderPlan {
   readonly objects: readonly AnnotationObject[];
@@ -62,11 +90,12 @@ export interface AnnotationState {
   readonly selectedId: string | null;
   readonly tool: AnnotationTool;
   readonly style: AnnotationStyle;
-  readonly settingsOpen: "rectangle" | "arrow" | null;
+  readonly settingsOpen: "rectangle" | "arrow" | "text" | null;
   readonly canUndo: boolean;
   readonly canRedo: boolean;
   readonly everEdited: boolean;
   readonly gestureActive: boolean;
+  readonly textDraft: TextDraft | null;
 }
 
 export interface ShortcutInput {
@@ -117,6 +146,13 @@ type AnnotationGesture =
       readonly handle: ObjectHandle;
       readonly before: HistoryEntry;
     }
+  | {
+      readonly kind: "text-press";
+      readonly origin: Point;
+      current: Point;
+      readonly initial: TextAnnotation;
+      readonly before: HistoryEntry;
+    }
   | { readonly kind: "select-existing" };
 
 function clonePoint(point: Point): Point {
@@ -124,7 +160,11 @@ function clonePoint(point: Point): Point {
 }
 
 function cloneStyle(style: AnnotationStyle): AnnotationStyle {
-  return { color: style.color, strokeWidth: style.strokeWidth };
+  return {
+    color: style.color,
+    strokeWidth: style.strokeWidth,
+    fontSize: style.fontSize,
+  };
 }
 
 function cloneObject(object: AnnotationObject): AnnotationObject {
@@ -133,6 +173,16 @@ function cloneObject(object: AnnotationObject): AnnotationObject {
       id: object.id,
       kind: "rectangle",
       rect: { ...object.rect },
+      style: cloneStyle(object.style),
+    };
+  }
+  if (object.kind === "text") {
+    return {
+      id: object.id,
+      kind: "text",
+      origin: clonePoint(object.origin),
+      text: object.text,
+      maxWidth: object.maxWidth,
       style: cloneStyle(object.style),
     };
   }
@@ -240,10 +290,107 @@ export function rectangleAnnotationHandles(rect: Rect): Readonly<Record<ObjectHa
   };
 }
 
-function objectBounds(object: AnnotationObject): Rect {
-  return object.kind === "rectangle"
-    ? object.rect
-    : normalizedRect(object.start, object.end);
+function glyphWidth(character: string, fontSize: number): number {
+  return (/^[\u0000-\u00ff]$/.test(character) ? 0.6 : 1) * fontSize;
+}
+
+function wrapText(text: string, maximumWidth: number, fontSize: number): string[] {
+  const lines: string[] = [];
+  for (const paragraph of text.split("\n")) {
+    let line = "";
+    let width = 0;
+    if (paragraph.length === 0) {
+      lines.push("");
+      continue;
+    }
+    for (const character of paragraph) {
+      const characterWidth = glyphWidth(character, fontSize);
+      if (line && width + characterWidth > maximumWidth) {
+        lines.push(line);
+        line = character;
+        width = characterWidth;
+      } else {
+        line += character;
+        width += characterWidth;
+      }
+    }
+    lines.push(line);
+  }
+  return lines.length > 0 ? lines : [""];
+}
+
+export function layoutTextAnnotation(
+  object: TextAnnotation,
+  scale: SnapshotScale,
+): TextLayout {
+  const scaleValue = Math.min(scale.scaleX, scale.scaleY);
+  const fontSizePhysical = object.style.fontSize * scaleValue;
+  const lineHeight = fontSizePhysical * 1.25;
+  const lines = wrapText(
+    object.text,
+    Math.max(fontSizePhysical, object.maxWidth),
+    fontSizePhysical,
+  );
+  const measuredWidth = Math.max(
+    fontSizePhysical,
+    ...lines.map((line) =>
+      [...line].reduce(
+        (width, character) => width + glyphWidth(character, fontSizePhysical),
+        0,
+      ),
+    ),
+  );
+  return {
+    lines,
+    bounds: {
+      x: object.origin.x,
+      y: object.origin.y,
+      width: Math.min(object.maxWidth, measuredWidth),
+      height: lines.length * lineHeight,
+    },
+    fontSizePhysical,
+    lineHeight,
+  };
+}
+
+export function projectTextDraft(
+  draft: TextDraft,
+  selection: Rect,
+  scale: SnapshotScale,
+): Rect {
+  const logicalOrigin = {
+    x: draft.origin.x / scale.scaleX,
+    y: draft.origin.y / scale.scaleY,
+  };
+  const selectionRight = (selection.x + selection.width) / scale.scaleX;
+  const selectionBottom = (selection.y + selection.height) / scale.scaleY;
+  const maximumWidth = Math.max(1, selectionRight - logicalOrigin.x);
+  const maximumHeight = Math.max(1, selectionBottom - logicalOrigin.y);
+  const content = `${draft.value}${draft.preedit}`;
+  const lines = wrapText(content, maximumWidth, draft.style.fontSize);
+  const width = Math.min(
+    maximumWidth,
+    Math.max(
+      64,
+      ...lines.map((line) =>
+        [...line].reduce(
+          (total, character) => total + glyphWidth(character, draft.style.fontSize),
+          0,
+        ) + 12,
+      ),
+    ),
+  );
+  const height = Math.min(
+    maximumHeight,
+    Math.max(draft.style.fontSize * 1.5, lines.length * draft.style.fontSize * 1.25 + 8),
+  );
+  return { x: logicalOrigin.x, y: logicalOrigin.y, width, height };
+}
+
+function objectBounds(object: AnnotationObject, scale: SnapshotScale): Rect {
+  if (object.kind === "rectangle") return object.rect;
+  if (object.kind === "text") return layoutTextAnnotation(object, scale).bounds;
+  return normalizedRect(object.start, object.end);
 }
 
 export class AnnotationSession {
@@ -252,11 +399,13 @@ export class AnnotationSession {
   #objects: AnnotationObject[] = [];
   #selectedId: string | null = null;
   #tool: AnnotationTool = "select";
-  #style: AnnotationStyle = { color: "#FF4D4F", strokeWidth: 4 };
-  #settingsOpen: "rectangle" | "arrow" | null = null;
+  #style: AnnotationStyle = { color: "#FF4D4F", strokeWidth: 4, fontSize: 24 };
+  #settingsOpen: "rectangle" | "arrow" | "text" | null = null;
   #undo: HistoryEntry[] = [];
   #redo: HistoryEntry[] = [];
   #gesture: AnnotationGesture | null = null;
+  #textDraft: TextDraft | null = null;
+  #textDraftBefore: HistoryEntry | null = null;
   #everEdited = false;
   #nextId = 1;
 
@@ -269,7 +418,9 @@ export class AnnotationSession {
     this.#tool = tool;
     if (tool !== "select") this.#selectedId = null;
     this.#settingsOpen =
-      openSettings && (tool === "rectangle" || tool === "arrow") ? tool : null;
+      openSettings && (tool === "rectangle" || tool === "arrow" || tool === "text")
+        ? tool
+        : null;
   }
 
   setSelection(selection: Rect, replace = false): void {
@@ -301,12 +452,20 @@ export class AnnotationSession {
     const next: AnnotationStyle = {
       color: style.color ?? this.#style.color,
       strokeWidth: style.strokeWidth ?? this.#style.strokeWidth,
+      fontSize: style.fontSize ?? this.#style.fontSize,
     };
     if (!ANNOTATION_COLORS.includes(next.color)) throw new Error("invalid annotation color");
     if (!ANNOTATION_STROKE_WIDTHS.includes(next.strokeWidth)) {
       throw new Error("invalid annotation stroke width");
     }
+    if (!ANNOTATION_FONT_SIZES.includes(next.fontSize)) {
+      throw new Error("invalid annotation font size");
+    }
     this.#style = next;
+    if (this.#textDraft) {
+      this.#textDraft = { ...this.#textDraft, style: cloneStyle(next) };
+      return;
+    }
     const index = this.#selectedIndex();
     if (index < 0) return;
     const selected = this.#objects[index];
@@ -320,6 +479,29 @@ export class AnnotationSession {
 
   pointerDown(point: Point): boolean {
     const clipped = clipPoint(point, this.#selection);
+    if (this.#textDraft) {
+      this.commitTextDraft();
+      this.#gesture = { kind: "select-existing" };
+      return true;
+    }
+    if (this.#tool === "text") {
+      const existing = this.hitTest(clipped, "text");
+      if (existing?.kind === "text") {
+        this.#selectedId = existing.id;
+        this.#gesture = {
+          kind: "text-press",
+          origin: clipped,
+          current: clipped,
+          initial: cloneObject(existing) as TextAnnotation,
+          before: this.#historyEntry(),
+        };
+      } else {
+        this.#selectedId = null;
+        this.#startTextDraft(null, clipped);
+        this.#gesture = { kind: "select-existing" };
+      }
+      return true;
+    }
     if (this.#tool === "rectangle" || this.#tool === "arrow") {
       const existing = this.hitTest(clipped, this.#tool);
       if (existing) {
@@ -379,6 +561,30 @@ export class AnnotationSession {
       this.#replaceObject(this.#movePreview(this.#gesture));
     } else if (this.#gesture.kind === "resize") {
       this.#replaceObject(this.#resizePreview(this.#gesture));
+    } else if (
+      this.#gesture.kind === "text-press" &&
+      this.#movedLogical(this.#gesture.origin, this.#gesture.current)
+    ) {
+      const layout = layoutTextAnnotation(this.#gesture.initial, this.#scale);
+      const delta = {
+        x: clamp(
+          this.#gesture.current.x - this.#gesture.origin.x,
+          this.#selection.x - layout.bounds.x,
+          this.#selection.x + this.#selection.width - layout.bounds.x - layout.bounds.width,
+        ),
+        y: clamp(
+          this.#gesture.current.y - this.#gesture.origin.y,
+          this.#selection.y - layout.bounds.y,
+          this.#selection.y + this.#selection.height - layout.bounds.y - layout.bounds.height,
+        ),
+      };
+      this.#replaceObject({
+        ...this.#gesture.initial,
+        origin: {
+          x: this.#gesture.initial.origin.x + delta.x,
+          y: this.#gesture.initial.origin.y + delta.y,
+        },
+      });
     }
   }
 
@@ -390,6 +596,15 @@ export class AnnotationSession {
     }
     this.pointerMove(point);
     const gesture = this.#gesture;
+    if (gesture.kind === "text-press") {
+      if (this.#objectsChanged(gesture.before.objects)) {
+        this.#commit(gesture.before);
+      } else {
+        this.#startTextDraft(gesture.initial, gesture.initial.origin);
+      }
+      this.#gesture = null;
+      return;
+    }
     if (gesture.kind === "draw-rectangle") {
       const rect = normalizedRect(gesture.origin, gesture.current);
       if (rect.width > 0 && rect.height > 0) {
@@ -423,12 +638,16 @@ export class AnnotationSession {
       this.#commit(gesture.before);
     }
     this.#gesture = null;
+    this.#textDraft = null;
+    this.#textDraftBefore = null;
   }
 
   cancelGesture(): void {
     if (
       this.#gesture &&
-      (this.#gesture.kind === "move" || this.#gesture.kind === "resize")
+      (this.#gesture.kind === "move" ||
+        this.#gesture.kind === "resize" ||
+        this.#gesture.kind === "text-press")
     ) {
       this.#restore(this.#gesture.before);
     }
@@ -441,7 +660,9 @@ export class AnnotationSession {
       const object = this.#objects[index];
       if (!object || kind && object.kind !== kind) continue;
       const stroke = object.style.strokeWidth * Math.max(this.#scale.scaleX, this.#scale.scaleY) / 2;
-      if (object.kind === "arrow") {
+      if (object.kind === "text") {
+        if (contains(layoutTextAnnotation(object, this.#scale).bounds, point)) return object;
+      } else if (object.kind === "arrow") {
         if (distanceToSegment(point, object.start, object.end) <= Math.max(tolerance, stroke)) {
           return object;
         }
@@ -467,8 +688,79 @@ export class AnnotationSession {
     return null;
   }
 
+  beginTextEditAt(point: Point): boolean {
+    if (this.#textDraft || this.#gesture) return false;
+    const object = this.hitTest(clipPoint(point, this.#selection), "text");
+    if (!object || object.kind !== "text") return false;
+    this.#selectedId = object.id;
+    this.#tool = "text";
+    this.#startTextDraft(object, object.origin);
+    return true;
+  }
+
+  updateTextDraft(value: string): void {
+    if (!this.#textDraft) return;
+    this.#textDraft = { ...this.#textDraft, value };
+  }
+
+  compositionStart(): void {
+    if (!this.#textDraft) return;
+    this.#textDraft = { ...this.#textDraft, isComposing: true, preedit: "" };
+  }
+
+  compositionUpdate(preedit: string): void {
+    if (!this.#textDraft) return;
+    this.#textDraft = { ...this.#textDraft, isComposing: true, preedit };
+  }
+
+  compositionEnd(_committed: string): void {
+    if (!this.#textDraft) return;
+    this.#textDraft = { ...this.#textDraft, isComposing: false, preedit: "" };
+  }
+
+  commitTextDraft(): boolean {
+    const draft = this.#textDraft;
+    const before = this.#textDraftBefore;
+    if (!draft || !before || draft.isComposing) return false;
+    const index = draft.editingId
+      ? this.#objects.findIndex((object) => object.id === draft.editingId)
+      : -1;
+    const text = draft.value;
+    if (text.trim().length === 0) {
+      if (index >= 0) this.#objects.splice(index, 1);
+      this.#selectedId = null;
+    } else {
+      const object: TextAnnotation = {
+        id: draft.editingId ?? this.#createId(),
+        kind: "text",
+        origin: clonePoint(draft.origin),
+        text,
+        maxWidth: Math.max(
+          1,
+          this.#selection.x + this.#selection.width - draft.origin.x,
+        ),
+        style: cloneStyle(draft.style),
+      };
+      if (index >= 0) this.#objects[index] = object;
+      else this.#objects.push(object);
+      this.#selectedId = object.id;
+    }
+    this.#textDraft = null;
+    this.#textDraftBefore = null;
+    if (this.#objectsChanged(before.objects)) {
+      this.#commit(before);
+      return true;
+    }
+    return false;
+  }
+
+  cancelTextDraft(): void {
+    this.#textDraft = null;
+    this.#textDraftBefore = null;
+  }
+
   deleteSelected(): boolean {
-    if (this.#gesture) return false;
+    if (this.#gesture || this.#textDraft) return false;
     const index = this.#selectedIndex();
     if (index < 0) return false;
     const before = this.#historyEntry();
@@ -480,7 +772,7 @@ export class AnnotationSession {
   }
 
   undo(): boolean {
-    if (this.#gesture) return false;
+    if (this.#gesture || this.#textDraft) return false;
     const previous = this.#undo.pop();
     if (!previous) return false;
     this.#redo.push(this.#historyEntry());
@@ -489,7 +781,7 @@ export class AnnotationSession {
   }
 
   redo(): boolean {
-    if (this.#gesture) return false;
+    if (this.#gesture || this.#textDraft) return false;
     const next = this.#redo.pop();
     if (!next) return false;
     this.#undo.push(this.#historyEntry());
@@ -518,17 +810,59 @@ export class AnnotationSession {
       canRedo: this.#redo.length > 0,
       everEdited: this.#everEdited,
       gestureActive: this.#gesture !== null,
+      textDraft: this.#textDraft
+        ? {
+            ...this.#textDraft,
+            origin: clonePoint(this.#textDraft.origin),
+            style: cloneStyle(this.#textDraft.style),
+          }
+        : null,
     };
   }
 
   renderPlan(): AnnotationRenderPlan {
-    return buildAnnotationRenderPlan(this.snapshotState(), this.#gesture, this.#style, this.#nextId);
+    const plan = buildAnnotationRenderPlan(
+      this.snapshotState(),
+      this.#gesture,
+      this.#style,
+      this.#nextId,
+    );
+    return this.#textDraft?.editingId
+      ? {
+          ...plan,
+          objects: plan.objects.filter(
+            (object) => object.id !== this.#textDraft?.editingId,
+          ),
+        }
+      : plan;
   }
 
   #createId(): string {
     const id = `annotation-${this.#nextId}`;
     this.#nextId += 1;
     return id;
+  }
+
+  #startTextDraft(object: TextAnnotation | null, origin: Point): void {
+    this.#textDraftBefore = this.#historyEntry();
+    this.#textDraft = {
+      editingId: object?.id ?? null,
+      origin: clonePoint(origin),
+      value: object?.text ?? "",
+      preedit: "",
+      isComposing: false,
+      style: cloneStyle(object?.style ?? this.#style),
+    };
+    this.#selectedId = object?.id ?? null;
+  }
+
+  #movedLogical(start: Point, end: Point): boolean {
+    return (
+      Math.hypot(
+        (end.x - start.x) / this.#scale.scaleX,
+        (end.y - start.y) / this.#scale.scaleY,
+      ) >= screenshotUiTheme.selection.gestureThreshold
+    );
   }
 
   #historyEntry(): HistoryEntry {
@@ -569,6 +903,7 @@ export class AnnotationSession {
   #hitSelectedHandle(point: Point): ObjectHandle | null {
     const selected = this.#selectedObject();
     if (!selected) return null;
+    if (selected.kind === "text") return null;
     const radius = 6 * Math.max(this.#scale.scaleX, this.#scale.scaleY);
     const handles: readonly [ObjectHandle, Point][] =
       selected.kind === "rectangle"
@@ -593,7 +928,7 @@ export class AnnotationSession {
       x: gesture.current.x - gesture.origin.x,
       y: gesture.current.y - gesture.origin.y,
     };
-    const bounds = objectBounds(gesture.initial);
+    const bounds = objectBounds(gesture.initial, this.#scale);
     const boundedDelta = {
       x: clamp(
         delta.x,
@@ -613,6 +948,15 @@ export class AnnotationSession {
           ...gesture.initial.rect,
           x: gesture.initial.rect.x + boundedDelta.x,
           y: gesture.initial.rect.y + boundedDelta.y,
+        },
+      };
+    }
+    if (gesture.initial.kind === "text") {
+      return {
+        ...gesture.initial,
+        origin: {
+          x: gesture.initial.origin.x + boundedDelta.x,
+          y: gesture.initial.origin.y + boundedDelta.y,
         },
       };
     }
@@ -637,6 +981,7 @@ export class AnnotationSession {
         ? { ...gesture.initial, start: clonePoint(gesture.current) }
         : { ...gesture.initial, end: clonePoint(gesture.current) };
     }
+    if (gesture.initial.kind === "text") return gesture.initial;
     let left = gesture.initial.rect.x;
     let top = gesture.initial.rect.y;
     let right = left + gesture.initial.rect.width;
@@ -716,7 +1061,7 @@ export function renderAnnotations(
     context.lineJoin = "round";
     if (object.kind === "rectangle") {
       context.strokeRect(object.rect.x, object.rect.y, object.rect.width, object.rect.height);
-    } else {
+    } else if (object.kind === "arrow") {
       const angle = Math.atan2(
         object.end.y - object.start.y,
         object.end.x - object.start.x,
@@ -735,6 +1080,18 @@ export function renderAnnotations(
         object.end.y - head * Math.sin(angle + Math.PI / 6),
       );
       context.stroke();
+    } else {
+      const layout = layoutTextAnnotation(object, options.scale);
+      context.font = `${layout.fontSizePhysical}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      context.textBaseline = "top";
+      for (let index = 0; index < layout.lines.length; index += 1) {
+        context.fillText(
+          layout.lines[index] ?? "",
+          object.origin.x,
+          object.origin.y + index * layout.lineHeight,
+          object.maxWidth,
+        );
+      }
     }
     context.restore();
   }
@@ -748,7 +1105,9 @@ export function renderAnnotations(
       ? Object.entries(rectangleAnnotationHandles(selected.rect))
           .filter(([kind]) => kind !== "start" && kind !== "end")
           .map(([, point]) => point)
-      : [selected.start, selected.end];
+      : selected.kind === "arrow"
+        ? [selected.start, selected.end]
+        : [];
   context.save();
   context.translate(-offset.x, -offset.y);
   context.fillStyle = screenshotUiTheme.colors.surface;
