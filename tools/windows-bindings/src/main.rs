@@ -200,8 +200,12 @@ fn main() {
             std::process::id()
         ));
         generate(&temporary);
-        let generated = fs::read(&temporary).expect("read generated Windows bindings");
-        let committed = fs::read(&output).expect("read committed Windows bindings");
+        let generated = fs::read_to_string(&temporary)
+            .expect("read generated Windows bindings")
+            .replace("\r\n", "\n");
+        let committed = fs::read_to_string(&output)
+            .expect("read committed Windows bindings")
+            .replace("\r\n", "\n");
         let _ = fs::remove_file(&temporary);
         assert_eq!(generated, committed, "Windows bindings are stale");
     } else {
