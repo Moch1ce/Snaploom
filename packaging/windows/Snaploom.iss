@@ -15,7 +15,7 @@
 #endif
 
 [Setup]
-AppId={{Snaploom.Desktop}
+AppId=Snaploom.Desktop
 AppName=Snaploom
 AppVersion={#AppVersion}
 AppPublisher=Snaploom contributors
