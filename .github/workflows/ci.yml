@@ -148,6 +148,24 @@ jobs:
           cargo test --manifest-path Cargo.toml --locked
           cargo test --manifest-path sdk/Cargo.toml --workspace --all-features --locked
 
+      - name: Build and verify C/C++ Capture SDK
+        shell: bash
+        run: |
+          asan=OFF
+          platform=windows-x64
+          if [ "${RUNNER_OS}" = "macOS" ]; then
+            asan=ON
+            platform=macos-arm64
+            export MACOSX_DEPLOYMENT_TARGET=14.0
+          fi
+          cargo build --manifest-path sdk/Cargo.toml --package snaploom-capture-c-abi --release --locked
+          node tools/architecture/check-abi-symbols.mjs
+          cmake -S sdk/tests/cpp -B "${RUNNER_TEMP}/snaploom-cpp-tests" -DSNAPLOOM_ENABLE_ASAN="${asan}" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "${RUNNER_TEMP}/snaploom-cpp-tests" --config Release
+          ctest --test-dir "${RUNNER_TEMP}/snaploom-cpp-tests" --build-config Release --output-on-failure
+          archive="$(node tools/sdk/package-c-sdk.mjs --platform "${platform}" --output "${RUNNER_TEMP}/snaploom-sdk-package")"
+          node tools/sdk/verify-c-sdk.mjs --platform "${platform}" --archive "${archive}"
+
       - name: Test product Rust
         if: runner.os != 'Windows'
         shell: bash

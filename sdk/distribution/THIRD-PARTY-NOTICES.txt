@@ -1,0 +1,3 @@
+Snaploom Capture SDK third-party notices are generated from sdk/Cargo.lock by
+the release compliance pipeline. The authoritative dependency set is recorded
+in the package CycloneDX SBOM and the release NOTICE assets.

@@ -1,4 +1,4 @@
-#include "snaploom_capture.h"
+#include <snaploom/snaploom_capture.h>
 
 #include <stdatomic.h>
 #include <string.h>

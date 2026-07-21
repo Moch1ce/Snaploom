@@ -104,10 +104,13 @@ typedef struct snaploom_capture_options_v1 {
   uint64_t reserved[4];
 } snaploom_capture_options_v1;
 
-#define SNAPLOOM_CAPTURE_CLIENT_CONFIG_V1_INIT \
-  { sizeof(snaploom_capture_client_config_v1), 0 }
+#define SNAPLOOM_CAPTURE_CLIENT_CONFIG_V1_INIT                         \
+  {                                                                   \
+    sizeof(snaploom_capture_client_config_v1), 0, { NULL, 0 }, 0, 0, \
+        { 0, 0, 0, 0 }                                                \
+  }
 #define SNAPLOOM_CAPTURE_OPTIONS_V1_INIT \
-  { sizeof(snaploom_capture_options_v1), 0 }
+  { sizeof(snaploom_capture_options_v1), 0, 0, { 0, 0, 0, 0 } }
 
 typedef struct snaploom_capture_completion_v1 {
   uint32_t struct_size;
