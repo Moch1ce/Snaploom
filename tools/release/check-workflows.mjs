@@ -21,4 +21,33 @@ for (const name of readdirSync(workflowDirectory).filter((entry) => /\.ya?ml$/.t
     throw new Error(`${name} can overwrite immutable release assets`);
   }
 }
+
+const legalRc = readFileSync(join(workflowDirectory, "release-legal-rc.yml"), "utf8");
+if (
+  !legalRc.includes("draft:true") ||
+  !legalRc.includes("Stable publish remains blocked by Issue #33") ||
+  !legalRc.includes("environment: release-signing") ||
+  !legalRc.includes("environment: release-draft") ||
+  !legalRc.includes(".NET signed consumer") ||
+  !legalRc.includes("refs/snaploom-legal-rc") ||
+  !legalRc.includes("apple-signing-evidence") ||
+  !legalRc.includes("legal-rc-run.json") ||
+  !legalRc.includes("3.13.14") ||
+  !legalRc.includes("10.0.26100.0") ||
+  !legalRc.includes("-winsdk=10.0.26100.0") ||
+  !legalRc.includes("Xcode_16.4.app") ||
+  !legalRc.includes("8.0.423") ||
+  !legalRc.includes("10.0.302")
+) {
+  throw new Error("legal RC workflow must create only a protected, externally reviewed draft");
+}
+if (
+  /(?:draft["']?\s*:\s*false|make_latest|gh\s+release\s+edit|--draft=false|(?:--method|--request)\s+PATCH)/.test(legalRc) ||
+  /^ {2}(?:push|pull_request|schedule|workflow_run|repository_dispatch|workflow_call):/m.test(
+    legalRc,
+  ) ||
+  (legalRc.match(/contents:\s+write/g) ?? []).length !== 1
+) {
+  throw new Error("legal RC workflow contains a stable/public or untrusted trigger path");
+}
 process.stdout.write(`verified immutable action/release references in ${basename(workflowDirectory)}\n`);

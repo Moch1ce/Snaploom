@@ -208,6 +208,22 @@ team_id=""
 if [[ "$signing_mode" == "developer-id" ]]; then
   team_id="$(codesign -dv --verbose=4 "$desktop_app" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
 fi
+if [[ "$notarize" == true ]]; then
+  signing_evidence="$output_directory/signing-evidence"
+  mkdir -p "$signing_evidence"
+  cp "$host_notary_json" "$signing_evidence/host-notary.json"
+  cp "$dmg_notary_json" "$signing_evidence/dmg-notary.json"
+  {
+    codesign --verify --deep --strict --verbose=4 "$host_app"
+    codesign --verify --deep --strict --verbose=4 "$desktop_app"
+    codesign --verify --verbose=4 "$dmg_path"
+    xcrun stapler validate "$host_app"
+    xcrun stapler validate "$dmg_path"
+    spctl --assess --type execute --verbose=4 "$host_app"
+    spctl --assess --type execute --verbose=4 "$desktop_app"
+    spctl --assess --type open --context context:primary-signature --verbose=4 "$dmg_path"
+  } > "$signing_evidence/apple-verification.log" 2>&1
+fi
 jq -n \
   --arg version "$version" --arg signingMode "$signing_mode" \
   --arg dmg "$dmg_name" --argjson dmgBytes "$dmg_bytes" \

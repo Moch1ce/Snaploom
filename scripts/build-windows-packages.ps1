@@ -12,7 +12,9 @@ param(
 
     [string]$OutputDirectory = '',
     [string]$InnoCompiler = '',
-    [string]$SignTool = ''
+    [string]$SignTool = '',
+
+    [string]$CaptureSdkDllPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,16 +38,14 @@ function Invoke-Checked {
 }
 
 function Resolve-SignTool {
-    if (-not [string]::IsNullOrWhiteSpace($SignTool)) { return $SignTool }
-    $command = Get-Command 'signtool.exe' -ErrorAction SilentlyContinue
-    if ($null -ne $command) { return $command.Source }
-    $kitsRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
-    $candidate = Get-ChildItem $kitsRoot -Filter 'signtool.exe' -Recurse -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -like '*\x64\signtool.exe' } |
-        Sort-Object FullName -Descending |
-        Select-Object -First 1
-    if ($null -eq $candidate) { throw 'signtool.exe is required for stable signing.' }
-    return $candidate.FullName
+    if ([string]::IsNullOrWhiteSpace($SignTool)) {
+        throw 'Stable signing requires an explicit pinned -SignTool path.'
+    }
+    $resolved = [System.IO.Path]::GetFullPath($SignTool)
+    if (-not (Test-Path $resolved -PathType Leaf)) {
+        throw "Pinned signtool.exe does not exist: $resolved"
+    }
+    return $resolved
 }
 
 function Sign-And-Verify {
@@ -62,6 +62,9 @@ function Sign-And-Verify {
     Invoke-Checked $tool @('verify', '/pa', '/all', '/v', '/tw', $Path)
     $signature = Get-AuthenticodeSignature $Path
     if ($signature.Status -ne 'Valid') { throw "Authenticode verification failed for $Path." }
+    if ($null -eq $signature.TimeStamperCertificate) {
+        throw "RFC 3161 timestamp verification failed for $Path."
+    }
 }
 
 try {
@@ -86,6 +89,7 @@ try {
     Copy-Item $desktopExecutable $desktopStaging
     Copy-Item $hostExecutable $desktopStaging
 
+    $additionalSignedBinaries = @()
     if ($SigningMode -eq 'stable-signed') {
         Sign-And-Verify (Join-Path $desktopStaging 'snaploom-desktop.exe')
         Sign-And-Verify (Join-Path $desktopStaging 'snaploom-capture-host.exe')
@@ -95,6 +99,28 @@ try {
             if ((Get-AuthenticodeSignature $path).Status -ne 'NotSigned') {
                 throw "Candidate executable unexpectedly contains an Authenticode signature: $path"
             }
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($CaptureSdkDllPath)) {
+        $captureSdkDll = if ([System.IO.Path]::IsPathRooted($CaptureSdkDllPath)) {
+            [System.IO.Path]::GetFullPath($CaptureSdkDllPath)
+        }
+        else {
+            [System.IO.Path]::GetFullPath((Join-Path $repoRoot $CaptureSdkDllPath))
+        }
+        if (-not (Test-Path $captureSdkDll -PathType Leaf) -or
+            [System.IO.Path]::GetFileName($captureSdkDll) -ne 'snaploom_capture.dll') {
+            throw "Capture SDK signing target must be snaploom_capture.dll: $captureSdkDll"
+        }
+        if ($SigningMode -eq 'stable-signed') {
+            Sign-And-Verify $captureSdkDll
+        }
+        elseif ((Get-AuthenticodeSignature $captureSdkDll).Status -ne 'NotSigned') {
+            throw "Candidate Capture SDK DLL unexpectedly contains Authenticode: $captureSdkDll"
+        }
+        $additionalSignedBinaries += [ordered]@{
+            name = [System.IO.Path]::GetFileName($captureSdkDll)
+            sha256 = (Get-FileHash $captureSdkDll -Algorithm SHA256).Hash.ToLowerInvariant()
         }
     }
 
@@ -168,6 +194,7 @@ try {
         authenticodeVerified = $SigningMode -eq 'stable-signed'
         rfc3161TimestampVerified = $SigningMode -eq 'stable-signed'
         certificateThumbprint = $thumbprint
+        additionalSignedBinaries = $additionalSignedBinaries
         installer = [System.IO.Path]::GetFileName($installer)
         installerBytes = (Get-Item $installer).Length
         installerSha256 = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()

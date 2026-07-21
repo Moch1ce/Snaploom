@@ -140,11 +140,15 @@ cyclonedx validate --input-file <sbom.cdx.json>
 | --- | --- | --- |
 | C ABI/IPC 事实 | 已决策 | 实现后对照 binary/schema 复核 |
 | SDK wrapper/package 事实 | 已决策 | 实现后解包复核 |
-| 安装/发现/更新事实 | 待产物 | #31 与实施票生成候选构建 |
-| Corresponding Source/NOTICE/SBOM | 待产物 | release candidate 自动化通过 |
-| 闭源宿主集成走查 | 待执行 | 用 C/C++/C#/Swift 最小宿主各执行一次 |
+| 安装/发现/更新事实 | 自动化已实现，待签名实物 | 运行签名法律 RC workflow 并核对最终 installer/DMG |
+| Corresponding Source/NOTICE/SBOM | 自动化已实现，待签名实物 | 同一 RC workflow 原子汇总、重下载复验通过 |
+| 闭源宿主集成走查 | 自动化已实现，待签名实物 | 法律 RC 对最终 C/C++/C#/Swift 包逐项执行 package-only consumer |
 | 外部律师签署 | **阻塞** | 第 9 节完整填写并链接意见文件 |
 | 稳定 SDK publish | **禁止** | 上述全部通过；没有 bypass input |
+
+签名法律 RC 的生成、GitHub draft 重下载和复核包字段见
+[签名法律 RC draft 流程](../distribution/legal-rc-process.md)。该自动化不会填写本节，也没有 stable
+publish 入口。
 
 ## 9. 外部律师复核记录
 
@@ -176,4 +180,3 @@ cyclonedx validate --input-file <sbom.cdx.json>
 - [GNU GPL FAQ：GPL 程序与专有系统](https://www.gnu.org/licenses/gpl-faq.html#GPLInProprietarySystem)
 - [Apache License 2.0 正文：再分发与 NOTICE](https://www.apache.org/licenses/LICENSE-2.0)
 - [Apache 对 GPLv3 兼容性的说明](https://www.apache.org/licenses/GPL-compatibility)
-

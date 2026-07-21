@@ -265,6 +265,54 @@ try {
   run("swift", ["build", "--package-path", consumer]);
   run("swift", ["run", "--package-path", consumer, "Consumer"]);
 
+  const consumerBin = run("swift", [
+    "build",
+    "--package-path",
+    consumer,
+    "--show-bin-path",
+  ]);
+  const consumerApp = join(temporary, "SnaploomConsumer.app");
+  const consumerMacOS = join(consumerApp, "Contents", "MacOS");
+  const consumerFrameworks = join(consumerApp, "Contents", "Frameworks");
+  mkdirSync(consumerMacOS, { recursive: true });
+  mkdirSync(consumerFrameworks, { recursive: true });
+  const consumerExecutable = join(consumerMacOS, "SnaploomConsumer");
+  const embeddedDylib = join(consumerFrameworks, "libsnaploom_capture.dylib");
+  cpSync(join(consumerBin, "Consumer"), consumerExecutable);
+  cpSync(dylib, embeddedDylib);
+  const consumerLoadCommands = run("otool", ["-l", consumerExecutable]);
+  const consumerRpaths = [
+    ...consumerLoadCommands.matchAll(/cmd LC_RPATH[\s\S]*?path (.+?) \(offset/g),
+  ].map((match) => match[1]);
+  for (const rpath of consumerRpaths.filter((path) => path.startsWith("/"))) {
+    run("install_name_tool", ["-delete_rpath", rpath, consumerExecutable]);
+  }
+  if (!consumerRpaths.includes("@executable_path/../Frameworks")) {
+    run("install_name_tool", [
+      "-add_rpath",
+      "@executable_path/../Frameworks",
+      consumerExecutable,
+    ]);
+  }
+  writeFileSync(
+    join(consumerApp, "Contents", "Info.plist"),
+    [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+      '<plist version="1.0"><dict>',
+      "<key>CFBundleIdentifier</key><string>org.snaploom.sdk.consumer</string>",
+      "<key>CFBundleExecutable</key><string>SnaploomConsumer</string>",
+      "<key>CFBundlePackageType</key><string>APPL</string>",
+      "<key>LSMinimumSystemVersion</key><string>14.0</string>",
+      "</dict></plist>",
+      "",
+    ].join("\n"),
+  );
+  run("codesign", ["--force", "--sign", "-", embeddedDylib]);
+  run("codesign", ["--force", "--sign", "-", consumerApp]);
+  run("codesign", ["--verify", "--deep", "--strict", "--verbose=2", consumerApp]);
+  run(consumerExecutable, []);
+
   const damaged = join(temporary, "damaged.zip");
   cpSync(archive, damaged);
   const bytes = readFileSync(damaged);
@@ -280,7 +328,7 @@ try {
   }
 
   process.stdout.write(
-    `Swift package, strict concurrency${skipTSan ? "" : ", TSan"}, and Xcode consumer passed: ${basename(archive)}\n`,
+    `Swift package, strict concurrency${skipTSan ? "" : ", TSan"}, Xcode, and embedded/re-signed app consumer passed: ${basename(archive)}\n`,
   );
 } finally {
   rmSync(temporary, { recursive: true, force: true });

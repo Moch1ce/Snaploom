@@ -21,7 +21,8 @@ NOTICE/SBOM、Host 与 installer staging digest 一致、当前用户安装/Host
 ## 稳定签名模式
 
 稳定 runner 在受保护环境提供 PFX/托管证书路径、密码和 RFC3161 URL，然后使用
-`-SigningMode stable-signed`。脚本显式使用 `/fd SHA256 /td SHA256 /tr` 签署 Desktop、Host 和
+`-SigningMode stable-signed`，并通过 `-SignTool` 传入已锁定 Windows SDK 的 x64
+`signtool.exe` 绝对路径。脚本显式使用 `/fd SHA256 /td SHA256 /tr` 签署 Desktop、Host 和
 installer，并以 `signtool verify /pa /all /v /tw` 与 `Get-AuthenticodeSignature` 复验。任一步失败
 立即停止，不能回退为 unsigned。
 

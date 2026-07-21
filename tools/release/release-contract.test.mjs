@@ -88,7 +88,7 @@ test("stable mode cannot use unsigned or ad hoc evidence", () => {
           commit,
           mode: "stable-signed",
         }),
-      /stable Windows assets require verified Authenticode/,
+      /stable Windows product and SDK assets require verified Authenticode/,
     );
   } finally {
     rmSync(paths.root, { recursive: true, force: true });

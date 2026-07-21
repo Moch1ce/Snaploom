@@ -152,9 +152,14 @@ export function validateSigningEvidence(mode, signing) {
     signing.windows?.authenticodeVerified !== true ||
     signing.windows?.rfc3161TimestampVerified !== true ||
     typeof signing.windows?.certificateThumbprint !== "string" ||
-    signing.windows.certificateThumbprint.length < 16
+    signing.windows.certificateThumbprint.length < 16 ||
+    signing.windows?.additionalSignedBinaries?.length !== 1 ||
+    signing.windows.additionalSignedBinaries[0]?.name !== "snaploom_capture.dll" ||
+    !/^[0-9a-f]{64}$/.test(signing.windows.additionalSignedBinaries[0]?.sha256 ?? "")
   ) {
-    throw new Error("stable Windows assets require verified Authenticode and RFC3161 evidence");
+    throw new Error(
+      "stable Windows product and SDK assets require verified Authenticode and RFC3161 evidence",
+    );
   }
   if (
     signing.macos?.mode !== "developer-id" ||

@@ -51,3 +51,6 @@ stapling，并通过 Gatekeeper/签名复验。缺少任一签名、公证、真
 
 Issue #33 的真实外部律师签署只阻止 stable publish，不阻止构建和 draft；CI 不生成、补写或代签
 法律结论。稳定发布还必须使用同一 tag/commit 的已审核 draft 实物，不重建、不替换、不移动 tag。
+
+最终签名候选的环境、Secrets、原子 draft、重下载复验与外部复核包操作见
+[签名法律 RC draft 流程](./legal-rc-process.md)。
