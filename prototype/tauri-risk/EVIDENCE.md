@@ -33,6 +33,7 @@
 | 主进程 physical footprint | 48 MB，峰值 64 MB | 低于 100 MB 门槛 |
 | 主进程 RSS | 约 123～132 MB | 不作为合同指标；记录用于诊断 |
 | 可见窗口 | 1920×1080 全屏窗口，完整截图背景且遮罩/选区/工具栏层级正确 | 通过 |
+| 浏览器交互回归 | A/B/C 均可切换；矩形绘制、中文文字提交与跨 Variant 状态保持；console 无 warning/error | 通过 |
 
 视觉证据见 [`evidence/macos-arm64-single-canvas.png`](./evidence/macos-arm64-single-canvas.png)。
 
@@ -41,6 +42,8 @@
 采用 Variant A：单个 Canvas 负责截图背景、遮罩、选区、标注、控制柄与最终合成；文字编辑期间短暂叠加系统 textarea，提交后回到 Canvas。它的 Interface 最小、坐标真相唯一，能把高 DPI、裁切、Z 序和像素输出留在一个深 Module 内。
 
 Variant B 证明分层可用，但会引入背景和交互层同步、缩放与截图时序的额外 Interface；没有提供等量 Leverage。Variant C 的原生 textarea/IME 值得保留为临时输入层，但 SVG/DOM 标注会把命中、层级和物理像素映射扩散到多个渲染系统，因此不作为最终主渲染路径。
+
+交互回归首次发现工具栏 `pointerdown` 会冒泡到截图表面并把选区改成 `1×1`；修复为截图窗口内所有浮动交互层在根部阻断指针事件传播。该规则必须进入生产输入路由测试，不能只依赖按钮自身的 click handler。
 
 ## 仍需后续真机门禁
 

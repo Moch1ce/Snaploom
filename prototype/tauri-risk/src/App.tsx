@@ -339,6 +339,7 @@ function App() {
             value={textDraft.text}
             style={{ left: `${(textDraft.at.x / FRAME.width) * 100}%`, top: `${(textDraft.at.y / FRAME.height) * 100}%` }}
             onChange={(event) => setTextDraft({ ...textDraft, text: event.currentTarget.value })}
+            onPointerDown={(event) => event.stopPropagation()}
             onBlur={commitText}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -354,7 +355,7 @@ function App() {
           {Math.round(selection.width)} × {Math.round(selection.height)}
         </div>
 
-        <nav className="toolbar" aria-label="Annotation tools">
+        <nav className="toolbar" aria-label="Annotation tools" onPointerDown={(event) => event.stopPropagation()}>
           {(["select", "rectangle", "arrow", "text", "mosaic"] as Tool[]).map((item) => (
             <button key={item} className={tool === item ? "active" : ""} onClick={() => setTool(item)}>
               {item === "select" ? "V 选择" : item === "rectangle" ? "R 矩形" : item === "arrow" ? "A 箭头" : item === "text" ? "T 文字" : "M 马赛克"}
