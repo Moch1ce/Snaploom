@@ -24,6 +24,7 @@ struct ScriptedBackend {
     first_entered: mpsc::SyncSender<()>,
 }
 
+#[cfg(unix)]
 static NEXT_TEST_PATH: AtomicUsize = AtomicUsize::new(1);
 
 impl SessionBackend for ScriptedBackend {
