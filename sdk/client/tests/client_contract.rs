@@ -88,6 +88,26 @@ fn cancel_is_idempotent_until_terminal_callback() {
 }
 
 #[test]
+fn terminal_request_is_not_cancelable_from_its_callback() {
+    let client = Arc::new(
+        CaptureClient::new(Arc::new(ImmediateDriver(Mutex::new(Some(completed()))))).unwrap(),
+    );
+    let callback_client = client.clone();
+    let (sender, receiver) = mpsc::channel();
+    client
+        .start_with_request_id(CaptureOptions::default(), move |request_id, _| {
+            sender.send(callback_client.cancel(request_id)).unwrap();
+        })
+        .unwrap();
+
+    assert_eq!(
+        receiver.recv_timeout(Duration::from_secs(1)).unwrap(),
+        Err(ClientStatus::NotFound)
+    );
+    client.close().unwrap();
+}
+
+#[test]
 fn explicit_interaction_timeout_becomes_request_timeout() {
     let client = CaptureClient::new(Arc::new(CancelDriver)).unwrap();
     let (sender, receiver) = mpsc::channel();

@@ -161,14 +161,16 @@ impl CaptureClient {
                             terminal,
                             callback,
                         } => {
+                            {
+                                let mut state = callback_inner
+                                    .state
+                                    .lock()
+                                    .unwrap_or_else(|error| error.into_inner());
+                                state.requests.remove(&request_id);
+                                callback_inner.requests_drained.notify_all();
+                            }
                             let _ =
                                 catch_unwind(AssertUnwindSafe(|| callback(request_id, terminal)));
-                            let mut state = callback_inner
-                                .state
-                                .lock()
-                                .unwrap_or_else(|error| error.into_inner());
-                            state.requests.remove(&request_id);
-                            callback_inner.requests_drained.notify_all();
                         }
                         CallbackMessage::Shutdown => break,
                     }
