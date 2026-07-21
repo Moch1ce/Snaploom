@@ -3663,6 +3663,8 @@ version = "0.1.0"
 dependencies = [
  "getrandom 0.4.3",
  "libc",
+ "objc2-app-kit",
+ "objc2-foundation",
  "prost",
  "snaploom-capture-protocol",
  "windows-sys 0.61.2",
