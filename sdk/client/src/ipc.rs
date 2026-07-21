@@ -16,6 +16,7 @@ use snaploom_capture_protocol::{
     Welcome, write_frame,
 };
 
+use crate::host_locator::resolve_host_executable;
 use crate::local_transport::{
     EndpointPaths, LocalStream, TransportSecurityError, connect_authenticated,
 };
@@ -233,12 +234,8 @@ impl IpcDriver {
                 Err(error) => return Err(map_transport_error(error)),
             }
         }
-        let executable = self
-            .config
-            .host_executable_override
-            .as_ref()
-            .ok_or(StableError::HostNotFound)?;
-        launch_host(executable, self.config.launch_timeout)?;
+        let executable = resolve_host_executable(self.config.host_executable_override.as_deref())?;
+        launch_host(&executable, self.config.launch_timeout)?;
         let deadline = Instant::now() + self.config.launch_timeout;
         loop {
             match connect_authenticated(paths) {

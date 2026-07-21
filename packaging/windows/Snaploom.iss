@@ -49,7 +49,7 @@ Name: "{userstartup}\Snaploom"; Filename: "{app}\snaploom-desktop.exe"; Tasks: s
 Name: "startup"; Description: "Start Snaploom when I sign in"; Flags: unchecked
 
 [Registry]
-Root: HKCU; Subkey: "Software\Snaploom\CaptureHost"; ValueType: string; ValueName: "Executable"; ValueData: "{app}\snaploom-capture-host.exe"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Snaploom\CaptureHost"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}\snaploom-capture-host.exe"; Flags: uninsdeletekey
 
 [Run]
 Filename: "{app}\snaploom-desktop.exe"; Description: "Launch Snaploom"; Flags: nowait postinstall skipifsilent

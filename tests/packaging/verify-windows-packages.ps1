@@ -99,7 +99,7 @@ try {
         throw "Per-user InstallLocation is '$($uninstall.InstallLocation)', expected '$installDirectory'."
     }
     $hostRegistration = Get-ItemProperty $hostRegistryPath
-    if ($hostRegistration.Executable -ne $installedHost) { throw 'Capture Host registration is invalid.' }
+    if ($hostRegistration.InstallPath -ne $installedHost) { throw 'Capture Host registration is invalid.' }
 
     $desktopProcess = Start-Process $desktop -PassThru
     Start-Sleep -Seconds 5

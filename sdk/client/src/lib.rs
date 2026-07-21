@@ -9,6 +9,8 @@ use snaploom_capture_protocol::SensitivePng;
 pub use snaploom_capture_protocol::{CancelSource, StableError};
 
 #[cfg(any(unix, windows))]
+mod host_locator;
+#[cfg(any(unix, windows))]
 pub mod ipc;
 #[cfg(unix)]
 pub mod local_transport;
