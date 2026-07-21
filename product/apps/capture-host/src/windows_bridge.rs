@@ -4,8 +4,11 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use snaploom_capture_session::{
-    CaptureRequest, SensitivePng, SessionBackend, SessionControl, SessionFailure, SessionTerminal,
+    CapturePermission, CaptureRequest, SensitivePng, SessionBackend, SessionControl,
+    SessionFailure, SessionTerminal,
 };
+#[cfg(target_os = "macos")]
+use snaploom_platform_contract::CapturePermissionState;
 use snaploom_platform_contract::{
     CaptureSnapshot, CaptureSnapshotDescriptor, MAX_CAPTURE_FRAME_BYTES, PlatformError,
 };
@@ -319,6 +322,69 @@ impl SessionBackend for NativeSessionBackend {
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
             }
         }
+    }
+
+    fn capture_permission(&self) -> Result<CapturePermission, SessionFailure> {
+        #[cfg(target_os = "macos")]
+        {
+            Ok(
+                if snaploom_platform_macos::MacPlatform::new().permission_granted() {
+                    CapturePermission::Granted
+                } else {
+                    CapturePermission::NotGranted
+                },
+            )
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            Ok(CapturePermission::NotApplicable)
+        }
+    }
+
+    fn request_capture_permission(&self) -> Result<CapturePermission, SessionFailure> {
+        #[cfg(target_os = "macos")]
+        {
+            snaploom_platform_macos::MacPlatform::new()
+                .request_permission()
+                .map(map_permission)
+                .map_err(permission_failure)
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            Ok(CapturePermission::NotApplicable)
+        }
+    }
+
+    fn open_capture_permission_settings(&self) -> Result<(), SessionFailure> {
+        #[cfg(target_os = "macos")]
+        {
+            snaploom_platform_macos::MacPlatform::new()
+                .open_permission_settings()
+                .map_err(permission_failure)
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            Err(SessionFailure::PlatformUnavailable)
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+const fn map_permission(permission: CapturePermissionState) -> CapturePermission {
+    match permission {
+        CapturePermissionState::Granted => CapturePermission::Granted,
+        CapturePermissionState::NotGranted => CapturePermission::NotGranted,
+        CapturePermissionState::RestartRequired => CapturePermission::RestartRequired,
+    }
+}
+
+#[cfg(target_os = "macos")]
+const fn permission_failure(error: PlatformError) -> SessionFailure {
+    match error {
+        PlatformError::PlatformUnavailable => SessionFailure::PlatformUnavailable,
+        PlatformError::PermissionNotGranted => SessionFailure::PermissionNotGranted,
+        PlatformError::PermissionRevoked => SessionFailure::PermissionRevoked,
+        _ => SessionFailure::Internal,
     }
 }
 

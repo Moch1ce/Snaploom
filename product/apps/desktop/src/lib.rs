@@ -3,7 +3,9 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use snaploom_capture_client::ipc::{IpcClientConfig, IpcDriver};
-use snaploom_capture_client::{CaptureClient, CaptureOptions, StableError, Terminal};
+use snaploom_capture_client::{
+    CaptureClient, CaptureOptions, CapturePermission, StableError, Terminal,
+};
 use snaploom_capture_protocol::CaptureOrigin;
 use snaploom_desktop_shell::{
     AppSettings, CaptureIntentGate, CaptureTrigger, HttpReleaseResponse, Language, PrivacyEvent,
@@ -31,6 +33,7 @@ struct DesktopState {
     privacy_log: PrivacyLog,
     intent_gate: Arc<CaptureIntentGate>,
     capture_client: Arc<CaptureClient>,
+    capture_driver: Arc<IpcDriver>,
     platform: NativeShell,
     resume_lease: Mutex<Option<<NativeShell as PlatformAdapter>::ResumeLease>>,
     verified_release_url: Mutex<Option<String>>,
@@ -84,6 +87,15 @@ struct SettingsMutation {
     persisted: bool,
 }
 
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+enum CapturePermissionView {
+    Granted,
+    NotGranted,
+    RestartRequired,
+    NotApplicable,
+}
+
 #[tauri::command]
 fn settings_snapshot(state: State<'_, DesktopState>) -> SettingsSnapshot {
     SettingsSnapshot {
@@ -93,6 +105,43 @@ fn settings_snapshot(state: State<'_, DesktopState>) -> SettingsSnapshot {
             .unwrap_or_else(|error| error.into_inner())
             .clone(),
         platform: state.platform.platform_name(),
+    }
+}
+
+#[tauri::command]
+fn capture_permission(state: State<'_, DesktopState>) -> Result<CapturePermissionView, String> {
+    state
+        .capture_driver
+        .capture_permission()
+        .map(permission_view)
+        .map_err(|error| stable_error_name(error).to_owned())
+}
+
+#[tauri::command]
+fn request_capture_permission(
+    state: State<'_, DesktopState>,
+) -> Result<CapturePermissionView, String> {
+    state
+        .capture_driver
+        .request_capture_permission()
+        .map(permission_view)
+        .map_err(|error| stable_error_name(error).to_owned())
+}
+
+#[tauri::command]
+fn open_capture_permission_settings(state: State<'_, DesktopState>) -> Result<(), String> {
+    state
+        .capture_driver
+        .open_capture_permission_settings()
+        .map_err(|error| stable_error_name(error).to_owned())
+}
+
+const fn permission_view(permission: CapturePermission) -> CapturePermissionView {
+    match permission {
+        CapturePermission::Granted => CapturePermissionView::Granted,
+        CapturePermission::NotGranted => CapturePermissionView::NotGranted,
+        CapturePermission::RestartRequired => CapturePermissionView::RestartRequired,
+        CapturePermission::NotApplicable => CapturePermissionView::NotApplicable,
     }
 }
 
@@ -340,17 +389,19 @@ fn request_capture<R: Runtime>(app: &AppHandle<R>, trigger: CaptureTrigger) {
                 drop(lease);
                 return;
             };
-            let (event, level, terminal_view, unavailable) = match terminal {
+            let (event, level, terminal_view, unavailable, show_failure) = match terminal {
                 Terminal::Completed { .. } => (
                     PrivacyEvent::CaptureCompleted,
                     PrivacyLevel::Info,
                     "completed",
+                    false,
                     false,
                 ),
                 Terminal::Canceled { .. } => (
                     PrivacyEvent::CaptureCanceled,
                     PrivacyLevel::Info,
                     "canceled",
+                    false,
                     false,
                 ),
                 Terminal::Failed {
@@ -360,18 +411,22 @@ fn request_capture<R: Runtime>(app: &AppHandle<R>, trigger: CaptureTrigger) {
                     drop(lease);
                     return;
                 }
-                Terminal::Failed { error, .. } => (
-                    PrivacyEvent::CaptureFailed,
-                    PrivacyLevel::Error,
-                    stable_error_name(error),
-                    matches!(
+                Terminal::Failed { error, .. } => {
+                    let unavailable = matches!(
                         error,
                         StableError::HostNotFound
                             | StableError::HostStartFailed
+                            | StableError::HostStartTimeout
                             | StableError::PlatformUnavailable
-                            | StableError::CaptureUnavailable
-                    ),
-                ),
+                    );
+                    (
+                        PrivacyEvent::CaptureFailed,
+                        PrivacyLevel::Error,
+                        stable_error_name(error),
+                        unavailable,
+                        true,
+                    )
+                }
             };
             state.log(
                 level,
@@ -386,6 +441,9 @@ fn request_capture<R: Runtime>(app: &AppHandle<R>, trigger: CaptureTrigger) {
                     .as_ref()
             {
                 let _ = item.set_enabled(false);
+            }
+            if show_failure {
+                show_settings(&callback_app);
             }
             let _ = callback_app.emit(
                 "capture-terminal",
@@ -402,6 +460,14 @@ fn request_capture<R: Runtime>(app: &AppHandle<R>, trigger: CaptureTrigger) {
             PrivacyLevel::Error,
             PrivacyEvent::CaptureFailed,
             Some("snaploom_capture_client::ClientStatus"),
+        );
+        show_settings(app);
+        let _ = app.emit(
+            "capture-terminal",
+            CaptureTerminalEvent {
+                trigger,
+                terminal: "internal",
+            },
         );
     }
 }
@@ -606,12 +672,12 @@ pub fn run() {
                 loaded.settings.language =
                     Language::from_system_locale(std::env::var("LANG").ok().as_deref());
             }
-            let driver = IpcDriver::new(IpcClientConfig {
+            let driver = Arc::new(IpcDriver::new(IpcClientConfig {
                 host_executable_override: host_executable(),
                 origin: CaptureOrigin::App,
                 ..IpcClientConfig::default()
-            });
-            let client = CaptureClient::new(Arc::new(driver))
+            }));
+            let client = CaptureClient::new(driver.clone())
                 .map_err(|_| std::io::Error::other("capture client initialization failed"))?;
             app.manage(DesktopState {
                 settings_store: store,
@@ -619,6 +685,7 @@ pub fn run() {
                 privacy_log: PrivacyLog::new(log_dir),
                 intent_gate: Arc::new(CaptureIntentGate::new()),
                 capture_client: Arc::new(client),
+                capture_driver: driver,
                 platform: NativeShell::new(app.handle().clone()),
                 resume_lease: Mutex::new(None),
                 verified_release_url: Mutex::new(None),
@@ -679,6 +746,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             settings_snapshot,
+            capture_permission,
+            request_capture_permission,
+            open_capture_permission_settings,
             replace_shortcut,
             set_autostart,
             set_language,

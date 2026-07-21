@@ -75,6 +75,8 @@ const resources = {
     captureCanceled: "截图已取消。",
     capturePermissionError: "Capture Host 需要屏幕录制权限。请在系统设置中授权后重试。",
     captureHostMissing: "Capture Host 不可用；设置仍可正常使用。",
+    captureUnavailable: "无法截取当前屏幕，请关闭提示后重试。",
+    captureUnexpectedError: "截图遇到意外错误，请重试。",
   },
   en: {
     ready: "Snaploom is ready",
@@ -112,6 +114,8 @@ const resources = {
     captureCanceled: "Capture canceled.",
     capturePermissionError: "Capture Host needs Screen Recording permission. Grant it in System Settings, then try again.",
     captureHostMissing: "Capture Host is unavailable. Settings remain available.",
+    captureUnavailable: "The current screen could not be captured. Close this message and try again.",
+    captureUnexpectedError: "Capture failed unexpectedly. Try again.",
   },
 } as const;
 

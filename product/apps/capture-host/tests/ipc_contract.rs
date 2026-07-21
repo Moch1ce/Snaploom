@@ -15,13 +15,16 @@ use snaploom_capture_client::{CaptureClient, CaptureOptions, StableError, Termin
 use snaploom_capture_host_lib::{HostServer, HostServerOutcome};
 use snaploom_capture_protocol::CaptureOrigin;
 use snaploom_capture_session::{
-    CaptureRequest, GateSnapshot, SessionBackend, SessionControl, SessionTerminal,
+    CapturePermission, CaptureRequest, GateSnapshot, SessionBackend, SessionControl,
+    SessionFailure, SessionTerminal,
 };
 
 struct ScriptedBackend {
     calls: AtomicUsize,
     first_entered: mpsc::SyncSender<()>,
 }
+
+static NEXT_TEST_PATH: AtomicUsize = AtomicUsize::new(1);
 
 impl SessionBackend for ScriptedBackend {
     fn run(&self, _request: CaptureRequest, control: SessionControl) -> SessionTerminal {
@@ -39,6 +42,18 @@ impl SessionBackend for ScriptedBackend {
             clipboard_written: true,
         }
     }
+
+    fn capture_permission(&self) -> Result<CapturePermission, SessionFailure> {
+        Ok(CapturePermission::NotGranted)
+    }
+
+    fn request_capture_permission(&self) -> Result<CapturePermission, SessionFailure> {
+        Ok(CapturePermission::RestartRequired)
+    }
+
+    fn open_capture_permission_settings(&self) -> Result<(), SessionFailure> {
+        Ok(())
+    }
 }
 
 fn tiny_png() -> Vec<u8> {
@@ -55,6 +70,7 @@ fn test_paths() -> (Option<PathBuf>, EndpointPaths) {
         .unwrap()
         .subsec_nanos();
     let base = std::env::temp_dir().join(format!("slhe-{}-{nonce}", std::process::id()));
+    let base = base.with_extension(NEXT_TEST_PATH.fetch_add(1, Ordering::Relaxed).to_string());
     let mut builder = fs::DirBuilder::new();
     builder.mode(0o700).create(&base).unwrap();
     let uid = unsafe { libc::geteuid() };
@@ -144,6 +160,40 @@ fn real_local_transport_routes_app_and_sdk_through_one_gate() {
         "unexpected terminal after local transport reconnect: {completed:?}"
     );
     next_client.close().unwrap();
+    assert_eq!(server.gate().snapshot(), GateSnapshot::Idle);
+
+    drop(server);
+    #[cfg(unix)]
+    fs::remove_dir_all(_base.unwrap()).unwrap();
+}
+
+#[test]
+fn authenticated_minor_one_connection_controls_host_permission_without_starting_a_session() {
+    let (_base, paths) = test_paths();
+    let (entered_sender, _entered_receiver) = mpsc::sync_channel(1);
+    let backend = Arc::new(ScriptedBackend {
+        calls: AtomicUsize::new(0),
+        first_entered: entered_sender,
+    });
+    let HostServerOutcome::Leader(server) = HostServer::start_at(paths.clone(), backend).unwrap()
+    else {
+        panic!("isolated test endpoint must elect this process");
+    };
+    let driver = IpcDriver::new(IpcClientConfig {
+        endpoint_override: Some(paths),
+        origin: CaptureOrigin::App,
+        ..IpcClientConfig::default()
+    });
+
+    assert_eq!(
+        driver.capture_permission().unwrap(),
+        snaploom_capture_client::CapturePermission::NotGranted
+    );
+    assert_eq!(
+        driver.request_capture_permission().unwrap(),
+        snaploom_capture_client::CapturePermission::RestartRequired
+    );
+    driver.open_capture_permission_settings().unwrap();
     assert_eq!(server.gate().snapshot(), GateSnapshot::Idle);
 
     drop(server);

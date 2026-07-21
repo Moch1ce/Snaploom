@@ -43,3 +43,27 @@ fn update_network_access_exists_only_behind_the_manual_command() {
         .unwrap();
     assert!(network > command && network < next_command);
 }
+
+#[test]
+fn recoverable_capture_failures_open_settings_without_disabling_capture() {
+    let source = include_str!("../src/lib.rs");
+    assert!(source.contains("show_settings(&callback_app)"));
+    let unavailable = source
+        .split("let unavailable = matches!(")
+        .nth(1)
+        .expect("stable unavailable classification")
+        .split(");")
+        .next()
+        .unwrap();
+    assert!(!unavailable.contains("StableError::CaptureUnavailable"));
+}
+
+#[test]
+fn desktop_permission_commands_use_capture_host_ipc() {
+    let source = include_str!("../src/lib.rs");
+    assert!(source.contains("fn capture_permission("));
+    assert!(source.contains("fn request_capture_permission("));
+    assert!(source.contains("fn open_capture_permission_settings("));
+    assert!(source.contains(".capture_driver"));
+    assert!(source.contains(".capture_permission()"));
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   languageFromLocale,
+  message,
   resourceKeys,
   settingsControlKeys,
   updateMessage,
@@ -15,6 +16,15 @@ describe("desktop settings contract", () => {
 
   it("keeps complete key parity between Chinese and English", () => {
     expect(resourceKeys("zh-cn")).toEqual(resourceKeys("en"));
+  });
+
+  it("localizes permission, capture failure, and unexpected failure states", () => {
+    for (const language of ["zh-cn", "en"] as const) {
+      expect(typeof message(language, "permission")).toBe("string");
+      expect(typeof message(language, "capturePermissionError")).toBe("string");
+      expect(typeof message(language, "captureUnavailable")).toBe("string");
+      expect(typeof message(language, "captureUnexpectedError")).toBe("string");
+    }
   });
 
   it("does not expose a theme setting because the product is fixed light", () => {

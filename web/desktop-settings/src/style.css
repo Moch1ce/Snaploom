@@ -142,10 +142,21 @@ select {
   margin-top: 14px;
 }
 
+.permission-actions {
+  display: flex;
+  grid-column: 2 / -1;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .permission-state,
 .update-state {
   color: #64676d;
   font-size: 13px;
+}
+
+.permission-state {
+  grid-column: 2 / -1;
 }
 
 .update-state {

@@ -11,16 +11,17 @@ use std::time::{Duration, Instant};
 use prost::Message;
 use snaploom_capture_protocol::envelope::Body;
 use snaploom_capture_protocol::{
-    CancelCapture, CancelSource, CaptureOrigin, ClipboardMode, ClipboardOutcome, Envelope, Frame,
-    FrameType, FramedReader, Hello, PngAccumulator, StableError, StartCapture, StreamError,
-    Welcome, write_frame,
+    CAPABILITY_PERMISSION_CONTROL, CancelCapture, CancelSource, CaptureOrigin, ClipboardMode,
+    ClipboardOutcome, Envelope, Frame, FrameType, FramedReader, Hello, PROTOCOL_MINOR,
+    PermissionAction, PermissionCommand, PermissionResult, PermissionState, PngAccumulator,
+    StableError, StartCapture, StreamError, Welcome, write_frame,
 };
 
 use crate::host_locator::resolve_host_executable;
 use crate::local_transport::{
     EndpointPaths, LocalStream, TransportSecurityError, connect_authenticated,
 };
-use crate::{CaptureDriver, DriverRequest, Terminal};
+use crate::{CaptureDriver, CapturePermission, DriverRequest, Terminal};
 
 const BOOTSTRAP_REQUEST_MAGIC: &[u8; 4] = b"SLBR";
 const BOOTSTRAP_READY_MAGIC: &[u8; 4] = b"SLRD";
@@ -76,7 +77,8 @@ impl IpcDriver {
             .map_err(|_| StableError::TransportFailed)?;
         let mut reader = FramedReader::new(stream);
         let mut writer = writer;
-        let connection_id = handshake(&mut reader, &mut writer)?;
+        let handshake = handshake(&mut reader, &mut writer, 0, PROTOCOL_MINOR, 0)?;
+        let connection_id = handshake.connection_id;
         reader
             .get_ref()
             .set_read_timeout(Some(READ_POLL))
@@ -218,6 +220,81 @@ impl IpcDriver {
         }
     }
 
+    pub fn capture_permission(&self) -> Result<CapturePermission, StableError> {
+        self.permission_inner(PermissionAction::Query)
+    }
+
+    /// May prompt the user and must only be called from an explicit UI action.
+    pub fn request_capture_permission(&self) -> Result<CapturePermission, StableError> {
+        self.permission_inner(PermissionAction::Request)
+    }
+
+    pub fn open_capture_permission_settings(&self) -> Result<(), StableError> {
+        self.permission_inner(PermissionAction::OpenSettings)
+            .map(|_| ())
+    }
+
+    fn permission_inner(&self, action: PermissionAction) -> Result<CapturePermission, StableError> {
+        let paths = self.config.endpoint_override.clone().map_or_else(
+            || EndpointPaths::for_current_session(1).map_err(map_transport_error),
+            Ok,
+        )?;
+        let stream = self.connect_or_launch(&paths)?;
+        stream
+            .set_read_timeout(Some(self.config.handshake_timeout))
+            .map_err(|_| StableError::TransportFailed)?;
+        stream
+            .set_write_timeout(Some(self.config.handshake_timeout))
+            .map_err(|_| StableError::TransportFailed)?;
+        let writer = stream
+            .try_clone()
+            .map_err(|_| StableError::TransportFailed)?;
+        let mut reader = FramedReader::new(stream);
+        let mut writer = writer;
+        let handshake = handshake(
+            &mut reader,
+            &mut writer,
+            1,
+            PROTOCOL_MINOR,
+            CAPABILITY_PERMISSION_CONTROL,
+        )?;
+        write_envelope(
+            &mut writer,
+            FrameType::PermissionCommand,
+            &handshake.connection_id,
+            2,
+            Body::PermissionCommand(PermissionCommand {
+                action: action as i32,
+            }),
+        )?;
+        let (frame_type, envelope) = read_envelope(&mut reader).map_err(|error| match error {
+            IpcReadError::Timeout => StableError::HandshakeTimeout,
+            IpcReadError::Eof => StableError::HostCrashed,
+            IpcReadError::Transport => StableError::TransportFailed,
+            IpcReadError::Protocol => StableError::ProtocolError,
+        })?;
+        let Some(Body::PermissionResult(PermissionResult { state, error })) = envelope.body else {
+            return Err(StableError::ProtocolError);
+        };
+        if frame_type != FrameType::PermissionResult
+            || envelope.connection_id != handshake.connection_id
+            || envelope.sequence != 2
+        {
+            return Err(StableError::ProtocolError);
+        }
+        let error = StableError::try_from(error).map_err(|_| StableError::ProtocolError)?;
+        if error != StableError::None {
+            return Err(error);
+        }
+        match PermissionState::try_from(state).map_err(|_| StableError::ProtocolError)? {
+            PermissionState::Granted => Ok(CapturePermission::Granted),
+            PermissionState::NotGranted => Ok(CapturePermission::NotGranted),
+            PermissionState::RestartRequired => Ok(CapturePermission::RestartRequired),
+            PermissionState::NotApplicable => Ok(CapturePermission::NotApplicable),
+            PermissionState::Unspecified => Err(StableError::ProtocolError),
+        }
+    }
+
     fn connect_or_launch(&self, paths: &EndpointPaths) -> Result<LocalStream, StableError> {
         let connect_deadline = Instant::now() + self.config.handshake_timeout;
         loop {
@@ -279,10 +356,17 @@ impl CaptureDriver for IpcDriver {
     }
 }
 
+struct Handshake {
+    connection_id: Vec<u8>,
+}
+
 fn handshake(
     reader: &mut FramedReader<LocalStream>,
     writer: &mut LocalStream,
-) -> Result<Vec<u8>, StableError> {
+    min_minor: u16,
+    max_minor: u16,
+    requested_capabilities: u64,
+) -> Result<Handshake, StableError> {
     let mut nonce = [0_u8; 32];
     getrandom::fill(&mut nonce).map_err(|_| StableError::Internal)?;
     write_envelope(
@@ -292,11 +376,11 @@ fn handshake(
         1,
         Body::Hello(Hello {
             protocol_major: 1,
-            min_protocol_minor: 0,
-            max_protocol_minor: 0,
+            min_protocol_minor: u32::from(min_minor),
+            max_protocol_minor: u32::from(max_minor),
             client_nonce: nonce.to_vec(),
             sdk_semver: env!("CARGO_PKG_VERSION").into(),
-            requested_capabilities: 0,
+            requested_capabilities,
         }),
     )?;
     let (frame_type, envelope) = read_envelope(reader).map_err(|error| match error {
@@ -312,6 +396,7 @@ fn handshake(
         connection_id,
         max_frame_bytes,
         max_png_bytes,
+        capabilities,
         ..
     })) = envelope.body
     else {
@@ -321,15 +406,17 @@ fn handshake(
         || envelope.sequence != 1
         || envelope.connection_id != connection_id
         || protocol_major != 1
-        || negotiated_protocol_minor != 0
+        || negotiated_protocol_minor < u32::from(min_minor)
+        || negotiated_protocol_minor > u32::from(max_minor)
         || echoed_client_nonce != nonce
         || connection_id.len() != 16
         || max_frame_bytes as usize != snaploom_capture_protocol::MAX_FRAME_BYTES
         || max_png_bytes != snaploom_capture_protocol::MAX_PNG_BYTES
+        || capabilities & requested_capabilities != requested_capabilities
     {
         return Err(StableError::ProtocolIncompatible);
     }
-    Ok(connection_id)
+    Ok(Handshake { connection_id })
 }
 
 fn write_envelope(

@@ -2,8 +2,8 @@ use std::io::{self, Read};
 
 use prost::Message;
 use snaploom_capture_protocol::{
-    Frame, FrameDecoder, FrameType, FramedReader, Hello, PngAccumulator, ProtocolRange, WireError,
-    negotiate_version, write_frame,
+    CAPABILITY_PERMISSION_CONTROL, Frame, FrameDecoder, FrameType, FramedReader, Hello,
+    PROTOCOL_MINOR, PngAccumulator, ProtocolRange, WireError, negotiate_version, write_frame,
 };
 
 fn tiny_png() -> Vec<u8> {
@@ -101,6 +101,22 @@ fn version_negotiation_selects_highest_shared_minor() {
     assert_eq!(
         negotiate_version(client, ProtocolRange::new(2, 2, 5).unwrap(), 0, 0),
         Err(WireError::ProtocolIncompatible)
+    );
+}
+
+#[test]
+fn protocol_minor_one_reserves_authenticated_permission_control() {
+    assert_eq!(PROTOCOL_MINOR, 1);
+    assert_eq!(CAPABILITY_PERMISSION_CONTROL, 1);
+    assert_eq!(FrameType::PermissionCommand as u16, 13);
+    assert_eq!(FrameType::PermissionResult as u16, 14);
+    assert_eq!(
+        FrameType::try_from(13).unwrap(),
+        FrameType::PermissionCommand
+    );
+    assert_eq!(
+        FrameType::try_from(14).unwrap(),
+        FrameType::PermissionResult
     );
 }
 

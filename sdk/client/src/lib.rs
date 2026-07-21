@@ -8,6 +8,14 @@ use std::time::Duration;
 use snaploom_capture_protocol::SensitivePng;
 pub use snaploom_capture_protocol::{CancelSource, StableError};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CapturePermission {
+    Granted,
+    NotGranted,
+    RestartRequired,
+    NotApplicable,
+}
+
 #[cfg(any(unix, windows))]
 mod host_locator;
 #[cfg(any(unix, windows))]

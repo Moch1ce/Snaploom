@@ -26,6 +26,21 @@ enum CancelSource {
   CANCEL_SOURCE_CLIENT_DISCONNECTED = 3;
 }
 
+enum PermissionAction {
+  PERMISSION_ACTION_UNSPECIFIED = 0;
+  PERMISSION_ACTION_QUERY = 1;
+  PERMISSION_ACTION_REQUEST = 2;
+  PERMISSION_ACTION_OPEN_SETTINGS = 3;
+}
+
+enum PermissionState {
+  PERMISSION_STATE_UNSPECIFIED = 0;
+  PERMISSION_STATE_GRANTED = 1;
+  PERMISSION_STATE_NOT_GRANTED = 2;
+  PERMISSION_STATE_RESTART_REQUIRED = 3;
+  PERMISSION_STATE_NOT_APPLICABLE = 4;
+}
+
 enum StableError {
   STABLE_ERROR_NONE = 0;
   STABLE_ERROR_BUSY = 1;
@@ -98,6 +113,8 @@ message ResultChunk { bytes request_id = 1; uint64 offset = 2; bytes data = 3; }
 message ResultEnd { bytes request_id = 1; }
 message CaptureCanceled { bytes request_id = 1; CancelSource source = 2; }
 message CaptureFailed { bytes request_id = 1; StableError error = 2; bool retryable = 3; }
+message PermissionCommand { PermissionAction action = 1; }
+message PermissionResult { PermissionState state = 1; StableError error = 2; }
 
 message Envelope {
   bytes connection_id = 1;
@@ -115,5 +132,7 @@ message Envelope {
     ResultEnd result_end = 19;
     CaptureCanceled capture_canceled = 20;
     CaptureFailed capture_failed = 21;
+    PermissionCommand permission_command = 22;
+    PermissionResult permission_result = 23;
   }
 }

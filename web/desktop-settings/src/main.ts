@@ -18,12 +18,19 @@ interface CaptureTerminalEvent {
   readonly terminal: "completed" | "canceled" | string;
 }
 
+type CapturePermissionView =
+  | "granted"
+  | "notGranted"
+  | "restartRequired"
+  | "notApplicable";
+
 const rootElement = document.querySelector<HTMLElement>("#app");
 if (!rootElement) throw new Error("missing #app");
 const root: HTMLElement = rootElement;
 let activeLanguage: Language = "en";
 let activeStatus: HTMLElement | null = null;
 let activeCaptureButton: HTMLButtonElement | null = null;
+let activePermissionStatus: HTMLElement | null = null;
 
 document.documentElement.style.setProperty(
   "--snaploom-brand",
@@ -140,6 +147,41 @@ function render(snapshot: SettingsSnapshot): void {
   languageRow.append(languageSelect);
   general.append(languageRow);
 
+  if (snapshot.platform === "macos") {
+    const permissionRow = row(message(language, "permission"));
+    const permissionStatus = element("span", "permission-state");
+    permissionStatus.setAttribute("role", "status");
+    activePermissionStatus = permissionStatus;
+    const requestButton = button(
+      message(language, "requestPermission"),
+      async () => {
+        try {
+          updatePermissionStatus(
+            permissionStatus,
+            language,
+            await invoke<CapturePermissionView>("request_capture_permission"),
+          );
+        } catch {
+          permissionStatus.textContent = message(language, "actionFailed");
+        }
+      },
+    );
+    const openButton = button(message(language, "openPermission"), async () => {
+      try {
+        await invoke("open_capture_permission_settings");
+      } catch {
+        permissionStatus.textContent = message(language, "actionFailed");
+      }
+    });
+    const permissionActions = element("div", "permission-actions");
+    permissionActions.append(requestButton, openButton);
+    permissionRow.append(permissionStatus, permissionActions);
+    general.append(permissionRow);
+    void refreshPermission(permissionStatus, language);
+  } else {
+    activePermissionStatus = null;
+  }
+
   root.append(general);
 
   const privacy = section(message(language, "privacy"));
@@ -174,6 +216,36 @@ function render(snapshot: SettingsSnapshot): void {
 
 }
 
+async function refreshPermission(
+  target: HTMLElement,
+  language: Language,
+): Promise<void> {
+  try {
+    updatePermissionStatus(
+      target,
+      language,
+      await invoke<CapturePermissionView>("capture_permission"),
+    );
+  } catch {
+    target.textContent = message(language, "actionFailed");
+  }
+}
+
+function updatePermissionStatus(
+  target: HTMLElement,
+  language: Language,
+  permission: CapturePermissionView,
+): void {
+  target.textContent =
+    permission === "granted"
+      ? message(language, "permissionGranted")
+      : permission === "restartRequired"
+        ? message(language, "permissionRestart")
+        : permission === "notGranted"
+          ? message(language, "permissionRequired")
+          : "";
+}
+
 function section(title: string): HTMLElement {
   const value = element("section", "section");
   value.append(element("h2", undefined, title));
@@ -204,24 +276,32 @@ void boot().catch(() => {
 
 void listen<CaptureTerminalEvent>("capture-terminal", ({ payload }) => {
   if (!activeStatus) return;
-  const captureUnavailable = [
+  const hostUnavailable = [
     "hostNotFound",
     "hostStartFailed",
+    "hostStartTimeout",
     "platformUnavailable",
-    "captureUnavailable",
   ].includes(payload.terminal);
-  if (captureUnavailable && activeCaptureButton) {
+  if (hostUnavailable && activeCaptureButton) {
     activeCaptureButton.disabled = true;
+  }
+  const permissionFailure =
+    payload.terminal === "permissionNotGranted" ||
+    payload.terminal === "permissionRevoked";
+  if (permissionFailure && activePermissionStatus) {
+    void refreshPermission(activePermissionStatus, activeLanguage);
   }
   activeStatus.textContent =
     payload.terminal === "completed"
       ? message(activeLanguage, "captureCompleted")
       : payload.terminal === "canceled"
         ? message(activeLanguage, "captureCanceled")
-        : payload.terminal === "permissionNotGranted" ||
-            payload.terminal === "permissionRevoked"
+        : permissionFailure
           ? message(activeLanguage, "capturePermissionError")
-          : captureUnavailable
+          : hostUnavailable
             ? message(activeLanguage, "captureHostMissing")
-            : message(activeLanguage, "actionFailed");
+            : payload.terminal === "captureUnavailable" ||
+                payload.terminal === "displayUnavailable"
+              ? message(activeLanguage, "captureUnavailable")
+              : message(activeLanguage, "captureUnexpectedError");
 });

@@ -14,14 +14,16 @@ use snaploom_capture_client::local_transport::{
 };
 use snaploom_capture_protocol::envelope::Body;
 use snaploom_capture_protocol::{
-    CancelAcknowledged, CancelSource, CaptureAccepted, CaptureCanceled, CaptureFailed,
-    CaptureOrigin, CaptureRejected, ClipboardMode, ClipboardOutcome, Envelope, FrameType,
-    FramedReader, Hello, ResultBegin, ResultChunk, ResultEnd, StableError, StreamError, Welcome,
+    CAPABILITY_PERMISSION_CONTROL, CancelAcknowledged, CancelSource, CaptureAccepted,
+    CaptureCanceled, CaptureFailed, CaptureOrigin, CaptureRejected, ClipboardMode,
+    ClipboardOutcome, Envelope, FrameType, FramedReader, Hello, PROTOCOL_MAJOR, PROTOCOL_MINOR,
+    PermissionAction, PermissionCommand, PermissionResult, PermissionState, ProtocolRange,
+    ResultBegin, ResultChunk, ResultEnd, StableError, StreamError, Welcome, negotiate_version,
     write_frame_payload,
 };
 use snaploom_capture_session::{
-    BeginError, CaptureRequest, CaptureSessionGate, ClientId, HostLifecycle, SessionBackend,
-    SessionFailure, SessionLease, SessionOrigin, SessionPhase, SessionTerminal,
+    BeginError, CapturePermission, CaptureRequest, CaptureSessionGate, ClientId, HostLifecycle,
+    SessionBackend, SessionFailure, SessionLease, SessionOrigin, SessionPhase, SessionTerminal,
 };
 use zeroize::{Zeroize, Zeroizing};
 
@@ -198,7 +200,7 @@ fn serve_connection(
     let Some(Body::Hello(Hello {
         protocol_major,
         min_protocol_minor,
-        max_protocol_minor: _,
+        max_protocol_minor,
         client_nonce,
         requested_capabilities,
         ..
@@ -209,13 +211,26 @@ fn serve_connection(
     if frame_type != FrameType::Hello
         || !hello_envelope.connection_id.is_empty()
         || hello_envelope.sequence != 1
-        || protocol_major != 1
-        || min_protocol_minor > 0
         || client_nonce.len() != 32
-        || requested_capabilities != 0
+        || (requested_capabilities & CAPABILITY_PERMISSION_CONTROL != 0 && max_protocol_minor < 1)
     {
         return Err(StableError::ProtocolIncompatible);
     }
+    let client_range = ProtocolRange::new(
+        u16::try_from(protocol_major).map_err(|_| StableError::ProtocolIncompatible)?,
+        u16::try_from(min_protocol_minor).map_err(|_| StableError::ProtocolIncompatible)?,
+        u16::try_from(max_protocol_minor).map_err(|_| StableError::ProtocolIncompatible)?,
+    )
+    .map_err(|_| StableError::ProtocolIncompatible)?;
+    let host_range = ProtocolRange::new(PROTOCOL_MAJOR, 0, PROTOCOL_MINOR)
+        .map_err(|_| StableError::ProtocolIncompatible)?;
+    let negotiated_minor = negotiate_version(
+        client_range,
+        host_range,
+        requested_capabilities,
+        CAPABILITY_PERMISSION_CONTROL,
+    )
+    .map_err(|_| StableError::ProtocolIncompatible)?;
     let mut connection_id = [0_u8; 16];
     getrandom::fill(&mut connection_id).map_err(|_| StableError::Internal)?;
     let connection_id = connection_id.to_vec();
@@ -225,12 +240,12 @@ fn serve_connection(
         &connection_id,
         1,
         Body::Welcome(Welcome {
-            protocol_major: 1,
-            negotiated_protocol_minor: 0,
+            protocol_major: u32::from(PROTOCOL_MAJOR),
+            negotiated_protocol_minor: u32::from(negotiated_minor),
             echoed_client_nonce: client_nonce,
             connection_id: connection_id.clone(),
             host_semver: env!("CARGO_PKG_VERSION").into(),
-            capabilities: 0,
+            capabilities: requested_capabilities,
             max_frame_bytes: snaploom_capture_protocol::MAX_FRAME_BYTES as u32,
             max_png_bytes: snaploom_capture_protocol::MAX_PNG_BYTES,
         }),
@@ -282,6 +297,42 @@ fn serve_connection(
             .checked_add(1)
             .ok_or(StableError::ProtocolError)?;
         match (frame_type, envelope.body) {
+            (
+                FrameType::PermissionCommand,
+                Some(Body::PermissionCommand(PermissionCommand { action })),
+            ) if active.is_none()
+                && negotiated_minor >= 1
+                && requested_capabilities & CAPABILITY_PERMISSION_CONTROL != 0 =>
+            {
+                let action =
+                    PermissionAction::try_from(action).map_err(|_| StableError::ProtocolError)?;
+                let outcome = match action {
+                    PermissionAction::Query => backend.capture_permission(),
+                    PermissionAction::Request => backend.request_capture_permission(),
+                    PermissionAction::OpenSettings => backend
+                        .open_capture_permission_settings()
+                        .map(|()| CapturePermission::NotApplicable),
+                    PermissionAction::Unspecified => return Err(StableError::ProtocolError),
+                };
+                let (state, error) = match outcome {
+                    Ok(permission) => (permission_state(permission), StableError::None),
+                    Err(failure) => (
+                        PermissionState::Unspecified,
+                        stable_error_for_failure(failure),
+                    ),
+                };
+                write_envelope(
+                    &mut writer,
+                    FrameType::PermissionResult,
+                    &connection_id,
+                    outgoing_sequence,
+                    Body::PermissionResult(PermissionResult {
+                        state: state as i32,
+                        error: error as i32,
+                    }),
+                )?;
+                return Ok(());
+            }
             (FrameType::StartCapture, Some(Body::StartCapture(message))) if active.is_none() => {
                 if message.request_id.len() != 16 {
                     return Err(StableError::ProtocolError);
@@ -454,16 +505,7 @@ fn send_terminal(
             )?;
         }
         SessionTerminal::Failed { failure, retryable } => {
-            let error = match failure {
-                SessionFailure::PlatformUnavailable => StableError::PlatformUnavailable,
-                SessionFailure::PermissionNotGranted => StableError::PermissionNotGranted,
-                SessionFailure::PermissionRevoked => StableError::PermissionRevoked,
-                SessionFailure::DisplayUnavailable => StableError::DisplayUnavailable,
-                SessionFailure::CaptureUnavailable => StableError::CaptureUnavailable,
-                SessionFailure::CaptureTimeout => StableError::CaptureTimeout,
-                SessionFailure::PixelConversionFailed => StableError::PixelConversionFailed,
-                SessionFailure::Internal => StableError::Internal,
-            };
+            let error = stable_error_for_failure(failure);
             write_envelope(
                 writer,
                 FrameType::CaptureFailed,
@@ -478,6 +520,28 @@ fn send_terminal(
         }
     }
     Ok(())
+}
+
+const fn permission_state(permission: CapturePermission) -> PermissionState {
+    match permission {
+        CapturePermission::Granted => PermissionState::Granted,
+        CapturePermission::NotGranted => PermissionState::NotGranted,
+        CapturePermission::RestartRequired => PermissionState::RestartRequired,
+        CapturePermission::NotApplicable => PermissionState::NotApplicable,
+    }
+}
+
+const fn stable_error_for_failure(failure: SessionFailure) -> StableError {
+    match failure {
+        SessionFailure::PlatformUnavailable => StableError::PlatformUnavailable,
+        SessionFailure::PermissionNotGranted => StableError::PermissionNotGranted,
+        SessionFailure::PermissionRevoked => StableError::PermissionRevoked,
+        SessionFailure::DisplayUnavailable => StableError::DisplayUnavailable,
+        SessionFailure::CaptureUnavailable => StableError::CaptureUnavailable,
+        SessionFailure::CaptureTimeout => StableError::CaptureTimeout,
+        SessionFailure::PixelConversionFailed => StableError::PixelConversionFailed,
+        SessionFailure::Internal => StableError::Internal,
+    }
 }
 
 fn write_envelope(

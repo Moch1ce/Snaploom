@@ -5,7 +5,8 @@ use std::io::{self, Read, Write};
 use zeroize::Zeroize;
 
 pub const PROTOCOL_MAJOR: u16 = 1;
-pub const PROTOCOL_MINOR: u16 = 0;
+pub const PROTOCOL_MINOR: u16 = 1;
+pub const CAPABILITY_PERMISSION_CONTROL: u64 = 1;
 pub const FRAME_HEADER_BYTES: usize = 12;
 pub const MAX_FRAME_BYTES: usize = 1_048_576;
 pub const MAX_RESULT_CHUNK_BYTES: usize = 1_048_000;
@@ -34,6 +35,8 @@ pub enum FrameType {
     ResultEnd = 10,
     CaptureCanceled = 11,
     CaptureFailed = 12,
+    PermissionCommand = 13,
+    PermissionResult = 14,
 }
 
 impl TryFrom<u16> for FrameType {
@@ -53,6 +56,8 @@ impl TryFrom<u16> for FrameType {
             10 => Ok(Self::ResultEnd),
             11 => Ok(Self::CaptureCanceled),
             12 => Ok(Self::CaptureFailed),
+            13 => Ok(Self::PermissionCommand),
+            14 => Ok(Self::PermissionResult),
             _ => Err(WireError::UnknownFrameType),
         }
     }

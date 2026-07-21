@@ -279,6 +279,14 @@ pub enum SessionFailure {
     Internal,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CapturePermission {
+    Granted,
+    NotGranted,
+    RestartRequired,
+    NotApplicable,
+}
+
 #[derive(Debug)]
 pub enum SessionTerminal {
     Completed {
@@ -333,6 +341,20 @@ impl Drop for SensitivePng {
 
 pub trait SessionBackend: Send + Sync + 'static {
     fn run(&self, request: CaptureRequest, control: SessionControl) -> SessionTerminal;
+
+    fn capture_permission(&self) -> Result<CapturePermission, SessionFailure> {
+        Ok(CapturePermission::NotApplicable)
+    }
+
+    /// This operation may show the platform permission prompt and therefore
+    /// must only be called from an explicit user action.
+    fn request_capture_permission(&self) -> Result<CapturePermission, SessionFailure> {
+        Ok(CapturePermission::NotApplicable)
+    }
+
+    fn open_capture_permission_settings(&self) -> Result<(), SessionFailure> {
+        Err(SessionFailure::PlatformUnavailable)
+    }
 }
 
 #[derive(Debug, Default)]
