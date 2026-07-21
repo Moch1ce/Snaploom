@@ -15,7 +15,7 @@
 ## v1 Capture SDK 基础
 
 - `protocol/`：使用 vendored `protoc` 生成的 protobuf v1 schema、12-byte 有界帧和 PNG 聚合校验。
-- `client/`：每 client 串行 callback executor、恰好一次终态、幂等取消与有界交互超时。
+- `client/`：每 client 串行 callback executor、恰好一次终态、幂等取消、有界交互超时，以及双向 peer-authenticated named pipe/UDS transport。
 - `c-abi/` 与 `include/snaploom_capture.h`：固定结构布局和恰好 7 个导出符号的 C ABI。
 - `testkit/fake-host/`：从 C 入口贯通 callback/free 的可脚本化 Apache-2.0 测试替身。
 

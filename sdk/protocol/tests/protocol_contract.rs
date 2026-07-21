@@ -1,7 +1,9 @@
+use std::io::{self, Read};
+
 use prost::Message;
 use snaploom_capture_protocol::{
-    Frame, FrameDecoder, FrameType, Hello, PngAccumulator, ProtocolRange, WireError,
-    negotiate_version,
+    Frame, FrameDecoder, FrameType, FramedReader, Hello, PngAccumulator, ProtocolRange, WireError,
+    negotiate_version, write_frame,
 };
 
 fn tiny_png() -> Vec<u8> {
@@ -114,4 +116,38 @@ fn committed_hello_fixture_remains_decodable() {
     assert_eq!(hello.client_nonce, vec![1; 32]);
     assert_eq!(hello.sdk_semver, "0.1.0");
     assert_eq!(hello.requested_capabilities, 1);
+}
+
+struct OneByteReader(Vec<u8>);
+
+impl Read for OneByteReader {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if self.0.is_empty() {
+            return Ok(0);
+        }
+        buffer[0] = self.0.remove(0);
+        Ok(1)
+    }
+}
+
+#[test]
+fn framed_io_handles_one_byte_reads_and_write_all() {
+    let frame = Frame::new(FrameType::Hello, vec![1, 2, 3]).unwrap();
+    let mut encoded = Vec::new();
+    write_frame(&mut encoded, &frame).unwrap();
+    let mut reader = FramedReader::new(OneByteReader(encoded));
+    assert_eq!(reader.read_frame().unwrap(), frame);
+}
+
+#[test]
+fn framed_reader_rejects_more_than_sixty_four_queued_control_frames() {
+    let frame = Frame::new(FrameType::Hello, Vec::new()).unwrap().encode();
+    let bytes = frame.repeat(65);
+    let mut reader = FramedReader::new(bytes.as_slice());
+    assert!(matches!(
+        reader.read_frame(),
+        Err(snaploom_capture_protocol::StreamError::Wire(
+            WireError::TooManyQueuedFrames
+        ))
+    ));
 }

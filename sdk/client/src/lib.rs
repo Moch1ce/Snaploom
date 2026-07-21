@@ -8,6 +8,14 @@ use std::time::Duration;
 use snaploom_capture_protocol::SensitivePng;
 pub use snaploom_capture_protocol::{CancelSource, StableError};
 
+#[cfg(any(unix, windows))]
+pub mod ipc;
+#[cfg(unix)]
+pub mod local_transport;
+#[cfg(windows)]
+#[path = "windows_transport.rs"]
+pub mod local_transport;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProtocolVersion {
     pub major: u16,

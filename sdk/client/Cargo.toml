@@ -8,4 +8,21 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+getrandom.workspace = true
+prost.workspace = true
 snaploom-capture-protocol = { path = "../protocol" }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.187"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_Memory",
+  "Win32_System_Pipes",
+  "Win32_System_Threading",
+] }

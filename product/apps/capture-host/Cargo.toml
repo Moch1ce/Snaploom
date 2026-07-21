@@ -11,10 +11,29 @@ publish = false
 name = "snaploom_capture_host_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[[bin]]
+name = "snaploom-capture-host"
+path = "src/main.rs"
+required-features = ["tauri-runtime"]
+
+[features]
+default = ["tauri-runtime"]
+tauri-runtime = ["dep:tauri"]
+
 [build-dependencies]
 tauri-build.workspace = true
 
 [dependencies]
-tauri.workspace = true
+getrandom.workspace = true
+prost.workspace = true
+tauri = { workspace = true, optional = true }
 snaploom-capture-session = { path = "../../capture-session" }
+snaploom-capture-client = { path = "../../../sdk/client" }
+snaploom-capture-protocol = { path = "../../../sdk/protocol" }
 snaploom-platform-fake = { path = "../../platform/fake" }
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[dev-dependencies]
+snaploom-capture-client = { path = "../../../sdk/client" }

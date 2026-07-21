@@ -1,17 +1,22 @@
 use std::collections::HashMap;
 use std::ffi::{c_char, c_void};
 use std::path::Path;
+use std::path::PathBuf;
 use std::ptr;
 use std::slice;
 use std::str;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
+#[cfg(not(any(unix, windows)))]
+use snaploom_capture_client::UnavailableDriver;
 use snaploom_capture_client::{
     CaptureClient, CaptureDriver, CaptureOptions, ClientStatus, StableError, Terminal,
-    UnavailableDriver,
 };
 use zeroize::Zeroize;
+
+#[cfg(any(unix, windows))]
+use snaploom_capture_client::ipc::{IpcClientConfig, IpcDriver};
 
 const STATUS_OK: u32 = 0;
 const STATUS_INVALID_ARGUMENT: u32 = 1;
@@ -119,7 +124,13 @@ pub fn install_test_driver(driver: Arc<dyn CaptureDriver>) {
         .unwrap_or_else(|error| error.into_inner()) = Some(driver);
 }
 
-fn driver_for_new_client() -> Arc<dyn CaptureDriver> {
+struct DriverConfiguration {
+    host_executable_override: Option<PathBuf>,
+    launch_timeout: Duration,
+    handshake_timeout: Duration,
+}
+
+fn driver_for_new_client(config: DriverConfiguration) -> Arc<dyn CaptureDriver> {
     #[cfg(debug_assertions)]
     if let Some(driver) = test_driver()
         .lock()
@@ -128,7 +139,21 @@ fn driver_for_new_client() -> Arc<dyn CaptureDriver> {
     {
         return driver;
     }
-    Arc::new(UnavailableDriver)
+    #[cfg(any(unix, windows))]
+    {
+        Arc::new(IpcDriver::new(IpcClientConfig {
+            host_executable_override: config.host_executable_override,
+            endpoint_override: None,
+            launch_timeout: config.launch_timeout,
+            handshake_timeout: config.handshake_timeout,
+            origin: snaploom_capture_protocol::CaptureOrigin::Sdk,
+        }))
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = config;
+        Arc::new(UnavailableDriver)
+    }
 }
 
 fn status_from_client(status: ClientStatus) -> u32 {
@@ -159,9 +184,15 @@ fn get_client(client: *mut SnaploomCaptureClientV1) -> Result<Arc<CaptureClient>
         .ok_or(STATUS_CLIENT_CLOSED)
 }
 
-unsafe fn validate_config(config: *const SnaploomCaptureClientConfigV1) -> Result<(), u32> {
+unsafe fn validate_config(
+    config: *const SnaploomCaptureClientConfigV1,
+) -> Result<DriverConfiguration, u32> {
     if config.is_null() {
-        return Ok(());
+        return Ok(DriverConfiguration {
+            host_executable_override: None,
+            launch_timeout: Duration::from_secs(5),
+            handshake_timeout: Duration::from_secs(2),
+        });
     }
     // SAFETY: the non-null pointer is required by the C API to reference readable v1 storage.
     let struct_size = unsafe { ptr::read_unaligned(config.cast::<u32>()) };
@@ -175,12 +206,27 @@ unsafe fn validate_config(config: *const SnaploomCaptureClientConfigV1) -> Resul
     }
     validate_timeout(config.launch_timeout_ms)?;
     validate_timeout(config.handshake_timeout_ms)?;
-    if let Some(path) = unsafe { utf8_view(config.host_executable_override)? }
-        && !Path::new(&path).is_absolute()
+    let host_executable_override =
+        unsafe { utf8_view(config.host_executable_override)? }.map(PathBuf::from);
+    if host_executable_override
+        .as_deref()
+        .is_some_and(|path| !Path::new(path).is_absolute())
     {
         return Err(STATUS_INVALID_ARGUMENT);
     }
-    Ok(())
+    Ok(DriverConfiguration {
+        host_executable_override,
+        launch_timeout: Duration::from_millis(if config.launch_timeout_ms == 0 {
+            5_000
+        } else {
+            u64::from(config.launch_timeout_ms)
+        }),
+        handshake_timeout: Duration::from_millis(if config.handshake_timeout_ms == 0 {
+            2_000
+        } else {
+            u64::from(config.handshake_timeout_ms)
+        }),
+    })
 }
 
 fn validate_timeout(timeout_ms: u32) -> Result<(), u32> {
@@ -202,6 +248,9 @@ unsafe fn utf8_view(view: SnaploomUtf8ViewV1) -> Result<Option<String>, u32> {
     let length = usize::try_from(view.length).map_err(|_| STATUS_INVALID_ARGUMENT)?;
     // SAFETY: the caller promises this view remains readable for the duration of the call.
     let bytes = unsafe { slice::from_raw_parts(view.data, length) };
+    if bytes.contains(&0) {
+        return Err(STATUS_INVALID_ARGUMENT);
+    }
     str::from_utf8(bytes)
         .map(str::to_owned)
         .map(Some)
@@ -350,10 +399,11 @@ pub unsafe extern "C" fn snaploom_capture_client_create_v1(
         }
         // SAFETY: out_client is non-null writable output storage by contract.
         unsafe { out_client.write(ptr::null_mut()) };
-        if let Err(status) = unsafe { validate_config(config) } {
-            return status;
-        }
-        let client = match CaptureClient::new(driver_for_new_client()) {
+        let config = match unsafe { validate_config(config) } {
+            Ok(config) => config,
+            Err(status) => return status,
+        };
+        let client = match CaptureClient::new(driver_for_new_client(config)) {
             Ok(client) => Arc::new(client),
             Err(status) => return status_from_client(status),
         };

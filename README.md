@@ -13,6 +13,8 @@ Snaploom 是一款面向 Windows 10/11 x64 与 macOS 14+ arm64 的轻量桌面�
 
 Desktop 与第三方 SDK 都只通过独立 Capture Host 进入同一截图链路。公开稳定边界仅为版本化本地 IPC 与 7-symbol C ABI；产品内部 Rust trait、Tauri command 与 TypeScript 类型不承诺外部兼容。
 
+Capture Host 按登录会话与 IPC major 原子选举唯一 leader，并在 Host 内用唯一 Capture Session gate 即时裁决 Accepted/Busy；Windows 使用拒绝远程连接、显式 DACL 与双向 token 校验的 named pipe，macOS 使用 `0700` 私有目录、`0600` UDS 与双向 `getpeereid` 校验。两端都不提供 TCP、临时文件、共享内存或请求 replay fallback。
+
 ## 本地开发
 
 需要 Rust 1.97.1、Node.js 22.12+ 和 pnpm 10.17。安装依赖后运行：

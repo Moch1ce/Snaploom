@@ -17,6 +17,9 @@ authors = ["Snaploom contributors"]
 repository = "https://github.com/moch1ce/Snaploom"
 
 [workspace.dependencies]
+getrandom = "0.4.3"
+libc = "0.2.187"
+prost = "0.14.4"
 serde = { version = "1.0.228", features = ["derive"] }
 tauri = { version = "=2.11.5", features = [] }
 tauri-build = { version = "=2.6.3", features = [] }

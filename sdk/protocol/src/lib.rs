@@ -1,4 +1,6 @@
+use std::collections::VecDeque;
 use std::fmt;
+use std::io::{self, Read, Write};
 
 use zeroize::Zeroize;
 
@@ -7,6 +9,7 @@ pub const PROTOCOL_MINOR: u16 = 0;
 pub const FRAME_HEADER_BYTES: usize = 12;
 pub const MAX_FRAME_BYTES: usize = 1_048_576;
 pub const MAX_RESULT_CHUNK_BYTES: usize = 1_048_000;
+pub const MAX_QUEUED_CONTROL_FRAMES: usize = 64;
 pub const MAX_PNG_BYTES: u64 = 134_217_728;
 pub const MAX_PIXEL_DIMENSION: u32 = 32_768;
 
@@ -144,6 +147,63 @@ impl FrameDecoder {
         }
         Ok(frames)
     }
+}
+
+pub struct FramedReader<R> {
+    reader: R,
+    decoder: FrameDecoder,
+    pending: VecDeque<Frame>,
+}
+
+impl<R: Read> FramedReader<R> {
+    #[must_use]
+    pub fn new(reader: R) -> Self {
+        Self {
+            reader,
+            decoder: FrameDecoder::default(),
+            pending: VecDeque::new(),
+        }
+    }
+
+    pub fn read_frame(&mut self) -> Result<Frame, StreamError> {
+        if let Some(frame) = self.pending.pop_front() {
+            return Ok(frame);
+        }
+        let mut chunk = [0_u8; 64 * 1024];
+        loop {
+            let count = self.reader.read(&mut chunk).map_err(StreamError::Io)?;
+            if count == 0 {
+                return Err(StreamError::Eof);
+            }
+            let frames = self
+                .decoder
+                .push(&chunk[..count])
+                .map_err(StreamError::Wire)?;
+            self.pending.extend(frames);
+            if self.pending.len() > MAX_QUEUED_CONTROL_FRAMES {
+                return Err(StreamError::Wire(WireError::TooManyQueuedFrames));
+            }
+            if let Some(frame) = self.pending.pop_front() {
+                return Ok(frame);
+            }
+        }
+    }
+
+    pub fn get_ref(&self) -> &R {
+        &self.reader
+    }
+
+    pub fn get_mut(&mut self) -> &mut R {
+        &mut self.reader
+    }
+
+    pub fn into_inner(self) -> R {
+        self.reader
+    }
+}
+
+pub fn write_frame(writer: &mut impl Write, frame: &Frame) -> Result<(), StreamError> {
+    writer.write_all(&frame.encode()).map_err(StreamError::Io)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -324,6 +384,7 @@ pub enum WireError {
     IncompletePng,
     InvalidPng,
     OutOfMemory,
+    TooManyQueuedFrames,
 }
 
 impl fmt::Display for WireError {
@@ -333,3 +394,22 @@ impl fmt::Display for WireError {
 }
 
 impl std::error::Error for WireError {}
+
+#[derive(Debug)]
+pub enum StreamError {
+    Io(io::Error),
+    Eof,
+    Wire(WireError),
+}
+
+impl fmt::Display for StreamError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Io(error) => write!(formatter, "I/O: {error}"),
+            Self::Eof => formatter.write_str("unexpected EOF"),
+            Self::Wire(error) => write!(formatter, "wire: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for StreamError {}
