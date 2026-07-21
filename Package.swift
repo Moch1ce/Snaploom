@@ -2,7 +2,7 @@
 
 import PackageDescription
 
-let snaploomBinaryChecksum = "0079cfcd4816da0f6d3325ca0a423287c7149bd205504859dd3b6f951cfbb2af"
+let snaploomBinaryChecksum = "1eab4bcf9585acf4559010057c5b8c9dc367da527e62c231596fea655af5140e"
 
 let package = Package(
   name: "SnaploomCapture",

@@ -14,7 +14,7 @@ function argument(name, fallback) {
 }
 
 function read(path) {
-  return readFileSync(join(repository, path), "utf8");
+  return readFileSync(join(repository, path), "utf8").replaceAll("\r\n", "\n");
 }
 
 function tomlValue(path, section, key) {
