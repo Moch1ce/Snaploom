@@ -168,6 +168,10 @@ body {
   gap: 4px;
 }
 
+.annotation-settings__group[hidden] {
+  display: none;
+}
+
 .annotation-settings__group + .annotation-settings__group {
   padding-left: 8px;
   border-left: 1px solid var(--border);

@@ -16,10 +16,15 @@ export const ANNOTATION_COLORS = [
 
 export const ANNOTATION_STROKE_WIDTHS = [2, 4, 8] as const;
 export const ANNOTATION_FONT_SIZES = [16, 24, 32] as const;
+export const MOSAIC_BRUSH_SIZES = [16, 32, 64] as const;
+export const MOSAIC_BLOCK_SIZES = [8, 12, 16] as const;
+export const MOSAIC_TILE_SIZE = 128;
 
 export type AnnotationColor = (typeof ANNOTATION_COLORS)[number];
 export type AnnotationStrokeWidth = (typeof ANNOTATION_STROKE_WIDTHS)[number];
 export type AnnotationFontSize = (typeof ANNOTATION_FONT_SIZES)[number];
+export type MosaicBrushSize = (typeof MOSAIC_BRUSH_SIZES)[number];
+export type MosaicBlockSize = (typeof MOSAIC_BLOCK_SIZES)[number];
 export type AnnotationTool = "select" | "rectangle" | "arrow" | "text" | "mosaic";
 export type AnnotationCursor =
   | "default"
@@ -36,6 +41,8 @@ export interface AnnotationStyle {
   readonly color: AnnotationColor;
   readonly strokeWidth: AnnotationStrokeWidth;
   readonly fontSize: AnnotationFontSize;
+  readonly mosaicBrushSize: MosaicBrushSize;
+  readonly mosaicBlockSize: MosaicBlockSize;
 }
 
 export interface RectangleAnnotation {
@@ -62,7 +69,18 @@ export interface TextAnnotation {
   readonly style: AnnotationStyle;
 }
 
-export type AnnotationObject = RectangleAnnotation | ArrowAnnotation | TextAnnotation;
+export interface MosaicAnnotation {
+  readonly id: string;
+  readonly kind: "mosaic";
+  readonly points: readonly Point[];
+  readonly style: AnnotationStyle;
+}
+
+export type AnnotationObject =
+  | RectangleAnnotation
+  | ArrowAnnotation
+  | TextAnnotation
+  | MosaicAnnotation;
 
 export interface TextDraft {
   readonly editingId: string | null;
@@ -90,7 +108,7 @@ export interface AnnotationState {
   readonly selectedId: string | null;
   readonly tool: AnnotationTool;
   readonly style: AnnotationStyle;
-  readonly settingsOpen: "rectangle" | "arrow" | "text" | null;
+  readonly settingsOpen: "rectangle" | "arrow" | "text" | "mosaic" | null;
   readonly canUndo: boolean;
   readonly canRedo: boolean;
   readonly everEdited: boolean;
@@ -132,6 +150,13 @@ type AnnotationGesture =
       readonly before: HistoryEntry;
     }
   | {
+      readonly kind: "draw-mosaic";
+      readonly origin: Point;
+      current: Point;
+      readonly points: Point[];
+      readonly before: HistoryEntry;
+    }
+  | {
       readonly kind: "move";
       readonly origin: Point;
       current: Point;
@@ -164,6 +189,8 @@ function cloneStyle(style: AnnotationStyle): AnnotationStyle {
     color: style.color,
     strokeWidth: style.strokeWidth,
     fontSize: style.fontSize,
+    mosaicBrushSize: style.mosaicBrushSize,
+    mosaicBlockSize: style.mosaicBlockSize,
   };
 }
 
@@ -183,6 +210,14 @@ function cloneObject(object: AnnotationObject): AnnotationObject {
       origin: clonePoint(object.origin),
       text: object.text,
       maxWidth: object.maxWidth,
+      style: cloneStyle(object.style),
+    };
+  }
+  if (object.kind === "mosaic") {
+    return {
+      id: object.id,
+      kind: "mosaic",
+      points: object.points.map(clonePoint),
       style: cloneStyle(object.style),
     };
   }
@@ -387,9 +422,66 @@ export function projectTextDraft(
   return { x: logicalOrigin.x, y: logicalOrigin.y, width, height };
 }
 
+export function interpolateMosaicPoints(
+  start: Point,
+  end: Point,
+  brushSizePhysical: number,
+): Point[] {
+  const distance = Math.hypot(end.x - start.x, end.y - start.y);
+  const maximumGap = Math.max(1, brushSizePhysical / 4);
+  const segments = Math.max(1, Math.ceil(distance / maximumGap));
+  return Array.from({ length: segments + 1 }, (_, index) => ({
+    x: start.x + ((end.x - start.x) * index) / segments,
+    y: start.y + ((end.y - start.y) * index) / segments,
+  }));
+}
+
+export function mosaicTileKey(
+  tileX: number,
+  tileY: number,
+  blockSize: number,
+): string {
+  return `${blockSize}:${tileX}:${tileY}`;
+}
+
+export function mosaicDamageTiles(
+  points: readonly Point[],
+  brushSizePhysical: number,
+  frame: { readonly width: number; readonly height: number },
+  tileSize = MOSAIC_TILE_SIZE,
+): Set<string> {
+  const damaged = new Set<string>();
+  const radius = brushSizePhysical / 2;
+  const maximumTileX = Math.max(0, Math.ceil(frame.width / tileSize) - 1);
+  const maximumTileY = Math.max(0, Math.ceil(frame.height / tileSize) - 1);
+  for (const point of points) {
+    const left = clamp(Math.floor((point.x - radius) / tileSize), 0, maximumTileX);
+    const right = clamp(Math.floor((point.x + radius) / tileSize), 0, maximumTileX);
+    const top = clamp(Math.floor((point.y - radius) / tileSize), 0, maximumTileY);
+    const bottom = clamp(Math.floor((point.y + radius) / tileSize), 0, maximumTileY);
+    for (let tileY = top; tileY <= bottom; tileY += 1) {
+      for (let tileX = left; tileX <= right; tileX += 1) {
+        damaged.add(`${tileX}:${tileY}`);
+      }
+    }
+  }
+  return damaged;
+}
+
 function objectBounds(object: AnnotationObject, scale: SnapshotScale): Rect {
   if (object.kind === "rectangle") return object.rect;
   if (object.kind === "text") return layoutTextAnnotation(object, scale).bounds;
+  if (object.kind === "mosaic") {
+    const radius = object.style.mosaicBrushSize * Math.min(scale.scaleX, scale.scaleY) / 2;
+    const xs = object.points.map((point) => point.x);
+    const ys = object.points.map((point) => point.y);
+    return {
+      x: Math.min(...xs) - radius,
+      y: Math.min(...ys) - radius,
+      width: Math.max(...xs) - Math.min(...xs) + radius * 2,
+      height: Math.max(...ys) - Math.min(...ys) + radius * 2,
+    };
+  }
   return normalizedRect(object.start, object.end);
 }
 
@@ -399,8 +491,14 @@ export class AnnotationSession {
   #objects: AnnotationObject[] = [];
   #selectedId: string | null = null;
   #tool: AnnotationTool = "select";
-  #style: AnnotationStyle = { color: "#FF4D4F", strokeWidth: 4, fontSize: 24 };
-  #settingsOpen: "rectangle" | "arrow" | "text" | null = null;
+  #style: AnnotationStyle = {
+    color: "#FF4D4F",
+    strokeWidth: 4,
+    fontSize: 24,
+    mosaicBrushSize: 32,
+    mosaicBlockSize: 12,
+  };
+  #settingsOpen: "rectangle" | "arrow" | "text" | "mosaic" | null = null;
   #undo: HistoryEntry[] = [];
   #redo: HistoryEntry[] = [];
   #gesture: AnnotationGesture | null = null;
@@ -418,7 +516,11 @@ export class AnnotationSession {
     this.#tool = tool;
     if (tool !== "select") this.#selectedId = null;
     this.#settingsOpen =
-      openSettings && (tool === "rectangle" || tool === "arrow" || tool === "text")
+      openSettings &&
+      (tool === "rectangle" ||
+        tool === "arrow" ||
+        tool === "text" ||
+        tool === "mosaic")
         ? tool
         : null;
   }
@@ -453,6 +555,10 @@ export class AnnotationSession {
       color: style.color ?? this.#style.color,
       strokeWidth: style.strokeWidth ?? this.#style.strokeWidth,
       fontSize: style.fontSize ?? this.#style.fontSize,
+      mosaicBrushSize:
+        style.mosaicBrushSize ?? this.#style.mosaicBrushSize,
+      mosaicBlockSize:
+        style.mosaicBlockSize ?? this.#style.mosaicBlockSize,
     };
     if (!ANNOTATION_COLORS.includes(next.color)) throw new Error("invalid annotation color");
     if (!ANNOTATION_STROKE_WIDTHS.includes(next.strokeWidth)) {
@@ -460,6 +566,12 @@ export class AnnotationSession {
     }
     if (!ANNOTATION_FONT_SIZES.includes(next.fontSize)) {
       throw new Error("invalid annotation font size");
+    }
+    if (!MOSAIC_BRUSH_SIZES.includes(next.mosaicBrushSize)) {
+      throw new Error("invalid mosaic brush size");
+    }
+    if (!MOSAIC_BLOCK_SIZES.includes(next.mosaicBlockSize)) {
+      throw new Error("invalid mosaic block size");
     }
     this.#style = next;
     if (this.#textDraft) {
@@ -469,7 +581,14 @@ export class AnnotationSession {
     const index = this.#selectedIndex();
     if (index < 0) return;
     const selected = this.#objects[index];
-    if (!selected || selected.style.color === next.color && selected.style.strokeWidth === next.strokeWidth) {
+    if (
+      !selected ||
+      (selected.style.color === next.color &&
+        selected.style.strokeWidth === next.strokeWidth &&
+        selected.style.fontSize === next.fontSize &&
+        selected.style.mosaicBrushSize === next.mosaicBrushSize &&
+        selected.style.mosaicBlockSize === next.mosaicBlockSize)
+    ) {
       return;
     }
     const before = this.#historyEntry();
@@ -500,6 +619,17 @@ export class AnnotationSession {
         this.#startTextDraft(null, clipped);
         this.#gesture = { kind: "select-existing" };
       }
+      return true;
+    }
+    if (this.#tool === "mosaic") {
+      this.#selectedId = null;
+      this.#gesture = {
+        kind: "draw-mosaic",
+        origin: clipped,
+        current: clipped,
+        points: [clipped],
+        before: this.#historyEntry(),
+      };
       return true;
     }
     if (this.#tool === "rectangle" || this.#tool === "arrow") {
@@ -557,7 +687,17 @@ export class AnnotationSession {
   pointerMove(point: Point): void {
     if (!this.#gesture || this.#gesture.kind === "select-existing") return;
     this.#gesture.current = clipPoint(point, this.#selection);
-    if (this.#gesture.kind === "move") {
+    if (this.#gesture.kind === "draw-mosaic") {
+      const previous = this.#gesture.points[this.#gesture.points.length - 1];
+      if (previous && (previous.x !== this.#gesture.current.x || previous.y !== this.#gesture.current.y)) {
+        const brush =
+          this.#style.mosaicBrushSize *
+          Math.min(this.#scale.scaleX, this.#scale.scaleY);
+        this.#gesture.points.push(
+          ...interpolateMosaicPoints(previous, this.#gesture.current, brush).slice(1),
+        );
+      }
+    } else if (this.#gesture.kind === "move") {
       this.#replaceObject(this.#movePreview(this.#gesture));
     } else if (this.#gesture.kind === "resize") {
       this.#replaceObject(this.#resizePreview(this.#gesture));
@@ -605,7 +745,17 @@ export class AnnotationSession {
       this.#gesture = null;
       return;
     }
-    if (gesture.kind === "draw-rectangle") {
+    if (gesture.kind === "draw-mosaic") {
+      const object: MosaicAnnotation = {
+        id: this.#createId(),
+        kind: "mosaic",
+        points: gesture.points.map(clonePoint),
+        style: cloneStyle(this.#style),
+      };
+      this.#objects.push(object);
+      this.#selectedId = object.id;
+      this.#commit(gesture.before);
+    } else if (gesture.kind === "draw-rectangle") {
       const rect = normalizedRect(gesture.origin, gesture.current);
       if (rect.width > 0 && rect.height > 0) {
         const object: RectangleAnnotation = {
@@ -660,7 +810,19 @@ export class AnnotationSession {
       const object = this.#objects[index];
       if (!object || kind && object.kind !== kind) continue;
       const stroke = object.style.strokeWidth * Math.max(this.#scale.scaleX, this.#scale.scaleY) / 2;
-      if (object.kind === "text") {
+      if (object.kind === "mosaic") {
+        const radius =
+          object.style.mosaicBrushSize *
+          Math.min(this.#scale.scaleX, this.#scale.scaleY) /
+          2;
+        if (
+          object.points.some((candidate) =>
+            Math.hypot(candidate.x - point.x, candidate.y - point.y) <= radius,
+          )
+        ) {
+          return object;
+        }
+      } else if (object.kind === "text") {
         if (contains(layoutTextAnnotation(object, this.#scale).bounds, point)) return object;
       } else if (object.kind === "arrow") {
         if (distanceToSegment(point, object.start, object.end) <= Math.max(tolerance, stroke)) {
@@ -903,7 +1065,7 @@ export class AnnotationSession {
   #hitSelectedHandle(point: Point): ObjectHandle | null {
     const selected = this.#selectedObject();
     if (!selected) return null;
-    if (selected.kind === "text") return null;
+    if (selected.kind === "text" || selected.kind === "mosaic") return null;
     const radius = 6 * Math.max(this.#scale.scaleX, this.#scale.scaleY);
     const handles: readonly [ObjectHandle, Point][] =
       selected.kind === "rectangle"
@@ -960,6 +1122,15 @@ export class AnnotationSession {
         },
       };
     }
+    if (gesture.initial.kind === "mosaic") {
+      return {
+        ...gesture.initial,
+        points: gesture.initial.points.map((point) => ({
+          x: point.x + boundedDelta.x,
+          y: point.y + boundedDelta.y,
+        })),
+      };
+    }
     return {
       ...gesture.initial,
       start: {
@@ -981,7 +1152,9 @@ export class AnnotationSession {
         ? { ...gesture.initial, start: clonePoint(gesture.current) }
         : { ...gesture.initial, end: clonePoint(gesture.current) };
     }
-    if (gesture.initial.kind === "text") return gesture.initial;
+    if (gesture.initial.kind === "text" || gesture.initial.kind === "mosaic") {
+      return gesture.initial;
+    }
     let left = gesture.initial.rect.x;
     let top = gesture.initial.rect.y;
     let right = left + gesture.initial.rect.width;
@@ -1023,6 +1196,13 @@ export function buildAnnotationRenderPlan(
         style: cloneStyle(style),
       });
     }
+  } else if (gesture?.kind === "draw-mosaic") {
+    objects.push({
+      id: `preview-${previewId}`,
+      kind: "mosaic",
+      points: gesture.points.map(clonePoint),
+      style: cloneStyle(style),
+    });
   } else if (
     gesture?.kind === "draw-arrow" &&
     (gesture.origin.x !== gesture.current.x || gesture.origin.y !== gesture.current.y)
@@ -1042,6 +1222,124 @@ export interface RenderAnnotationsOptions {
   readonly scale: SnapshotScale;
   readonly offset?: Point;
   readonly showSelection?: boolean;
+  readonly mosaic?: {
+    readonly source: CanvasImageSource;
+    readonly cache: MosaicTileCache;
+    readonly frame: { readonly width: number; readonly height: number };
+  };
+}
+
+export class MosaicTileCache {
+  readonly #tiles = new Map<string, HTMLCanvasElement>();
+  #buildCount = 0;
+
+  getTile(
+    source: CanvasImageSource,
+    tileX: number,
+    tileY: number,
+    blockSize: number,
+    frame: { readonly width: number; readonly height: number },
+  ): HTMLCanvasElement {
+    const key = mosaicTileKey(tileX, tileY, blockSize);
+    const cached = this.#tiles.get(key);
+    if (cached) return cached;
+    const x = tileX * MOSAIC_TILE_SIZE;
+    const y = tileY * MOSAIC_TILE_SIZE;
+    const width = Math.min(MOSAIC_TILE_SIZE, frame.width - x);
+    const height = Math.min(MOSAIC_TILE_SIZE, frame.height - y);
+    const reduced = document.createElement("canvas");
+    reduced.width = Math.max(1, Math.ceil(width / blockSize));
+    reduced.height = Math.max(1, Math.ceil(height / blockSize));
+    const reducedContext = reduced.getContext("2d", { alpha: false });
+    if (!reducedContext) throw new Error("2D canvas unavailable");
+    reducedContext.imageSmoothingEnabled = false;
+    reducedContext.drawImage(
+      source,
+      x,
+      y,
+      width,
+      height,
+      0,
+      0,
+      reduced.width,
+      reduced.height,
+    );
+    const tile = document.createElement("canvas");
+    tile.width = width;
+    tile.height = height;
+    const tileContext = tile.getContext("2d", { alpha: false });
+    if (!tileContext) throw new Error("2D canvas unavailable");
+    tileContext.imageSmoothingEnabled = false;
+    tileContext.drawImage(
+      reduced,
+      0,
+      0,
+      reduced.width,
+      reduced.height,
+      0,
+      0,
+      width,
+      height,
+    );
+    reduced.width = 0;
+    reduced.height = 0;
+    this.#tiles.set(key, tile);
+    this.#buildCount += 1;
+    return tile;
+  }
+
+  snapshotStats(): { readonly tileCount: number; readonly buildCount: number } {
+    return { tileCount: this.#tiles.size, buildCount: this.#buildCount };
+  }
+
+  dispose(): void {
+    for (const tile of this.#tiles.values()) {
+      tile.width = 0;
+      tile.height = 0;
+    }
+    this.#tiles.clear();
+    this.#buildCount = 0;
+  }
+}
+
+function renderMosaic(
+  context: CanvasRenderingContext2D,
+  object: MosaicAnnotation,
+  options: RenderAnnotationsOptions,
+): void {
+  if (!options.mosaic || object.points.length === 0) return;
+  const brush =
+    object.style.mosaicBrushSize *
+    Math.min(options.scale.scaleX, options.scale.scaleY);
+  context.save();
+  context.beginPath();
+  for (const point of object.points) {
+    context.moveTo(point.x + brush / 2, point.y);
+    context.arc(point.x, point.y, brush / 2, 0, Math.PI * 2);
+  }
+  context.clip();
+  for (const tileCoordinate of mosaicDamageTiles(
+    object.points,
+    brush,
+    options.mosaic.frame,
+  )) {
+    const [tileXText, tileYText] = tileCoordinate.split(":");
+    const tileX = Number(tileXText);
+    const tileY = Number(tileYText);
+    const tile = options.mosaic.cache.getTile(
+      options.mosaic.source,
+      tileX,
+      tileY,
+      object.style.mosaicBlockSize,
+      options.mosaic.frame,
+    );
+    context.drawImage(
+      tile,
+      tileX * MOSAIC_TILE_SIZE,
+      tileY * MOSAIC_TILE_SIZE,
+    );
+  }
+  context.restore();
 }
 
 export function renderAnnotations(
@@ -1080,6 +1378,8 @@ export function renderAnnotations(
         object.end.y - head * Math.sin(angle + Math.PI / 6),
       );
       context.stroke();
+    } else if (object.kind === "mosaic") {
+      renderMosaic(context, object, options);
     } else {
       const layout = layoutTextAnnotation(object, options.scale);
       context.font = `${layout.fontSizePhysical}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;

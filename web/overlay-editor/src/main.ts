@@ -7,6 +7,8 @@ import {
   ANNOTATION_COLORS,
   ANNOTATION_FONT_SIZES,
   ANNOTATION_STROKE_WIDTHS,
+  MOSAIC_BLOCK_SIZES,
+  MOSAIC_BRUSH_SIZES,
   annotationShortcut,
   type AnnotationState,
 } from "./annotations";
@@ -92,7 +94,12 @@ async function complete(): Promise<Uint8Array> {
 }
 
 function onToolbarAction(action: ScreenshotToolbarAction): void {
-  if (action === "rectangle" || action === "arrow" || action === "text") {
+  if (
+    action === "rectangle" ||
+    action === "arrow" ||
+    action === "text" ||
+    action === "mosaic"
+  ) {
     editor.setTool(action, true);
   }
   if (action === "undo") editor.undoAnnotation();
@@ -102,7 +109,14 @@ function onToolbarAction(action: ScreenshotToolbarAction): void {
 }
 
 const toolbar = createScreenshotToolbar({
-  enabledActions: new Set(["rectangle", "arrow", "text", "cancel", "complete"]),
+  enabledActions: new Set([
+    "rectangle",
+    "arrow",
+    "text",
+    "mosaic",
+    "cancel",
+    "complete",
+  ]),
   onAction: onToolbarAction,
 });
 
@@ -155,13 +169,51 @@ for (const fontSize of ANNOTATION_FONT_SIZES) {
   button.addEventListener("click", () => editor.setAnnotationStyle({ fontSize }));
   fontGroup.append(button);
 }
-settingsFlyout.append(colorGroup, widthGroup, fontGroup);
+const mosaicBrushGroup = document.createElement("div");
+mosaicBrushGroup.className = "annotation-settings__group";
+mosaicBrushGroup.setAttribute("aria-label", "马赛克画笔");
+for (const mosaicBrushSize of MOSAIC_BRUSH_SIZES) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "annotation-settings__font";
+  button.dataset.mosaicBrushSize = String(mosaicBrushSize);
+  button.dataset.overlayUi = "settings";
+  button.setAttribute("aria-label", `马赛克画笔 ${mosaicBrushSize}`);
+  button.textContent = String(mosaicBrushSize);
+  button.addEventListener("click", () =>
+    editor.setAnnotationStyle({ mosaicBrushSize }),
+  );
+  mosaicBrushGroup.append(button);
+}
+const mosaicBlockGroup = document.createElement("div");
+mosaicBlockGroup.className = "annotation-settings__group";
+mosaicBlockGroup.setAttribute("aria-label", "马赛克强度");
+for (const mosaicBlockSize of MOSAIC_BLOCK_SIZES) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "annotation-settings__font";
+  button.dataset.mosaicBlockSize = String(mosaicBlockSize);
+  button.dataset.overlayUi = "settings";
+  button.setAttribute("aria-label", `马赛克强度 ${mosaicBlockSize}`);
+  button.textContent = String(mosaicBlockSize);
+  button.addEventListener("click", () =>
+    editor.setAnnotationStyle({ mosaicBlockSize }),
+  );
+  mosaicBlockGroup.append(button);
+}
+settingsFlyout.append(
+  colorGroup,
+  widthGroup,
+  fontGroup,
+  mosaicBrushGroup,
+  mosaicBlockGroup,
+);
 root.append(canvas, sizeLabel, toolbar, settingsFlyout, textEditorFrame);
 
 function updateAnnotationUi(state: AnnotationState): void {
   root.dataset.annotationTool = state.tool;
   root.dataset.annotationCount = String(state.objects.length);
-  for (const action of ["rectangle", "arrow", "text"] as const) {
+  for (const action of ["rectangle", "arrow", "text", "mosaic"] as const) {
     const button = toolbar.querySelector<HTMLButtonElement>(`[data-action="${action}"]`);
     button?.setAttribute("aria-pressed", String(state.tool === action));
   }
@@ -170,8 +222,12 @@ function updateAnnotationUi(state: AnnotationState): void {
   if (undo) undo.disabled = !state.canUndo;
   if (redo) redo.disabled = !state.canRedo;
   settingsFlyout.hidden = state.settingsOpen === null;
-  widthGroup.hidden = state.settingsOpen === "text";
+  colorGroup.hidden = state.settingsOpen === "mosaic";
+  widthGroup.hidden =
+    state.settingsOpen !== "rectangle" && state.settingsOpen !== "arrow";
   fontGroup.hidden = state.settingsOpen !== "text";
+  mosaicBrushGroup.hidden = state.settingsOpen !== "mosaic";
+  mosaicBlockGroup.hidden = state.settingsOpen !== "mosaic";
   if (state.settingsOpen) {
     const anchor = toolbar.querySelector<HTMLElement>(
       `[data-action="${state.settingsOpen}"]`,
@@ -194,6 +250,18 @@ function updateAnnotationUi(state: AnnotationState): void {
     button.setAttribute(
       "aria-pressed",
       String(Number(button.dataset.fontSize) === state.style.fontSize),
+    );
+  }
+  for (const button of settingsFlyout.querySelectorAll<HTMLButtonElement>("[data-mosaic-brush-size]")) {
+    button.setAttribute(
+      "aria-pressed",
+      String(Number(button.dataset.mosaicBrushSize) === state.style.mosaicBrushSize),
+    );
+  }
+  for (const button of settingsFlyout.querySelectorAll<HTMLButtonElement>("[data-mosaic-block-size]")) {
+    button.setAttribute(
+      "aria-pressed",
+      String(Number(button.dataset.mosaicBlockSize) === state.style.mosaicBlockSize),
     );
   }
   const projection = editor.textDraftProjection();
@@ -397,6 +465,7 @@ window.addEventListener("keydown", (event) => {
       tool === "rectangle" ||
       tool === "arrow" ||
       tool === "text" ||
+      tool === "mosaic" ||
       tool === "select"
     ) {
       event.preventDefault();

@@ -23,6 +23,8 @@ describe("rectangle, arrow, and annotation history", () => {
       color: "#FF4D4F",
       strokeWidth: 4,
       fontSize: 24,
+      mosaicBrushSize: 32,
+      mosaicBlockSize: 12,
     });
   });
 

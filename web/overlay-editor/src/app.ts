@@ -7,6 +7,7 @@ import {
 } from "@snaploom/screenshot-ui";
 import {
   AnnotationSession,
+  MosaicTileCache,
   projectTextDraft,
   renderAnnotations,
   type AnnotationState,
@@ -529,6 +530,8 @@ export class OverlayEditor {
   readonly #options: OverlayEditorOptions;
   readonly #model: OverlayEditorModel;
   readonly #annotations: AnnotationSession;
+  readonly #sourceCanvas: HTMLCanvasElement;
+  readonly #mosaicCache = new MosaicTileCache();
   #rgba: Uint8ClampedArray;
   #frameRequest: number | null = null;
   #disposed = false;
@@ -563,6 +566,20 @@ export class OverlayEditor {
       snapshot.physicalSize.height,
     );
     source.fill(0);
+    this.#sourceCanvas = document.createElement("canvas");
+    this.#sourceCanvas.width = snapshot.physicalSize.width;
+    this.#sourceCanvas.height = snapshot.physicalSize.height;
+    const sourceContext = this.#sourceCanvas.getContext("2d", { alpha: false });
+    if (!sourceContext) throw new Error("2D canvas unavailable");
+    sourceContext.putImageData(
+      new ImageData(
+        this.#rgba,
+        snapshot.physicalSize.width,
+        snapshot.physicalSize.height,
+      ),
+      0,
+      0,
+    );
     elements.canvas.width = snapshot.physicalSize.width;
     elements.canvas.height = snapshot.physicalSize.height;
     elements.canvas.style.width = `${snapshot.logicalSize.width}px`;
@@ -720,7 +737,7 @@ export class OverlayEditor {
     const width = this.#snapshot.physicalSize.width;
     const height = this.#snapshot.physicalSize.height;
     context.setTransform(1, 0, 0, 1, 0, 0);
-    context.putImageData(new ImageData(this.#rgba, width, height), 0, 0);
+    context.drawImage(this.#sourceCanvas, 0, 0);
 
     const state = this.#model.snapshotState();
     const selection = state.previewSelection;
@@ -757,7 +774,19 @@ export class OverlayEditor {
       renderAnnotations(context, this.#annotations.renderPlan(), {
         scale: this.#model.scale,
         showSelection: true,
+        mosaic: {
+          source: this.#sourceCanvas,
+          cache: this.#mosaicCache,
+          frame: this.#snapshot.physicalSize,
+        },
       });
+      const mosaicStats = this.#mosaicCache.snapshotStats();
+      this.#elements.canvas.dataset.mosaicTileCount = String(
+        mosaicStats.tileCount,
+      );
+      this.#elements.canvas.dataset.mosaicBuildCount = String(
+        mosaicStats.buildCount,
+      );
       context.restore();
     }
     context.save();
@@ -820,6 +849,11 @@ export class OverlayEditor {
       scale: this.#model.scale,
       offset: { x: selection.x, y: selection.y },
       showSelection: false,
+      mosaic: {
+        source: this.#sourceCanvas,
+        cache: this.#mosaicCache,
+        frame: this.#snapshot.physicalSize,
+      },
     });
     const blob = await new Promise<Blob>((resolve, reject) => {
       output.toBlob(
@@ -838,6 +872,9 @@ export class OverlayEditor {
     this.#frameRequest = null;
     this.#rgba.fill(0);
     this.#rgba = new Uint8ClampedArray();
+    this.#sourceCanvas.width = 0;
+    this.#sourceCanvas.height = 0;
+    this.#mosaicCache.dispose();
     this.#elements.canvas.width = 0;
     this.#elements.canvas.height = 0;
     this.#model.dispose();
