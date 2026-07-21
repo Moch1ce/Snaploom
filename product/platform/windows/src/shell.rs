@@ -102,6 +102,8 @@ pub struct WindowsShell<R: Runtime> {
     recent_directory: Arc<Mutex<Option<PathBuf>>>,
     #[cfg(feature = "desktop-shell")]
     shortcut: Arc<Mutex<Option<ShortcutManager<TauriShortcutRegistrar<R>>>>>,
+    #[cfg(feature = "desktop-shell")]
+    language: Arc<Mutex<snaploom_platform_contract::PlatformLanguage>>,
 }
 
 impl<R: Runtime> Clone for WindowsShell<R> {
@@ -112,6 +114,8 @@ impl<R: Runtime> Clone for WindowsShell<R> {
             recent_directory: self.recent_directory.clone(),
             #[cfg(feature = "desktop-shell")]
             shortcut: self.shortcut.clone(),
+            #[cfg(feature = "desktop-shell")]
+            language: self.language.clone(),
         }
     }
 }
@@ -125,6 +129,8 @@ impl<R: Runtime> WindowsShell<R> {
             recent_directory: Arc::new(Mutex::new(None)),
             #[cfg(feature = "desktop-shell")]
             shortcut: Arc::new(Mutex::new(None)),
+            #[cfg(feature = "desktop-shell")]
+            language: Arc::new(Mutex::new(Default::default())),
         }
     }
 
@@ -344,13 +350,11 @@ impl<R: Runtime> WindowsShell<R> {
     pub fn notify(&self, notification: StableNotification) -> Result<(), PlatformError> {
         use tauri_plugin_notification::NotificationExt;
 
-        let body = match notification {
-            StableNotification::ShortcutConflict => "快捷键已被其他应用占用，原快捷键保持不变。",
-            StableNotification::ShortcutResumeFailed => {
-                "系统唤醒后未能恢复截图快捷键，请在设置中重新选择。"
-            }
-            StableNotification::AutoStartFailed => "开机启动设置未能更新，原设置保持不变。",
-        };
+        let language = *self
+            .language
+            .lock()
+            .map_err(|_| PlatformError::InternalState)?;
+        let body = notification_body(language, notification);
         self.app
             .notification()
             .builder()
@@ -412,8 +416,10 @@ impl<R: Runtime> WindowsShell<R> {
                     });
             if restored.is_err() {
                 let _ = shell.notify(StableNotification::ShortcutResumeFailed);
+                sink(PlatformEvent::ShortcutResumeFailed);
+            } else {
+                sink(PlatformEvent::Resumed);
             }
-            sink(PlatformEvent::Resumed);
         }))
     }
 
@@ -583,6 +589,17 @@ impl<R: Runtime> PlatformAdapter for WindowsShell<R> {
         "windows"
     }
 
+    fn set_language(
+        &self,
+        language: snaploom_platform_contract::PlatformLanguage,
+    ) -> Result<(), PlatformError> {
+        *self
+            .language
+            .lock()
+            .map_err(|_| PlatformError::InternalState)? = language;
+        Ok(())
+    }
+
     fn capture_snapshot(&self) -> Result<CaptureSnapshot, PlatformError> {
         WindowsShell::capture_snapshot(self)
     }
@@ -651,6 +668,35 @@ impl<R: Runtime> PlatformAdapter for WindowsShell<R> {
             PlatformNotification::AutoStartFailed => StableNotification::AutoStartFailed,
         };
         WindowsShell::notify(self, notification)
+    }
+}
+
+#[cfg(feature = "desktop-shell")]
+const fn notification_body(
+    language: snaploom_platform_contract::PlatformLanguage,
+    notification: StableNotification,
+) -> &'static str {
+    use snaploom_platform_contract::PlatformLanguage;
+
+    match (language, notification) {
+        (PlatformLanguage::ZhCn, StableNotification::ShortcutConflict) => {
+            "快捷键已被其他应用占用，原快捷键保持不变。"
+        }
+        (PlatformLanguage::ZhCn, StableNotification::ShortcutResumeFailed) => {
+            "系统唤醒后未能恢复截图快捷键，请在设置中重新选择。"
+        }
+        (PlatformLanguage::ZhCn, StableNotification::AutoStartFailed) => {
+            "开机启动设置未能更新，原设置保持不变。"
+        }
+        (PlatformLanguage::En, StableNotification::ShortcutConflict) => {
+            "The shortcut is already used by another app. The previous shortcut is unchanged."
+        }
+        (PlatformLanguage::En, StableNotification::ShortcutResumeFailed) => {
+            "The capture shortcut could not be restored after wake. Choose it again in Settings."
+        }
+        (PlatformLanguage::En, StableNotification::AutoStartFailed) => {
+            "Launch at Login could not be changed. The previous setting is unchanged."
+        }
     }
 }
 
@@ -768,6 +814,21 @@ mod tests {
                 "Failed to unregister hotkey".into()
             )),
             ShortcutError::System
+        );
+    }
+
+    #[cfg(feature = "desktop-shell")]
+    #[test]
+    fn notification_copy_follows_the_configured_language() {
+        use snaploom_platform_contract::PlatformLanguage;
+
+        assert!(
+            notification_body(PlatformLanguage::ZhCn, StableNotification::AutoStartFailed)
+                .contains("开机启动")
+        );
+        assert!(
+            notification_body(PlatformLanguage::En, StableNotification::AutoStartFailed)
+                .contains("Launch at Login")
         );
     }
 }

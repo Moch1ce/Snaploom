@@ -63,6 +63,8 @@ pub struct MacShell<R: Runtime> {
     recent_directory: Arc<Mutex<Option<PathBuf>>>,
     #[cfg(feature = "desktop-shell")]
     shortcut: Arc<Mutex<Option<String>>>,
+    #[cfg(feature = "desktop-shell")]
+    language: Arc<Mutex<snaploom_platform_contract::PlatformLanguage>>,
 }
 
 impl<R: Runtime> Clone for MacShell<R> {
@@ -74,6 +76,8 @@ impl<R: Runtime> Clone for MacShell<R> {
             recent_directory: self.recent_directory.clone(),
             #[cfg(feature = "desktop-shell")]
             shortcut: self.shortcut.clone(),
+            #[cfg(feature = "desktop-shell")]
+            language: self.language.clone(),
         }
     }
 }
@@ -88,6 +92,8 @@ impl<R: Runtime> MacShell<R> {
             recent_directory: Arc::new(Mutex::new(None)),
             #[cfg(feature = "desktop-shell")]
             shortcut: Arc::new(Mutex::new(None)),
+            #[cfg(feature = "desktop-shell")]
+            language: Arc::new(Mutex::new(Default::default())),
         }
     }
 
@@ -432,8 +438,10 @@ impl<R: Runtime> MacShell<R> {
                     });
                 if restored.is_err() {
                     let _ = shell.notify_stable(PlatformNotification::ShortcutResumeFailed);
+                    sink(PlatformEvent::ShortcutResumeFailed);
+                } else {
+                    sink(PlatformEvent::Resumed);
                 }
-                sink(PlatformEvent::Resumed);
             }));
             Ok(ResumeLease { _native: native })
         }
@@ -476,13 +484,11 @@ impl<R: Runtime> MacShell<R> {
     fn notify_stable(&self, notification: PlatformNotification) -> Result<(), PlatformError> {
         use tauri_plugin_notification::NotificationExt;
 
-        let body = match notification {
-            PlatformNotification::ShortcutConflict => "快捷键已被其他应用占用，原快捷键保持不变。",
-            PlatformNotification::ShortcutResumeFailed => {
-                "系统唤醒后未能恢复截图快捷键，请在设置中重新选择。"
-            }
-            PlatformNotification::AutoStartFailed => "开机启动设置未能更新，请在系统登录项中检查。",
-        };
+        let language = *self
+            .language
+            .lock()
+            .map_err(|_| PlatformError::InternalState)?;
+        let body = notification_body(language, notification);
         self.app
             .notification()
             .builder()
@@ -500,6 +506,16 @@ impl<R: Runtime> PlatformAdapter for MacShell<R> {
 
     fn platform_name(&self) -> &'static str {
         "macos"
+    }
+    fn set_language(
+        &self,
+        language: snaploom_platform_contract::PlatformLanguage,
+    ) -> Result<(), PlatformError> {
+        *self
+            .language
+            .lock()
+            .map_err(|_| PlatformError::InternalState)? = language;
+        Ok(())
     }
     fn capture_permission(&self) -> Result<CapturePermissionState, PlatformError> {
         Ok(if MacPlatform::new().permission_granted() {
@@ -570,6 +586,35 @@ impl<R: Runtime> PlatformAdapter for MacShell<R> {
     }
     fn notify(&self, notification: PlatformNotification) -> Result<(), PlatformError> {
         self.notify_stable(notification)
+    }
+}
+
+#[cfg(feature = "desktop-shell")]
+const fn notification_body(
+    language: snaploom_platform_contract::PlatformLanguage,
+    notification: PlatformNotification,
+) -> &'static str {
+    use snaploom_platform_contract::PlatformLanguage;
+
+    match (language, notification) {
+        (PlatformLanguage::ZhCn, PlatformNotification::ShortcutConflict) => {
+            "快捷键已被其他应用占用，原快捷键保持不变。"
+        }
+        (PlatformLanguage::ZhCn, PlatformNotification::ShortcutResumeFailed) => {
+            "系统唤醒后未能恢复截图快捷键，请在设置中重新选择。"
+        }
+        (PlatformLanguage::ZhCn, PlatformNotification::AutoStartFailed) => {
+            "开机启动设置未能更新，请在系统登录项中检查。"
+        }
+        (PlatformLanguage::En, PlatformNotification::ShortcutConflict) => {
+            "The shortcut is already used by another app. The previous shortcut is unchanged."
+        }
+        (PlatformLanguage::En, PlatformNotification::ShortcutResumeFailed) => {
+            "The capture shortcut could not be restored after wake. Choose it again in Settings."
+        }
+        (PlatformLanguage::En, PlatformNotification::AutoStartFailed) => {
+            "Launch at Login could not be changed. Check Login Items in System Settings."
+        }
     }
 }
 
@@ -703,5 +748,23 @@ mod tests {
     fn exposes_complete_platform_adapter() {
         fn assert_adapter<T: PlatformAdapter>() {}
         assert_adapter::<MacShell<tauri::Wry>>();
+    }
+
+    #[cfg(feature = "desktop-shell")]
+    #[test]
+    fn notification_copy_follows_the_configured_language() {
+        use snaploom_platform_contract::PlatformLanguage;
+
+        assert!(
+            notification_body(
+                PlatformLanguage::ZhCn,
+                PlatformNotification::ShortcutConflict
+            )
+            .contains("快捷键")
+        );
+        assert!(
+            notification_body(PlatformLanguage::En, PlatformNotification::ShortcutConflict)
+                .contains("shortcut")
+        );
     }
 }

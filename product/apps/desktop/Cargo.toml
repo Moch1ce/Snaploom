@@ -15,5 +15,25 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build.workspace = true
 
 [dependencies]
+reqwest.workspace = true
+serde.workspace = true
 tauri.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-global-shortcut.workspace = true
+tauri-plugin-notification.workspace = true
+tauri-plugin-opener.workspace = true
+tauri-plugin-single-instance.workspace = true
+snaploom-capture-client = { path = "../../../sdk/client", version = "=0.1.0" }
+snaploom-capture-protocol = { path = "../../../sdk/protocol", version = "=0.1.0" }
 snaploom-desktop-shell = { path = "../../desktop-shell", version = "=0.1.0" }
+snaploom-platform-contract = { path = "../../platform/contract", version = "=0.1.0" }
+
+[target.'cfg(windows)'.dependencies]
+snaploom-platform-windows = { path = "../../platform/windows", version = "=0.1.0", features = ["desktop-shell"] }
+tauri-plugin-autostart.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+snaploom-platform-macos = { path = "../../platform/macos", version = "=0.1.0", features = ["desktop-shell"] }
+
+[dev-dependencies]
+serde_json.workspace = true

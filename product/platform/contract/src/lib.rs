@@ -275,6 +275,7 @@ pub enum CapturePermissionState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlatformEvent {
     Resumed,
+    ShortcutResumeFailed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -282,6 +283,13 @@ pub enum PlatformNotification {
     ShortcutConflict,
     ShortcutResumeFailed,
     AutoStartFailed,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PlatformLanguage {
+    ZhCn,
+    #[default]
+    En,
 }
 
 pub trait PlatformLease: Send + Sync + fmt::Debug {}
@@ -293,6 +301,10 @@ pub trait PlatformAdapter: Send + Sync {
     type ResumeLease: PlatformLease;
 
     fn platform_name(&self) -> &'static str;
+
+    fn set_language(&self, _language: PlatformLanguage) -> Result<(), PlatformError> {
+        Ok(())
+    }
 
     fn capture_permission(&self) -> Result<CapturePermissionState, PlatformError> {
         Err(PlatformError::PlatformUnavailable)

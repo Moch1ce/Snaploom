@@ -70,6 +70,11 @@ fn macos_bundles_are_opaque_sonoma_accessory_apps() {
         assert!(plist.contains("<key>LSUIElement</key>"));
         assert!(plist.contains("<key>NSScreenCaptureUsageDescription</key>"));
         assert!(plist.contains("<string>14.0</string>"));
+
+        let english = read(&format!("{app}/en.lproj/InfoPlist.strings"));
+        let chinese = read(&format!("{app}/zh-Hans.lproj/InfoPlist.strings"));
+        assert!(english.contains("NSScreenCaptureUsageDescription"));
+        assert!(chinese.contains("NSScreenCaptureUsageDescription"));
     }
 }
 
