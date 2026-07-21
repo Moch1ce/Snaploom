@@ -3,8 +3,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use snaploom_platform_contract::{
-    CaptureSnapshot, CaptureSnapshotDescriptor, PlatformAdapter, PlatformError, PlatformEvent,
-    PlatformNotification, SaveDisposition,
+    CapturePermissionState, CaptureSnapshot, CaptureSnapshotDescriptor, PlatformAdapter,
+    PlatformError, PlatformEvent, PlatformNotification, SaveDisposition,
 };
 
 type ResumeSink = Arc<dyn Fn(PlatformEvent) + Send + Sync + 'static>;
@@ -122,6 +122,18 @@ impl PlatformAdapter for FakePlatform {
 
     fn platform_name(&self) -> &'static str {
         "fake"
+    }
+
+    fn capture_permission(&self) -> Result<CapturePermissionState, PlatformError> {
+        Ok(CapturePermissionState::Granted)
+    }
+
+    fn request_capture_permission(&self) -> Result<CapturePermissionState, PlatformError> {
+        Ok(CapturePermissionState::Granted)
+    }
+
+    fn open_capture_permission_settings(&self) -> Result<(), PlatformError> {
+        Ok(())
     }
 
     fn capture_snapshot(&self) -> Result<CaptureSnapshot, PlatformError> {

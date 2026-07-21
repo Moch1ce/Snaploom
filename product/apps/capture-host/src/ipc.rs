@@ -456,6 +456,8 @@ fn send_terminal(
         SessionTerminal::Failed { failure, retryable } => {
             let error = match failure {
                 SessionFailure::PlatformUnavailable => StableError::PlatformUnavailable,
+                SessionFailure::PermissionNotGranted => StableError::PermissionNotGranted,
+                SessionFailure::PermissionRevoked => StableError::PermissionRevoked,
                 SessionFailure::DisplayUnavailable => StableError::DisplayUnavailable,
                 SessionFailure::CaptureUnavailable => StableError::CaptureUnavailable,
                 SessionFailure::CaptureTimeout => StableError::CaptureTimeout,

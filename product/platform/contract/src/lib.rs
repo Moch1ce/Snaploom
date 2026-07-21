@@ -56,9 +56,16 @@ pub struct WindowCandidate {
 #[serde(rename_all = "camelCase")]
 pub struct CaptureSnapshotDescriptor {
     pub session_id: String,
+    /// Opaque native display identity bound to this capture. Consumers must
+    /// not perform arithmetic on it; it exists so the platform shell can
+    /// place the overlay on the exact display that produced the frame.
+    pub display_id: Option<u64>,
     pub physical_size: PhysicalSize,
     pub logical_size: LogicalSize,
-    pub global_origin: PhysicalPoint,
+    /// Global physical origin when the platform exposes one coherent physical
+    /// desktop plane. This is `None` on mixed-scale macOS desktops, where
+    /// `display_id` is the only valid overlay-placement identity.
+    pub global_origin: Option<PhysicalPoint>,
     pub pointer_physical: PhysicalPoint,
     pub work_area_logical: LogicalRect,
     pub stride: u32,
@@ -103,10 +110,19 @@ pub struct PremultipliedBgraFrame {
 impl PremultipliedBgraFrame {
     pub fn new(
         descriptor: &CaptureSnapshotDescriptor,
-        bytes: Vec<u8>,
+        mut bytes: Vec<u8>,
     ) -> Result<Self, PlatformError> {
-        let expected = descriptor.expected_frame_bytes()?;
-        Self::validate_length(bytes.len(), expected)?;
+        let expected = match descriptor.expected_frame_bytes() {
+            Ok(expected) => expected,
+            Err(error) => {
+                bytes.zeroize();
+                return Err(error);
+            }
+        };
+        if let Err(error) = Self::validate_length(bytes.len(), expected) {
+            bytes.zeroize();
+            return Err(error);
+        }
         Ok(Self { bytes })
     }
 
@@ -189,6 +205,9 @@ pub enum PlatformError {
     PlatformUnavailable,
     DisplayUnavailable,
     CaptureUnavailable,
+    PermissionNotGranted,
+    PermissionRevoked,
+    PermissionSettingsUnavailable,
     FrameTimeout,
     PixelConversionFailed,
     ClipboardBusy,
@@ -201,6 +220,7 @@ pub enum PlatformError {
     ShortcutFailed,
     ShortcutResumeFailed,
     AutoStartFailed,
+    AutoStartNeedsApproval,
     NotificationFailed,
     InternalState,
 }
@@ -215,6 +235,9 @@ impl fmt::Display for PlatformError {
             Self::PlatformUnavailable => "platform capture unavailable",
             Self::DisplayUnavailable => "capture display unavailable",
             Self::CaptureUnavailable => "native capture unavailable",
+            Self::PermissionNotGranted => "screen capture permission not granted",
+            Self::PermissionRevoked => "screen capture permission revoked",
+            Self::PermissionSettingsUnavailable => "screen capture permission settings unavailable",
             Self::FrameTimeout => "capture frame timed out",
             Self::PixelConversionFailed => "capture pixel conversion failed",
             Self::ClipboardBusy => "clipboard is busy",
@@ -227,6 +250,7 @@ impl fmt::Display for PlatformError {
             Self::ShortcutFailed => "shortcut operation failed",
             Self::ShortcutResumeFailed => "shortcut resume registration failed",
             Self::AutoStartFailed => "autostart operation failed",
+            Self::AutoStartNeedsApproval => "autostart requires user approval",
             Self::NotificationFailed => "notification operation failed",
             Self::InternalState => "platform adapter internal state unavailable",
         })
@@ -239,6 +263,13 @@ impl Error for PlatformError {}
 pub enum SaveDisposition {
     Saved,
     Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CapturePermissionState {
+    Granted,
+    NotGranted,
+    RestartRequired,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -262,6 +293,19 @@ pub trait PlatformAdapter: Send + Sync {
     type ResumeLease: PlatformLease;
 
     fn platform_name(&self) -> &'static str;
+
+    fn capture_permission(&self) -> Result<CapturePermissionState, PlatformError> {
+        Err(PlatformError::PlatformUnavailable)
+    }
+
+    /// Must only be invoked in response to an explicit user action.
+    fn request_capture_permission(&self) -> Result<CapturePermissionState, PlatformError> {
+        Err(PlatformError::PlatformUnavailable)
+    }
+
+    fn open_capture_permission_settings(&self) -> Result<(), PlatformError> {
+        Err(PlatformError::PermissionSettingsUnavailable)
+    }
 
     fn capture_snapshot(&self) -> Result<CaptureSnapshot, PlatformError>;
 

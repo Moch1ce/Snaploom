@@ -1,5 +1,5 @@
 mod ipc;
-#[cfg(all(feature = "tauri-runtime", any(windows, test)))]
+#[cfg(all(feature = "tauri-runtime", any(windows, target_os = "macos", test)))]
 mod windows_bridge;
 
 pub use ipc::{HostServer, HostServerError, HostServerOutcome};
@@ -7,12 +7,12 @@ pub use ipc::{HostServer, HostServerError, HostServerOutcome};
 #[cfg(feature = "tauri-runtime")]
 pub fn run() {
     let bootstrap = ipc::read_bootstrap_challenge().expect("invalid Capture Host bootstrap");
-    #[cfg(any(windows, test))]
-    let bridge = std::sync::Arc::new(windows_bridge::WindowsBridge::new());
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
+    let bridge = std::sync::Arc::new(windows_bridge::NativeBridge::new());
+    #[cfg(any(windows, target_os = "macos", test))]
     let backend: std::sync::Arc<dyn snaploom_capture_session::SessionBackend> =
-        std::sync::Arc::new(windows_bridge::WindowsSessionBackend::new(bridge.clone()));
-    #[cfg(not(any(windows, test)))]
+        std::sync::Arc::new(windows_bridge::NativeSessionBackend::new(bridge.clone()));
+    #[cfg(not(any(windows, target_os = "macos", test)))]
     let backend: std::sync::Arc<dyn snaploom_capture_session::SessionBackend> =
         std::sync::Arc::new(snaploom_capture_session::UnavailableSessionBackend);
     let server = match ipc::HostServer::start(backend).expect("Capture Host IPC startup failed") {
@@ -25,7 +25,7 @@ pub fn run() {
     };
     let idle_exit = server.idle_exit_signal();
     let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     let builder = builder
         .manage(bridge.clone())
         .invoke_handler(tauri::generate_handler![
@@ -40,11 +40,9 @@ pub fn run() {
         ]);
     builder
         .setup(move |app| {
-            #[cfg(any(windows, test))]
+            #[cfg(any(windows, target_os = "macos", test))]
             bridge
-                .initialize_shell(snaploom_platform_windows::WindowsShell::new(
-                    app.handle().clone(),
-                ))
+                .initialize_shell(windows_bridge::NativeShell::new(app.handle().clone()))
                 .map_err(Box::<dyn std::error::Error>::from)?;
             ipc::signal_bootstrap_ready(bootstrap)
                 .map_err(|_| std::io::Error::other("Capture Host readiness failed"))?;

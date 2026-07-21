@@ -20,12 +20,20 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "shadow": false,
+        "transparent": false,
         "visible": false
       }
     ],
+    "macOSPrivateApi": false,
     "security": {
       "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost"
     }
   },
-  "bundle": { "active": false }
+  "bundle": {
+    "active": false,
+    "macOS": {
+      "minimumSystemVersion": "14.0",
+      "infoPlist": "Info.plist"
+    }
+  }
 }

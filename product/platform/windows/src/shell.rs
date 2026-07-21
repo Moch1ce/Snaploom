@@ -154,14 +154,17 @@ impl<R: Runtime> WindowsShell<R> {
             let scale_y = f64::from(monitor.size().height) / logical_size.height;
             let snapshot = platform.capture_snapshot_at_scale(scale_x, scale_y)?;
             let descriptor = snapshot.descriptor();
-            if descriptor.global_origin.x == monitor.position().x
-                && descriptor.global_origin.y == monitor.position().y
+            let Some(global_origin) = descriptor.global_origin else {
+                continue;
+            };
+            if global_origin.x == monitor.position().x
+                && global_origin.y == monitor.position().y
                 && descriptor.physical_size.width == monitor.size().width
                 && descriptor.physical_size.height == monitor.size().height
             {
                 let prepared = self.prepare_overlay(
-                    descriptor.global_origin.x,
-                    descriptor.global_origin.y,
+                    global_origin.x,
+                    global_origin.y,
                     descriptor.physical_size.width,
                     descriptor.physical_size.height,
                     scale,
@@ -209,10 +212,12 @@ impl<R: Runtime> WindowsShell<R> {
         descriptor: &CaptureSnapshotDescriptor,
     ) -> Result<(), PlatformError> {
         self.validate_session(&descriptor.session_id)?;
-        let center_x =
-            f64::from(descriptor.global_origin.x) + f64::from(descriptor.physical_size.width) / 2.0;
-        let center_y = f64::from(descriptor.global_origin.y)
-            + f64::from(descriptor.physical_size.height) / 2.0;
+        let global_origin = descriptor
+            .global_origin
+            .ok_or(PlatformError::DisplayUnavailable)?;
+        let center_x = f64::from(global_origin.x) + f64::from(descriptor.physical_size.width) / 2.0;
+        let center_y =
+            f64::from(global_origin.y) + f64::from(descriptor.physical_size.height) / 2.0;
         let (descriptor_scale_x, descriptor_scale_y) = descriptor.scale();
 
         for _ in 0..2 {
@@ -222,8 +227,8 @@ impl<R: Runtime> WindowsShell<R> {
                 .map_err(|_| PlatformError::DisplayUnavailable)?
                 .ok_or(PlatformError::DisplayUnavailable)?;
             let scale = monitor.scale_factor();
-            if monitor.position().x != descriptor.global_origin.x
-                || monitor.position().y != descriptor.global_origin.y
+            if monitor.position().x != global_origin.x
+                || monitor.position().y != global_origin.y
                 || monitor.size().width != descriptor.physical_size.width
                 || monitor.size().height != descriptor.physical_size.height
                 || (scale - descriptor_scale_x).abs() > 0.01
@@ -233,8 +238,8 @@ impl<R: Runtime> WindowsShell<R> {
             }
 
             match self.prepare_overlay(
-                descriptor.global_origin.x,
-                descriptor.global_origin.y,
+                global_origin.x,
+                global_origin.y,
                 descriptor.physical_size.width,
                 descriptor.physical_size.height,
                 scale,

@@ -270,6 +270,8 @@ pub struct CaptureRequest {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionFailure {
     PlatformUnavailable,
+    PermissionNotGranted,
+    PermissionRevoked,
     DisplayUnavailable,
     CaptureUnavailable,
     CaptureTimeout,

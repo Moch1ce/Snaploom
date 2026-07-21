@@ -78,6 +78,7 @@ impl WindowsPlatform {
             );
             let descriptor = CaptureSnapshotDescriptor {
                 session_id,
+                display_id: None,
                 physical_size: PhysicalSize {
                     width: capture.display.width,
                     height: capture.display.height,
@@ -86,10 +87,10 @@ impl WindowsPlatform {
                     width: f64::from(capture.display.width) / scale_x,
                     height: f64::from(capture.display.height) / scale_y,
                 },
-                global_origin: snaploom_platform_contract::PhysicalPoint {
+                global_origin: Some(snaploom_platform_contract::PhysicalPoint {
                     x: capture.display.x,
                     y: capture.display.y,
-                },
+                }),
                 pointer_physical: capture.pointer,
                 work_area_logical: LogicalRect {
                     x: f64::from(capture.work_area.x - capture.display.x) / scale_x,

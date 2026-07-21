@@ -6,6 +6,7 @@ use snaploom_platform_contract::{
 fn descriptor() -> CaptureSnapshotDescriptor {
     CaptureSnapshotDescriptor {
         session_id: "session-39".into(),
+        display_id: None,
         physical_size: PhysicalSize {
             width: 4,
             height: 2,
@@ -14,7 +15,7 @@ fn descriptor() -> CaptureSnapshotDescriptor {
             width: 2.0,
             height: 1.0,
         },
-        global_origin: PhysicalPoint { x: -1920, y: -200 },
+        global_origin: Some(PhysicalPoint { x: -1920, y: -200 }),
         pointer_physical: PhysicalPoint { x: 1, y: 1 },
         work_area_logical: LogicalRect {
             x: 0.0,

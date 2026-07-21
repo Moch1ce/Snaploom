@@ -56,13 +56,15 @@ jobs:
       - name: Install pinned CycloneDX generator
         run: cargo install cargo-cyclonedx --version 0.5.9 --locked
 
-      - name: Generate and validate Windows product SBOM
+      - name: Generate and validate Windows and macOS product SBOMs
         shell: bash
         run: |
-          cargo cyclonedx --manifest-path Cargo.toml --format json --all-features --target x86_64-pc-windows-msvc --spec-version 1.5 --override-filename root-sbom.cdx
-          cargo cyclonedx --manifest-path product/Cargo.toml --format json --all-features --target x86_64-pc-windows-msvc --spec-version 1.5 --override-filename sbom.cdx
-          mapfile -t sboms < <(find product -name sbom.cdx.json -type f -print)
-          node tools/compliance/verify-cyclonedx.mjs root-sbom.cdx.json "${sboms[@]}"
+          cargo cyclonedx --manifest-path Cargo.toml --format json --all-features --target x86_64-pc-windows-msvc --spec-version 1.5 --override-filename root-windows-sbom.cdx
+          cargo cyclonedx --manifest-path product/Cargo.toml --format json --all-features --target x86_64-pc-windows-msvc --spec-version 1.5 --override-filename windows-sbom.cdx
+          cargo cyclonedx --manifest-path Cargo.toml --format json --all-features --target aarch64-apple-darwin --spec-version 1.5 --override-filename root-macos-sbom.cdx
+          cargo cyclonedx --manifest-path product/Cargo.toml --format json --all-features --target aarch64-apple-darwin --spec-version 1.5 --override-filename macos-sbom.cdx
+          mapfile -t sboms < <(find product \( -name windows-sbom.cdx.json -o -name macos-sbom.cdx.json \) -type f -print)
+          node tools/compliance/verify-cyclonedx.mjs root-windows-sbom.cdx.json root-macos-sbom.cdx.json "${sboms[@]}"
 
       - name: Generate locked Rust dependency notice and enforce forbidden direct dependencies
         run: |

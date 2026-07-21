@@ -9,10 +9,18 @@ use snaploom_capture_session::{
 use snaploom_platform_contract::{
     CaptureSnapshot, CaptureSnapshotDescriptor, MAX_CAPTURE_FRAME_BYTES, PlatformError,
 };
-use snaploom_platform_windows::{SaveDisposition, WindowsShell};
+#[cfg(target_os = "macos")]
+use snaploom_platform_macos::SaveDisposition;
+#[cfg(all(not(target_os = "macos"), any(windows, test)))]
+use snaploom_platform_windows::SaveDisposition;
 use tauri::ipc::{InvokeBody, Request, Response};
 use tauri::{State, Wry};
 use zeroize::Zeroize;
+
+#[cfg(target_os = "macos")]
+pub(crate) type NativeShell = snaploom_platform_macos::MacShell<Wry>;
+#[cfg(all(not(target_os = "macos"), any(windows, test)))]
+pub(crate) type NativeShell = snaploom_platform_windows::WindowsShell<Wry>;
 
 const TERMINAL_POLL: Duration = Duration::from_millis(25);
 const MAX_OUTPUT_PNG_BYTES: usize = 100 * 1024 * 1024;
@@ -54,12 +62,12 @@ struct ActiveSession {
     terminal: SyncSender<SessionTerminal>,
 }
 
-pub(crate) struct WindowsBridge {
-    shell: OnceLock<WindowsShell<Wry>>,
+pub(crate) struct NativeBridge {
+    shell: OnceLock<NativeShell>,
     active: Mutex<Option<ActiveSession>>,
 }
 
-impl WindowsBridge {
+impl NativeBridge {
     pub(crate) fn new() -> Self {
         Self {
             shell: OnceLock::new(),
@@ -67,13 +75,13 @@ impl WindowsBridge {
         }
     }
 
-    pub(crate) fn initialize_shell(&self, shell: WindowsShell<Wry>) -> Result<(), PlatformError> {
+    pub(crate) fn initialize_shell(&self, shell: NativeShell) -> Result<(), PlatformError> {
         self.shell
             .set(shell)
             .map_err(|_| PlatformError::InternalState)
     }
 
-    fn shell(&self) -> Result<&WindowsShell<Wry>, PlatformError> {
+    fn shell(&self) -> Result<&NativeShell, PlatformError> {
         self.shell.get().ok_or(PlatformError::InternalState)
     }
 
@@ -254,18 +262,21 @@ impl WindowsBridge {
     }
 }
 
-pub(crate) struct WindowsSessionBackend {
-    bridge: Arc<WindowsBridge>,
+pub(crate) struct NativeSessionBackend {
+    bridge: Arc<NativeBridge>,
 }
 
-impl WindowsSessionBackend {
-    pub(crate) fn new(bridge: Arc<WindowsBridge>) -> Self {
+impl NativeSessionBackend {
+    pub(crate) fn new(bridge: Arc<NativeBridge>) -> Self {
         Self { bridge }
     }
 }
 
-impl SessionBackend for WindowsSessionBackend {
+impl SessionBackend for NativeSessionBackend {
     fn run(&self, request: CaptureRequest, control: SessionControl) -> SessionTerminal {
+        if control.is_canceled() {
+            return SessionTerminal::Canceled { by_user: false };
+        }
         let shell = match self.bridge.shell() {
             Ok(shell) => shell,
             Err(error) => return failed(error),
@@ -275,6 +286,10 @@ impl SessionBackend for WindowsSessionBackend {
             Err(error) => return failed(error),
         };
         let platform_session_id = snapshot.descriptor().session_id.clone();
+        if control.is_canceled() {
+            let _ = shell.finish_session(&platform_session_id);
+            return SessionTerminal::Canceled { by_user: false };
+        }
         let terminal = match self.bridge.start(snapshot, request.clipboard_enabled) {
             Ok(terminal) => terminal,
             Err(error) => {
@@ -311,13 +326,20 @@ fn failed(error: PlatformError) -> SessionTerminal {
     SessionTerminal::Failed {
         failure: match error {
             PlatformError::PlatformUnavailable => SessionFailure::PlatformUnavailable,
+            PlatformError::PermissionNotGranted => SessionFailure::PermissionNotGranted,
+            PlatformError::PermissionRevoked => SessionFailure::PermissionRevoked,
             PlatformError::DisplayUnavailable => SessionFailure::DisplayUnavailable,
             PlatformError::CaptureUnavailable => SessionFailure::CaptureUnavailable,
             PlatformError::FrameTimeout => SessionFailure::CaptureTimeout,
             PlatformError::PixelConversionFailed => SessionFailure::PixelConversionFailed,
             _ => SessionFailure::Internal,
         },
-        retryable: !matches!(error, PlatformError::PlatformUnavailable),
+        retryable: !matches!(
+            error,
+            PlatformError::PlatformUnavailable
+                | PlatformError::PermissionNotGranted
+                | PlatformError::PermissionRevoked
+        ),
     }
 }
 
@@ -461,7 +483,7 @@ fn validate_png_chunks(png: &[u8]) -> Result<(u32, u32), PlatformError> {
 
 #[tauri::command]
 pub(crate) fn capture_descriptor(
-    bridge: State<'_, Arc<WindowsBridge>>,
+    bridge: State<'_, Arc<NativeBridge>>,
 ) -> Result<CaptureSnapshotDescriptor, String> {
     bridge.descriptor().map_err(stable_error)
 }
@@ -469,7 +491,7 @@ pub(crate) fn capture_descriptor(
 #[tauri::command]
 pub(crate) fn capture_frame(
     request: Request<'_>,
-    bridge: State<'_, Arc<WindowsBridge>>,
+    bridge: State<'_, Arc<NativeBridge>>,
 ) -> Result<Response, String> {
     let session_id = session_id(&request)?;
     bridge
@@ -481,7 +503,7 @@ pub(crate) fn capture_frame(
 #[tauri::command]
 pub(crate) async fn write_png_clipboard(
     request: Request<'_>,
-    bridge: State<'_, Arc<WindowsBridge>>,
+    bridge: State<'_, Arc<NativeBridge>>,
 ) -> Result<(), String> {
     let session_id = session_id(&request)?;
     let png = raw_body(&request)?;
@@ -495,7 +517,7 @@ pub(crate) async fn write_png_clipboard(
 #[tauri::command]
 pub(crate) async fn save_png(
     request: Request<'_>,
-    bridge: State<'_, Arc<WindowsBridge>>,
+    bridge: State<'_, Arc<NativeBridge>>,
 ) -> Result<&'static str, String> {
     let session_id = session_id(&request)?;
     let png = raw_body(&request)?;
@@ -522,7 +544,7 @@ pub(crate) async fn save_png(
 pub(crate) fn set_overlay_visible(
     request: Request<'_>,
     visible: bool,
-    bridge: State<'_, Arc<WindowsBridge>>,
+    bridge: State<'_, Arc<NativeBridge>>,
 ) -> Result<(), String> {
     let session_id = session_id(&request)?;
     bridge
@@ -533,7 +555,7 @@ pub(crate) fn set_overlay_visible(
 #[tauri::command]
 pub(crate) fn overlay_ready(
     request: Request<'_>,
-    bridge: State<'_, Arc<WindowsBridge>>,
+    bridge: State<'_, Arc<NativeBridge>>,
 ) -> Result<(), String> {
     let session_id = session_id(&request)?;
     bridge
@@ -544,7 +566,7 @@ pub(crate) fn overlay_ready(
 #[tauri::command]
 pub(crate) fn close_overlay(
     request: Request<'_>,
-    bridge: State<'_, Arc<WindowsBridge>>,
+    bridge: State<'_, Arc<NativeBridge>>,
 ) -> Result<(), String> {
     let session_id = session_id(&request)?;
     bridge.complete(&session_id).map_err(stable_error)
@@ -553,7 +575,7 @@ pub(crate) fn close_overlay(
 #[tauri::command]
 pub(crate) fn cancel_overlay(
     request: Request<'_>,
-    bridge: State<'_, Arc<WindowsBridge>>,
+    bridge: State<'_, Arc<NativeBridge>>,
 ) -> Result<(), String> {
     let session_id = session_id(&request)?;
     bridge.cancel(&session_id, true).map_err(stable_error)
@@ -577,14 +599,15 @@ mod tests {
         bytes
     }
 
-    fn bridge_with_session(session_id: &str) -> WindowsBridge {
+    fn bridge_with_session(session_id: &str) -> NativeBridge {
         use snaploom_platform_contract::{LogicalRect, LogicalSize, PhysicalPoint, PhysicalSize};
 
-        let bridge = WindowsBridge::new();
+        let bridge = NativeBridge::new();
         let (terminal, _receiver) = sync_channel(1);
         *bridge.active.lock().unwrap() = Some(ActiveSession {
             descriptor: CaptureSnapshotDescriptor {
                 session_id: session_id.to_owned(),
+                display_id: None,
                 physical_size: PhysicalSize {
                     width: 1,
                     height: 1,
@@ -593,7 +616,7 @@ mod tests {
                     width: 1.0,
                     height: 1.0,
                 },
-                global_origin: PhysicalPoint { x: 0, y: 0 },
+                global_origin: Some(PhysicalPoint { x: 0, y: 0 }),
                 pointer_physical: PhysicalPoint { x: 0, y: 0 },
                 work_area_logical: LogicalRect {
                     x: 0.0,
@@ -681,6 +704,14 @@ mod tests {
     #[test]
     fn capture_failures_keep_their_stable_categories() {
         for (platform, expected) in [
+            (
+                PlatformError::PermissionNotGranted,
+                SessionFailure::PermissionNotGranted,
+            ),
+            (
+                PlatformError::PermissionRevoked,
+                SessionFailure::PermissionRevoked,
+            ),
             (
                 PlatformError::DisplayUnavailable,
                 SessionFailure::DisplayUnavailable,

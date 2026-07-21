@@ -39,9 +39,13 @@ zeroize.workspace = true
 [target.'cfg(windows)'.dependencies]
 snaploom-platform-windows = { path = "../../platform/windows", version = "=0.1.0", features = ["tauri-shell"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+snaploom-platform-macos = { path = "../../platform/macos", version = "=0.1.0", features = ["tauri-shell"] }
+
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 
 [dev-dependencies]
 snaploom-capture-client = { path = "../../../sdk/client", version = "=0.1.0" }
+snaploom-platform-macos = { path = "../../platform/macos", version = "=0.1.0", features = ["tauri-shell"] }
 snaploom-platform-windows = { path = "../../platform/windows", version = "=0.1.0", features = ["tauri-shell"] }

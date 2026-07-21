@@ -7,6 +7,7 @@ use snaploom_platform_fake::FakePlatform;
 fn snapshot(session_id: &str) -> CaptureSnapshot {
     let descriptor = CaptureSnapshotDescriptor {
         session_id: session_id.into(),
+        display_id: None,
         physical_size: PhysicalSize {
             width: 2,
             height: 1,
@@ -15,7 +16,7 @@ fn snapshot(session_id: &str) -> CaptureSnapshot {
             width: 1.0,
             height: 1.0,
         },
-        global_origin: PhysicalPoint { x: -2, y: 0 },
+        global_origin: Some(PhysicalPoint { x: -2, y: 0 }),
         pointer_physical: PhysicalPoint { x: 0, y: 0 },
         work_area_logical: LogicalRect {
             x: 0.0,
