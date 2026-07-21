@@ -23,6 +23,15 @@ for (const name of readdirSync(workflowDirectory).filter((entry) => /\.ya?ml$/.t
 }
 
 const legalRc = readFileSync(join(workflowDirectory, "release-legal-rc.yml"), "utf8");
+const pullRequestCi = readFileSync(join(workflowDirectory, "ci.yml"), "utf8");
+if (
+  !pullRequestCi.includes("--skip-manifest-checksum") ||
+  legalRc.includes("--skip-manifest-checksum")
+) {
+  throw new Error(
+    "branch CI must defer the runner-specific Swift checksum while legal RC enforces it",
+  );
+}
 if (
   !legalRc.includes("draft:true") ||
   !legalRc.includes("Stable publish remains blocked by Issue #33") ||

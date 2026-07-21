@@ -197,7 +197,8 @@ jobs:
             --output "${RUNNER_TEMP}/snaploom-swift-sdk"
           node tools/sdk/verify-swift-sdk.mjs \
             --version 0.1.0 \
-            --archive "${archive}"
+            --archive "${archive}" \
+            --skip-manifest-checksum
 
       - name: Upload Swift XCFramework
         if: runner.os == 'macOS'
