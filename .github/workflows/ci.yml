@@ -172,6 +172,30 @@ jobs:
           archive="$(node tools/sdk/package-c-sdk.mjs --platform "${platform}" --output "${RUNNER_TEMP}/snaploom-sdk-package")"
           node tools/sdk/verify-c-sdk.mjs --platform "${platform}" --archive "${archive}"
 
+      - name: Build and verify Swift package and XCFramework
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          archive="${RUNNER_TEMP}/snaploom-swift-sdk/CSnaploomCapture-0.1.0.xcframework.zip"
+          export RUSTFLAGS="--remap-path-prefix=${GITHUB_WORKSPACE}=. --remap-path-prefix=/Users/runner/=user/"
+          cargo build --manifest-path sdk/Cargo.toml --package snaploom-capture-c-abi --release --locked
+          node tools/sdk/package-swift-sdk.mjs \
+            --version 0.1.0 \
+            --library sdk/target/release/libsnaploom_capture.dylib \
+            --output "${RUNNER_TEMP}/snaploom-swift-sdk"
+          node tools/sdk/verify-swift-sdk.mjs \
+            --version 0.1.0 \
+            --archive "${archive}"
+
+      - name: Upload Swift XCFramework
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: snaploom-capture-swift
+          path: ${{ runner.temp }}/snaploom-swift-sdk/CSnaploomCapture-0.1.0.xcframework.zip
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Stage .NET native asset
         shell: bash
         run: |
