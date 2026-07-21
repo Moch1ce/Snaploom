@@ -2,28 +2,19 @@ import "@fontsource/inter/400.css";
 import "@fontsource/noto-sans-sc/chinese-simplified-400.css";
 import { OverlayEditor, type CaptureSnapshot } from "../src/app";
 import type { AnnotationTool } from "../src/annotations";
+import fixtures from "../../../testing/goldens/fixtures.json" with { type: "json" };
 
-const fixtureNames = [
-  "rectangle",
-  "arrow",
-  "text",
-  "mosaic",
-  "composite-overlap",
-  "dpi-100",
-  "dpi-125",
-  "dpi-150",
-  "dpi-175",
-  "dpi-200",
-] as const;
-type FixtureName = (typeof fixtureNames)[number];
+type Fixture = (typeof fixtures.render)[number];
+type FixtureName = Fixture["name"];
 
 function isFixtureName(value: string | null): value is FixtureName {
-  return fixtureNames.some((fixture) => fixture === value);
+  return fixtures.render.some((fixture) => fixture.name === value);
 }
 
-function scaleForFixture(fixture: FixtureName): number {
-  const percentage = /^dpi-(\d+)$/.exec(fixture)?.[1];
-  return percentage ? Number(percentage) / 100 : 2;
+function fixtureForName(name: FixtureName): Fixture {
+  const fixture = fixtures.render.find((candidate) => candidate.name === name);
+  if (!fixture) throw new Error(`unknown fixture: ${name}`);
+  return fixture;
 }
 
 function createCapture(scale: number): {
@@ -112,6 +103,7 @@ function drawFixture(editor: OverlayEditor, fixture: FixtureName): void {
 async function main(): Promise<void> {
   const fixture = new URLSearchParams(location.search).get("fixture");
   if (!isFixtureName(fixture)) throw new Error(`unknown fixture: ${fixture}`);
+  const definition = fixtureForName(fixture);
   await document.fonts.load("32px Inter", "Snaploom");
   await document.fonts.load('32px "Noto Sans SC"', "中文");
   await document.fonts.ready;
@@ -119,15 +111,19 @@ async function main(): Promise<void> {
   const canvas = document.createElement("canvas");
   const toolbar = document.createElement("div");
   const sizeLabel = document.createElement("div");
-  const capture = createCapture(scaleForFixture(fixture));
+  const capture = createCapture(definition.scale);
   const editor = new OverlayEditor(capture.snapshot, capture.binary, {
     canvas,
     toolbar,
     sizeLabel,
+  }, {
+    renderFontFamily: 'Inter, "Noto Sans SC", sans-serif',
   });
-  editor.pointerDown({ x: 8, y: 8 });
-  editor.pointerMove({ x: 88, y: 56 });
-  editor.pointerUp({ x: 88, y: 56 });
+  const [startX, startY] = definition.start as [number, number];
+  const [endX, endY] = definition.end as [number, number];
+  editor.pointerDown({ x: startX, y: startY });
+  editor.pointerMove({ x: endX, y: endY });
+  editor.pointerUp({ x: endX, y: endY });
   drawFixture(editor, fixture);
 
   const png = await editor.composePng();

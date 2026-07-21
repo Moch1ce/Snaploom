@@ -1,4 +1,5 @@
 export type Language = "zh-cn" | "en";
+export type LanguagePreference = "system" | Language;
 
 export interface AppSettings {
   readonly schemaVersion: number;
@@ -6,16 +7,18 @@ export interface AppSettings {
   readonly autostart: boolean;
   readonly recentAnnotationStyles: Readonly<Record<string, string>>;
   readonly recentSaveDirectory: string | null;
-  readonly language: Language;
+  readonly language: LanguagePreference;
 }
 
 export interface SettingsSnapshot {
   readonly settings: AppSettings;
+  readonly resolvedLanguage: Language;
   readonly platform: "windows" | "macos";
 }
 
 export interface SettingsMutation {
   readonly settings: AppSettings;
+  readonly resolvedLanguage: Language;
   readonly persisted: boolean;
 }
 
@@ -49,6 +52,9 @@ const resources = {
     apply: "应用",
     autostart: "开机启动",
     language: "语言",
+    languageSystem: "跟随系统",
+    languageZhCn: "简体中文",
+    languageEn: "英语",
     permission: "屏幕录制权限",
     permissionGranted: "已授权",
     permissionRequired: "需要授权",
@@ -89,6 +95,9 @@ const resources = {
     apply: "Apply",
     autostart: "Launch at Login",
     language: "Language",
+    languageSystem: "Follow System",
+    languageZhCn: "Simplified Chinese",
+    languageEn: "English",
     permission: "Screen Recording Permission",
     permissionGranted: "Granted",
     permissionRequired: "Permission required",
@@ -129,6 +138,16 @@ export function message(language: Language, key: MessageKey): string {
 
 export function resourceKeys(language: Language): readonly string[] {
   return Object.keys(resources[language]).sort();
+}
+
+export function languageOptions(
+  language: Language,
+): readonly { readonly value: LanguagePreference; readonly label: string }[] {
+  return [
+    { value: "system", label: message(language, "languageSystem") },
+    { value: "zh-cn", label: message(language, "languageZhCn") },
+    { value: "en", label: message(language, "languageEn") },
+  ];
 }
 
 export function languageFromLocale(locale: string | undefined): Language {

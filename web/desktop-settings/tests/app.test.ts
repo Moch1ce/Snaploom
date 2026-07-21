@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   languageFromLocale,
+  languageOptions,
   message,
   resourceKeys,
   settingsControlKeys,
@@ -16,6 +17,17 @@ describe("desktop settings contract", () => {
 
   it("keeps complete key parity between Chinese and English", () => {
     expect(resourceKeys("zh-cn")).toEqual(resourceKeys("en"));
+  });
+
+  it("offers a localized follow-system preference without collapsing it", () => {
+    expect(languageOptions("zh-cn")[0]).toEqual({
+      value: "system",
+      label: "跟随系统",
+    });
+    expect(languageOptions("en")[0]).toEqual({
+      value: "system",
+      label: "Follow System",
+    });
   });
 
   it("localizes permission, capture failure, and unexpected failure states", () => {

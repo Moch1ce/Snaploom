@@ -537,6 +537,8 @@ export interface OverlayEditorElements {
 
 export interface OverlayEditorOptions {
   readonly initialAnnotationStyle?: AnnotationStyle;
+  /** Test-only seam for deterministic Canvas text rendering. */
+  readonly renderFontFamily?: string;
   readonly onReady?: () => void;
   readonly onStateChange?: (state: OverlayEditorState) => void;
   readonly onAnnotationStateChange?: (state: AnnotationState) => void;
@@ -795,6 +797,9 @@ export class OverlayEditor {
       context.clip();
       renderAnnotations(context, this.#annotations.renderPlan(), {
         scale: this.#model.scale,
+        ...(this.#options.renderFontFamily
+          ? { fontFamily: this.#options.renderFontFamily }
+          : {}),
         showSelection: true,
         mosaic: {
           source: this.#sourceCanvas,
@@ -904,6 +909,9 @@ export class OverlayEditor {
       );
       renderAnnotations(context, this.#annotations.renderPlan(), {
         scale: this.#model.scale,
+        ...(this.#options.renderFontFamily
+          ? { fontFamily: this.#options.renderFontFamily }
+          : {}),
         offset: { x: selection.x, y: selection.y },
         showSelection: false,
         mosaic: {

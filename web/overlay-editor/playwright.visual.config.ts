@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 
 const goldenPath = fileURLToPath(
-  new URL("../../testing/goldens/render/{arg}{ext}", import.meta.url),
+  new URL("../../testing/goldens/{arg}{ext}", import.meta.url),
 );
 
 export default defineConfig({

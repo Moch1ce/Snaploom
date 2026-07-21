@@ -35,7 +35,7 @@ impl Default for AppSettings {
             autostart: false,
             recent_annotation_styles: BTreeMap::new(),
             recent_save_directory: None,
-            language: Language::En,
+            language: Language::System,
         }
     }
 }
@@ -233,6 +233,19 @@ mod tests {
         let loaded = store.load();
         assert_eq!(loaded.status, SettingsLoadStatus::Unreadable);
         assert_eq!(loaded.settings, AppSettings::default());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn unrelated_writes_preserve_the_system_language_preference() {
+        let directory = test_dir("settings-system-language");
+        let store = SettingsStore::new(directory.join("settings.json"));
+        let settings = AppSettings {
+            autostart: true,
+            ..AppSettings::default()
+        };
+        store.save(&settings).unwrap();
+        assert_eq!(store.load().settings.language, Language::System);
         fs::remove_dir_all(directory).unwrap();
     }
 }

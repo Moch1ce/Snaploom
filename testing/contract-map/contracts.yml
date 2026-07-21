@@ -143,7 +143,8 @@
       "implementation": ["web/screenshot-ui/src/index.ts"],
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "web/screenshot-ui/tests/theme.test.ts", "contains": "freezes the documented light theme and brand geometry"},
-        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "固定使用浅色界面"}
+        {"category": "visual", "status": "verified", "path": "web/overlay-editor/tests/ui-goldens.visual.spec.ts", "contains": "renders toolbar settings geometry"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "固定使用浅色界面"}
       ]
     },
     {
@@ -153,7 +154,8 @@
       "implementation": ["web/screenshot-ui/src/index.ts", "web/overlay-editor/src/app.ts"],
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "web/screenshot-ui/tests/theme.test.ts", "contains": "keeps the nine-button toolbar width stable"},
-        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "矩形、箭头、文字和马赛克"}
+        {"category": "visual", "status": "verified", "path": "web/overlay-editor/tests/ui-goldens.visual.spec.ts", "contains": "928 × 448"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "矩形、箭头、文字和马赛克"}
       ]
     },
     {
@@ -163,7 +165,8 @@
       "implementation": ["web/screenshot-ui/src/index.ts"],
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "web/screenshot-ui/tests/theme.test.ts", "contains": "places toolbar below, inside, or above without crossing workspace"},
-        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "选区内部右下角"}
+        {"category": "visual", "status": "verified", "path": "web/overlay-editor/tests/ui-goldens.visual.spec.ts", "contains": "settingsBox.y"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "选区内部右下角"}
       ]
     },
     {
@@ -173,7 +176,8 @@
       "implementation": ["web/overlay-editor/src/app.ts", "web/overlay-editor/src/style.css"],
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/annotations.test.ts", "contains": "settingsOpen: \"rectangle\""},
-        {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "独立同窗浮层"}
+        {"category": "visual", "status": "verified", "path": "web/overlay-editor/tests/ui-goldens.visual.spec.ts", "contains": "toolbar-settings"},
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "独立同窗浮层"}
       ]
     },
     {
@@ -233,7 +237,7 @@
       "implementation": ["web/overlay-editor/src/annotations.ts", "web/overlay-editor/src/app.ts"],
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/text-annotations.test.ts", "contains": "tracks committed and pre-edit text without creating a permanent DOM object"},
-        {"category": "visual", "status": "pending-external", "issue": "#41", "path": "docs/ui/screenshot-ui.md", "contains": "系统输入法和组合输入"},
+        {"category": "visual", "status": "verified", "path": "web/overlay-editor/tests/ui-goldens.visual.spec.ts", "contains": "textarea-composition"},
         {"category": "platform", "status": "pending-external", "issue": "#41", "path": "docs/testing/macos-t02-validation.md", "contains": "hosted runner 的编译与单元测试不能替代这些真机结论"}
       ]
     },
@@ -320,9 +324,11 @@
       "id": "CFG-02",
       "title": "本地化",
       "status": "required",
-      "implementation": ["product/desktop-shell/src/localization.rs", "web/desktop-settings/src/app.ts", "web/overlay-editor/src/localization.ts"],
+      "implementation": ["product/desktop-shell/src/localization.rs", "product/apps/desktop/src/lib.rs", "web/desktop-settings/src/app.ts", "web/overlay-editor/src/localization.ts"],
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "product/desktop-shell/src/localization.rs", "contains": "system_language_uses_the_native_locale_provider"},
+        {"category": "automatic", "status": "verified", "path": "product/desktop-shell/src/localization.rs", "contains": "system_preference_is_resolved_each_time_without_becoming_concrete"},
+        {"category": "automatic", "status": "verified", "path": "web/desktop-settings/tests/app.test.ts", "contains": "offers a localized follow-system preference without collapsing it"},
         {"category": "automatic", "status": "verified", "path": "web/desktop-settings/tests/app.test.ts", "contains": "keeps complete key parity between Chinese and English"},
         {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/localization.test.ts", "contains": "keeps Chinese and English resource keys aligned"},
         {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/macos-t02-validation.md", "contains": "本地化"}
@@ -430,8 +436,10 @@
         {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/annotations.test.ts", "contains": "moves, resizes, styles, deletes, undoes, and redoes selected objects"},
         {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/text-annotations.test.ts", "contains": "tracks committed and pre-edit text without creating a permanent DOM object"},
         {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/mosaic.test.ts", "contains": "moves, changes intensity, deletes, and restores mosaic through history"},
-        {"category": "visual", "status": "verified", "path": "web/overlay-editor/tests/render-goldens.visual.spec.ts", "contains": "composite-overlap"},
-        {"category": "visual", "status": "verified", "path": "web/overlay-editor/tests/render-goldens.visual.spec.ts", "contains": "dpi-175"},
+        {"category": "visual", "status": "verified", "path": "testing/goldens/fixtures.json", "contains": "\"name\": \"composite-overlap\""},
+        {"category": "visual", "status": "verified", "path": "testing/goldens/fixtures.json", "contains": "\"name\": \"dpi-175\""},
+        {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/ui-goldens.visual.spec.ts", "contains": "keeps pointer capture"},
+        {"category": "visual", "status": "verified", "path": "web/overlay-editor/tests/ui-goldens.visual.spec.ts", "contains": "accepts numeric symbol emoji text"},
         {"category": "performance", "status": "pending-external", "issue": "#34", "path": "docs/testing/performance-compatibility-report.md", "contains": "真实选区移动帧率必须由真机矩阵确认"}
       ]
     },

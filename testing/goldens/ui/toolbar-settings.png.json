@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "golden": "toolbar-settings.png",
+  "generator": {
+    "playwright": "1.61.1",
+    "browser": "chromium-headless-shell",
+    "revision": "1228"
+  },
+  "fixture": {
+    "name": "toolbar-settings",
+    "sha256": "3617dc3af778761d0f10f0ee3071f0fbf361520453be4ba9ac85119810ad1d9e"
+  },
+  "physicalSize": {
+    "width": 960,
+    "height": 600
+  },
+  "contracts": [
+    "UI-01",
+    "UI-02",
+    "UI-03",
+    "UI-04",
+    "ANN-06",
+    "QA-02"
+  ]
+}

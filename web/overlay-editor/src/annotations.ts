@@ -1293,6 +1293,7 @@ export interface RenderAnnotationsOptions {
   readonly scale: SnapshotScale;
   readonly offset?: Point;
   readonly showSelection?: boolean;
+  readonly fontFamily?: string;
   readonly mosaic?: {
     readonly source: CanvasImageSource;
     readonly cache: MosaicTileCache;
@@ -1453,7 +1454,7 @@ export function renderAnnotations(
       renderMosaic(context, object, options);
     } else {
       const layout = layoutTextAnnotation(object, options.scale);
-      context.font = `${layout.fontSizePhysical}px ${screenshotUiTheme.typography.fontFamily}`;
+      context.font = `${layout.fontSizePhysical}px ${options.fontFamily ?? screenshotUiTheme.typography.fontFamily}`;
       context.textBaseline = "top";
       for (let index = 0; index < layout.lines.length; index += 1) {
         context.fillText(

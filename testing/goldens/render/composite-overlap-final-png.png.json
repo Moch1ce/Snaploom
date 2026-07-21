@@ -8,7 +8,18 @@
   },
   "fixture": {
     "name": "composite-overlap",
-    "sha256": "59d2179806d4b86b7d147e8e250964535c14a1562dbf54244cdcde2fd23a26a1"
+    "sha256": "c1cf20d4982de64305e75b1a7414fdb187b711b0552a2dd58f93971eecce534d",
+    "scale": 2,
+    "selection": {
+      "start": [
+        8,
+        8
+      ],
+      "end": [
+        88,
+        56
+      ]
+    }
   },
   "physicalSize": {
     "width": 160,

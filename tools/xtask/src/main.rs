@@ -21,6 +21,15 @@ fn main() -> ExitCode {
             ) && run("pnpm", &["run", "check"])
         }
         "boundaries" => run("node", &["tools/architecture/check-boundaries.mjs"]),
+        "goldens-update" => run(
+            "pnpm",
+            &[
+                "--filter",
+                "@snaploom/overlay-editor",
+                "run",
+                "goldens:update",
+            ],
+        ),
         other => {
             eprintln!("unknown xtask command: {other}");
             false

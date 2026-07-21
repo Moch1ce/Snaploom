@@ -5,7 +5,9 @@ mod settings;
 mod update;
 
 pub use lifecycle::{CaptureIntentGate, CaptureTrigger, IntentLease, OwnedIntentLease};
-pub use localization::{Language, MessageKey, localize, resource_keys, system_language};
+pub use localization::{
+    Language, MessageKey, localize, resolve_language, resource_keys, system_language,
+};
 pub use privacy_log::{
     PrivacyEvent, PrivacyLevel, PrivacyLog, PrivacyLogError, PrivacyRecord, utc_now,
 };

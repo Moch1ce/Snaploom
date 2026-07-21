@@ -10,7 +10,9 @@ import {
 describe("Screenshot UI contract", () => {
   it("freezes the documented light theme and brand geometry", () => {
     expect(screenshotUiTheme.borderWidth).toBe(1);
-    expect(screenshotUiTheme.typography.fontFamily).toContain("Segoe UI");
+    expect(screenshotUiTheme.typography.fontFamily).toBe(
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    );
     expect(screenshotUiTheme.colors).toEqual({
       brand: "#07C977",
       danger: "#FF4D4F",

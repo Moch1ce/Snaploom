@@ -1,19 +1,7 @@
 import { expect, test } from "@playwright/test";
+import fixtures from "../../../testing/goldens/fixtures.json" with { type: "json" };
 
-const fixtures = [
-  { name: "rectangle", width: 160, height: 96 },
-  { name: "arrow", width: 160, height: 96 },
-  { name: "text", width: 160, height: 96 },
-  { name: "mosaic", width: 160, height: 96 },
-  { name: "composite-overlap", width: 160, height: 96 },
-  { name: "dpi-100", width: 80, height: 48 },
-  { name: "dpi-125", width: 100, height: 60 },
-  { name: "dpi-150", width: 120, height: 72 },
-  { name: "dpi-175", width: 140, height: 84 },
-  { name: "dpi-200", width: 160, height: 96 },
-] as const;
-
-for (const fixture of fixtures) {
+for (const fixture of fixtures.render) {
   test(`${fixture.name} final renderer object list and cropped PNG`, async ({
     page,
   }) => {
@@ -49,7 +37,7 @@ for (const fixture of fixtures) {
       colorType: 6,
       ancillaryChunks: [],
     });
-    await expect(output).toHaveScreenshot(`${fixture.name}-final-png.png`, {
+    await expect(output).toHaveScreenshot(["render", `${fixture.name}-final-png.png`], {
       animations: "disabled",
       caret: "hide",
       maxDiffPixels: 0,

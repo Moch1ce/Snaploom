@@ -10,7 +10,7 @@ use snaploom_capture_protocol::CaptureOrigin;
 use snaploom_desktop_shell::{
     AppSettings, CaptureIntentGate, CaptureTrigger, HttpReleaseResponse, Language, PrivacyEvent,
     PrivacyLevel, PrivacyLog, PrivacyRecord, SettingsLoadStatus, SettingsStore, UpdateState,
-    evaluate_release_response, system_language, utc_now,
+    evaluate_release_response, resolve_language, utc_now,
 };
 use snaploom_platform_contract::{PlatformAdapter, PlatformEvent, PlatformLanguage};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
@@ -77,6 +77,7 @@ impl DesktopState {
 #[serde(rename_all = "camelCase")]
 struct SettingsSnapshot {
     settings: AppSettings,
+    resolved_language: Language,
     platform: &'static str,
 }
 
@@ -84,6 +85,7 @@ struct SettingsSnapshot {
 #[serde(rename_all = "camelCase")]
 struct SettingsMutation {
     settings: AppSettings,
+    resolved_language: Language,
     persisted: bool,
 }
 
@@ -98,12 +100,14 @@ enum CapturePermissionView {
 
 #[tauri::command]
 fn settings_snapshot(state: State<'_, DesktopState>) -> SettingsSnapshot {
+    let settings = state
+        .settings
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone();
     SettingsSnapshot {
-        settings: state
-            .settings
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .clone(),
+        resolved_language: resolve_language(settings.language),
+        settings,
         platform: state.platform.platform_name(),
     }
 }
@@ -164,6 +168,7 @@ fn replace_shortcut(
     };
     state.log(PrivacyLevel::Info, PrivacyEvent::ShortcutChanged, None);
     Ok(SettingsMutation {
+        resolved_language: resolve_language(settings.language),
         settings,
         persisted: state.persist_current_settings(),
     })
@@ -220,6 +225,7 @@ fn set_autostart_inner(enabled: bool, state: &DesktopState) -> Result<SettingsMu
     }
     state.log(PrivacyLevel::Info, PrivacyEvent::AutostartChanged, None);
     Ok(SettingsMutation {
+        resolved_language: resolve_language(settings.language),
         settings,
         persisted: state.persist_current_settings(),
     })
@@ -238,8 +244,11 @@ fn set_language(language: Language, state: State<'_, DesktopState>) -> SettingsM
         settings.language = language;
         settings.clone()
     };
-    let _ = state.platform.set_language(platform_language(language));
-    let labels = TrayLabels::for_language(language);
+    let resolved_language = resolve_language(language);
+    let _ = state
+        .platform
+        .set_language(platform_language(resolved_language));
+    let labels = TrayLabels::for_language(resolved_language);
     if let Some(item) = state
         .start_menu
         .lock()
@@ -273,6 +282,7 @@ fn set_language(language: Language, state: State<'_, DesktopState>) -> SettingsM
         let _ = item.set_text(labels.quit);
     }
     SettingsMutation {
+        resolved_language,
         settings,
         persisted: state.persist_current_settings(),
     }
@@ -526,7 +536,7 @@ fn configure_tray(app: &tauri::App<Wry>) -> tauri::Result<()> {
         .lock()
         .unwrap_or_else(|error| error.into_inner())
         .language;
-    let labels = TrayLabels::for_language(language);
+    let labels = TrayLabels::for_language(resolve_language(language));
     let capture = MenuItem::with_id(app, "capture", labels.capture, true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", labels.settings, true, None::<&str>)?;
     let autostart_enabled = state
@@ -596,7 +606,7 @@ struct TrayLabels {
 }
 
 impl TrayLabels {
-    const fn for_language(language: Language) -> Self {
+    fn for_language(language: Language) -> Self {
         match language {
             Language::ZhCn => Self {
                 capture: "开始截图",
@@ -610,14 +620,16 @@ impl TrayLabels {
                 autostart: "Launch at Login",
                 quit: "Quit",
             },
+            Language::System => unreachable!("tray language must be resolved"),
         }
     }
 }
 
-const fn platform_language(language: Language) -> PlatformLanguage {
+fn platform_language(language: Language) -> PlatformLanguage {
     match language {
         Language::ZhCn => PlatformLanguage::ZhCn,
         Language::En => PlatformLanguage::En,
+        Language::System => unreachable!("platform language must be resolved"),
     }
 }
 
@@ -625,6 +637,7 @@ const fn capture_language(language: Language) -> CaptureLanguage {
     match language {
         Language::ZhCn => CaptureLanguage::ZhCn,
         Language::En => CaptureLanguage::En,
+        Language::System => CaptureLanguage::System,
     }
 }
 
@@ -677,10 +690,7 @@ pub fn run() {
             let config_dir = app.path().app_config_dir()?;
             let log_dir = app.path().app_log_dir()?;
             let store = SettingsStore::new(config_dir.join("settings.json"));
-            let mut loaded = store.load();
-            if loaded.status != SettingsLoadStatus::Loaded {
-                loaded.settings.language = system_language();
-            }
+            let loaded = store.load();
             let driver = Arc::new(IpcDriver::new(IpcClientConfig {
                 host_executable_override: host_executable(),
                 origin: CaptureOrigin::App,
@@ -718,7 +728,9 @@ pub fn run() {
                 .lock()
                 .unwrap_or_else(|error| error.into_inner())
                 .language;
-            state.platform.set_language(platform_language(language))?;
+            state
+                .platform
+                .set_language(platform_language(resolve_language(language)))?;
             if let Ok(native_autostart) = state.platform.autostart_enabled() {
                 state
                     .settings
@@ -807,5 +819,10 @@ mod tests {
             RELEASES_API,
             "https://api.github.com/repos/Moch1ce/Snaploom/releases"
         );
+    }
+
+    #[test]
+    fn system_language_preference_is_forwarded_to_capture_host() {
+        assert_eq!(capture_language(Language::System), CaptureLanguage::System);
     }
 }

@@ -6,10 +6,12 @@ import {
 } from "@snaploom/screenshot-ui";
 import {
   type Language,
+  type LanguagePreference,
   type SettingsMutation,
   type SettingsSnapshot,
   type UpdateState,
   message,
+  languageOptions,
   updateMessage,
 } from "./app";
 import "./style.css";
@@ -73,7 +75,7 @@ async function boot(): Promise<void> {
 
 function render(snapshot: SettingsSnapshot): void {
   root.replaceChildren();
-  const language = snapshot.settings.language;
+  const language = snapshot.resolvedLanguage;
   activeLanguage = language;
   const header = element("header", "header");
   header.append(createProductMark(message(language, "ready")));
@@ -134,15 +136,22 @@ function render(snapshot: SettingsSnapshot): void {
 
   const languageRow = row(message(language, "language"));
   const languageSelect = element("select", "select");
-  languageSelect.append(new Option("简体中文", "zh-cn"));
-  languageSelect.append(new Option("English", "en"));
-  languageSelect.value = language;
+  languageSelect.append(
+    ...languageOptions(language).map(
+      (option) => new Option(option.label, option.value),
+    ),
+  );
+  languageSelect.value = snapshot.settings.language;
   languageSelect.addEventListener("change", async () => {
-    const next = languageSelect.value as Language;
+    const next = languageSelect.value as LanguagePreference;
     const mutation = await invoke<SettingsMutation>("set_language", {
       language: next,
     });
-    render({ ...snapshot, settings: mutation.settings });
+    render({
+      ...snapshot,
+      settings: mutation.settings,
+      resolvedLanguage: mutation.resolvedLanguage,
+    });
   });
   languageRow.append(languageSelect);
   general.append(languageRow);

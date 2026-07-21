@@ -8,7 +8,18 @@
   },
   "fixture": {
     "name": "dpi-100",
-    "sha256": "334a2c5c82dbf4071fb29ac5f5a396b219a1e28b2d73c6e29af0c5c0d0170a35"
+    "sha256": "9bc0575b2992004c9eeb9f13742766ece7cc27d89374abbcfdffbc6bddac92cb",
+    "scale": 1,
+    "selection": {
+      "start": [
+        8,
+        8
+      ],
+      "end": [
+        88,
+        56
+      ]
+    }
   },
   "physicalSize": {
     "width": 80,

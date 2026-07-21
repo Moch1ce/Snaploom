@@ -8,7 +8,18 @@
   },
   "fixture": {
     "name": "mosaic",
-    "sha256": "5a8f3512d8efa445e04ab27fa5fd2e2cdb8b866ad681d90234664382dee6af5b"
+    "sha256": "ff319b2a2beb3213323a5354d9c236ce363d43c09bb6f54f8c33ec13e5a333da",
+    "scale": 2,
+    "selection": {
+      "start": [
+        8,
+        8
+      ],
+      "end": [
+        88,
+        56
+      ]
+    }
   },
   "physicalSize": {
     "width": 160,

@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Language {
-    ZhCn,
     #[default]
+    System,
+    ZhCn,
     En,
 }
 
@@ -27,6 +28,21 @@ impl Language {
 #[must_use]
 pub fn system_language() -> Language {
     system_language_from(sys_locale::get_locale)
+}
+
+#[must_use]
+pub fn resolve_language(preference: Language) -> Language {
+    resolve_language_with(preference, sys_locale::get_locale)
+}
+
+fn resolve_language_with(
+    preference: Language,
+    provider: impl FnOnce() -> Option<String>,
+) -> Language {
+    match preference {
+        Language::System => system_language_from(provider),
+        language => language,
+    }
 }
 
 fn system_language_from(provider: impl FnOnce() -> Option<String>) -> Language {
@@ -85,8 +101,8 @@ pub fn resource_keys(_language: Language) -> BTreeSet<MessageKey> {
 }
 
 #[must_use]
-pub const fn localize(language: Language, key: MessageKey) -> &'static str {
-    match (language, key) {
+pub fn localize(language: Language, key: MessageKey) -> &'static str {
+    match (resolve_language(language), key) {
         (Language::ZhCn, MessageKey::ProductReady) => "Snaploom 已就绪",
         (Language::ZhCn, MessageKey::StartCapture) => "开始截图",
         (Language::ZhCn, MessageKey::Settings) => "设置",
@@ -125,6 +141,7 @@ pub const fn localize(language: Language, key: MessageKey) -> &'static str {
         (Language::En, MessageKey::UpdateInvalidResponse) => "The update response is invalid",
         (Language::En, MessageKey::PermissionRequired) => "Screen recording permission is required",
         (Language::En, MessageKey::OpenPermissionSettings) => "Open System Settings",
+        (Language::System, _) => unreachable!("system preference must resolve to a language"),
     }
 }
 
@@ -165,5 +182,19 @@ mod tests {
             system_language_from(|| Some("fr-FR".to_owned())),
             Language::En
         );
+    }
+
+    #[test]
+    fn system_preference_is_resolved_each_time_without_becoming_concrete() {
+        let preference = Language::System;
+        assert_eq!(
+            resolve_language_with(preference, || Some("zh-Hans-CN".to_owned())),
+            Language::ZhCn
+        );
+        assert_eq!(
+            resolve_language_with(preference, || Some("en-US".to_owned())),
+            Language::En
+        );
+        assert_eq!(preference, Language::System);
     }
 }
