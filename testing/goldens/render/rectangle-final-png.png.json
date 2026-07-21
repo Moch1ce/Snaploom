@@ -5,7 +5,9 @@
     "playwright": "1.61.1",
     "browser": "chromium-headless-shell",
     "revision": "1228",
-    "version": "Chromium 149.0.7827.0"
+    "version": "Google Chrome for Testing 149.0.7827.55",
+    "platform": "linux",
+    "architecture": "x64"
   },
   "fixture": {
     "name": "rectangle",

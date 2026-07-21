@@ -101,6 +101,8 @@ for (const suite of suites) {
         browser: chromium.name,
         revision: chromium.revision,
         version: chromiumVersion,
+        platform: process.platform,
+        architecture: process.arch,
       },
       fixture: fixtureMetadata,
       physicalSize: { width: fixture.width, height: fixture.height },
