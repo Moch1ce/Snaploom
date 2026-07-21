@@ -1,0 +1,126 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #f8fafc;
+  background: #111827;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+button, textarea { font: inherit; }
+
+.prototype-shell, .capture-surface { position: relative; width: 100%; height: 100%; overflow: hidden; }
+.capture-surface { cursor: crosshair; user-select: none; background: #111827; }
+.full-canvas, .background-image, .svg-layer, .dom-mask {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.full-canvas, .background-image { object-fit: fill; }
+.overlay-canvas, .svg-layer, .dom-selection { pointer-events: none; }
+.dom-mask { background: rgba(15, 23, 42, .46); pointer-events: none; }
+.dom-selection { position: absolute; border: 2px solid #14b8a6; box-shadow: 0 0 0 9999px rgba(15, 23, 42, .01); }
+.svg-shape, .svg-arrow { fill: none; stroke: #ff3b30; stroke-width: 12; vector-effect: non-scaling-stroke; }
+.svg-arrow { marker-end: url(#arrowhead); }
+.svg-mosaic { fill: url(#mosaic); opacity: .76; }
+.svg-text { fill: #ff3b30; font: 600 58px -apple-system, BlinkMacSystemFont, sans-serif; }
+
+.toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: 56px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 12px;
+  background: rgba(20, 24, 32, .94);
+  box-shadow: 0 14px 38px rgba(0,0,0,.34);
+  cursor: default;
+  z-index: 8;
+}
+.toolbar button, .variant-switcher button {
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: #e5e7eb;
+  background: transparent;
+  cursor: pointer;
+}
+.toolbar button:hover, .toolbar button.active { background: #334155; }
+.toolbar button.complete { background: #0f766e; color: white; }
+.divider { width: 1px; height: 24px; background: #475569; margin: 0 3px; }
+
+.metrics {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 8;
+  display: grid;
+  gap: 2px;
+  max-width: min(560px, 70vw);
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: rgba(15, 23, 42, .86);
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+.metrics strong { color: #5eead4; letter-spacing: .08em; }
+
+.selection-size {
+  position: absolute;
+  transform: translateY(6px);
+  z-index: 7;
+  padding: 3px 7px;
+  border-radius: 5px;
+  color: white;
+  background: rgba(15, 23, 42, .86);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.text-editor {
+  position: absolute;
+  z-index: 10;
+  min-width: 260px;
+  min-height: 70px;
+  padding: 9px;
+  resize: both;
+  color: #ff3b30;
+  border: 2px solid #14b8a6;
+  border-radius: 6px;
+  outline: 0;
+  background: rgba(255,255,255,.94);
+  font-size: 24px;
+  user-select: text;
+}
+
+.variant-switcher {
+  position: fixed;
+  left: 50%;
+  bottom: 10px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 999px;
+  color: white;
+  background: #020617;
+  box-shadow: 0 10px 32px rgba(0,0,0,.38);
+  font-size: 12px;
+}
+.variant-switcher span { min-width: 130px; text-align: center; }
+
+@media (max-width: 760px) {
+  .toolbar { max-width: calc(100vw - 18px); overflow-x: auto; justify-content: flex-start; }
+  .toolbar button { white-space: nowrap; }
+}
