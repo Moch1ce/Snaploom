@@ -271,7 +271,9 @@ function showMutation(
 
 void boot().catch(() => {
   root.replaceChildren(createProductMark("Snaploom"));
-  root.append(element("p", "status", "Desktop service unavailable."));
+  root.append(
+    element("p", "status", message(activeLanguage, "desktopUnavailable")),
+  );
 });
 
 void listen<CaptureTerminalEvent>("capture-terminal", ({ payload }) => {

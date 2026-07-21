@@ -24,6 +24,7 @@ describe("desktop settings contract", () => {
       expect(typeof message(language, "capturePermissionError")).toBe("string");
       expect(typeof message(language, "captureUnavailable")).toBe("string");
       expect(typeof message(language, "captureUnexpectedError")).toBe("string");
+      expect(typeof message(language, "desktopUnavailable")).toBe("string");
     }
   });
 

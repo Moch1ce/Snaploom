@@ -24,6 +24,16 @@ impl Language {
     }
 }
 
+#[must_use]
+pub fn system_language() -> Language {
+    system_language_from(sys_locale::get_locale)
+}
+
+fn system_language_from(provider: impl FnOnce() -> Option<String>) -> Language {
+    let locale = provider();
+    Language::from_system_locale(locale.as_deref())
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MessageKey {
     ProductReady,
@@ -143,5 +153,17 @@ mod tests {
             assert!(!localize(Language::ZhCn, key).is_empty());
             assert!(!localize(Language::En, key).is_empty());
         }
+    }
+
+    #[test]
+    fn system_language_uses_the_native_locale_provider() {
+        assert_eq!(
+            system_language_from(|| Some("zh-Hans-CN".to_owned())),
+            Language::ZhCn
+        );
+        assert_eq!(
+            system_language_from(|| Some("fr-FR".to_owned())),
+            Language::En
+        );
     }
 }

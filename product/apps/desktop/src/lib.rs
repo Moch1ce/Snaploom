@@ -10,7 +10,7 @@ use snaploom_capture_protocol::CaptureOrigin;
 use snaploom_desktop_shell::{
     AppSettings, CaptureIntentGate, CaptureTrigger, HttpReleaseResponse, Language, PrivacyEvent,
     PrivacyLevel, PrivacyLog, PrivacyRecord, SettingsLoadStatus, SettingsStore, UpdateState,
-    evaluate_release_response, utc_now,
+    evaluate_release_response, system_language, utc_now,
 };
 use snaploom_platform_contract::{PlatformAdapter, PlatformEvent, PlatformLanguage};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
@@ -679,8 +679,7 @@ pub fn run() {
             let store = SettingsStore::new(config_dir.join("settings.json"));
             let mut loaded = store.load();
             if loaded.status != SettingsLoadStatus::Loaded {
-                loaded.settings.language =
-                    Language::from_system_locale(std::env::var("LANG").ok().as_deref());
+                loaded.settings.language = system_language();
             }
             let driver = Arc::new(IpcDriver::new(IpcClientConfig {
                 host_executable_override: host_executable(),
