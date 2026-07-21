@@ -62,7 +62,7 @@ function inspectSymbols(symbolPath) {
     "with zipfile.ZipFile(sys.argv[1]) as z:",
     " names=z.namelist()",
     " pdb=z.read('lib/net8.0/Snaploom.Capture.pdb')",
-    " result={'names':names,'sourceLink':b'https://raw.githubusercontent.com/moch1ce/Snaploom/' in pdb,'absolutePath':any(marker in pdb for marker in (b'/Users/',b'/home/runner/',b'D:\\\\a\\\\'))}",
+    " result={'names':names,'sourceLink':b'https://raw.githubusercontent.com/moch1ce/snaploom/' in pdb.lower(),'absolutePath':any(marker in pdb for marker in (b'/Users/',b'/home/runner/',b'D:\\\\a\\\\'))}",
     " print(json.dumps(result,sort_keys=True))",
   ].join("\n");
   return JSON.parse(run(pythonCommand(), ["-c", script, symbolPath]));
