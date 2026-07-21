@@ -80,9 +80,15 @@ jobs:
           - name: Windows x64
             os: windows-2025
             expected_arch: x86_64
+            sdk_rid: win-x64
+            sdk_native_source: sdk/target/release/snaploom_capture.dll
+            sdk_native_name: snaploom_capture.dll
           - name: macOS Apple Silicon
             os: macos-15
             expected_arch: arm64
+            sdk_rid: osx-arm64
+            sdk_native_source: sdk/target/release/libsnaploom_capture.dylib
+            sdk_native_name: libsnaploom_capture.dylib
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
 
@@ -166,6 +172,20 @@ jobs:
           archive="$(node tools/sdk/package-c-sdk.mjs --platform "${platform}" --output "${RUNNER_TEMP}/snaploom-sdk-package")"
           node tools/sdk/verify-c-sdk.mjs --platform "${platform}" --archive "${archive}"
 
+      - name: Stage .NET native asset
+        shell: bash
+        run: |
+          mkdir -p "${RUNNER_TEMP}/snaploom-dotnet-native"
+          cp "${{ matrix.sdk_native_source }}" "${RUNNER_TEMP}/snaploom-dotnet-native/${{ matrix.sdk_native_name }}"
+
+      - name: Upload .NET native asset
+        uses: actions/upload-artifact@v7
+        with:
+          name: snaploom-native-${{ matrix.sdk_rid }}
+          path: ${{ runner.temp }}/snaploom-dotnet-native/${{ matrix.sdk_native_name }}
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Test product Rust
         if: runner.os != 'Windows'
         shell: bash
@@ -193,3 +213,121 @@ jobs:
 
       - name: Build Capture Host Tauri binary
         run: pnpm run tauri:host
+
+  dotnet-package:
+    name: .NET package
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.12.0
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Download staged native assets
+        uses: actions/download-artifact@v8
+        with:
+          pattern: snaploom-native-*
+          path: ${{ runner.temp }}/snaploom-native-assets
+          merge-multiple: true
+
+      - name: Test managed wrapper contracts
+        shell: bash
+        run: |
+          dotnet restore sdk/dotnet/src/Snaploom.Capture/Snaploom.Capture.csproj --locked-mode
+          dotnet run --project sdk/dotnet/tests/Snaploom.Capture.Tests/Snaploom.Capture.Tests.csproj -c Release
+
+      - name: Pack and verify dual-RID NuGet
+        shell: bash
+        run: |
+          dotnet pack sdk/dotnet/src/Snaploom.Capture/Snaploom.Capture.csproj \
+            -c Release \
+            --output "${RUNNER_TEMP}/snaploom-nuget" \
+            -p:ContinuousIntegrationBuild=true \
+            -p:SnaploomWindowsNativePath="${RUNNER_TEMP}/snaploom-native-assets/snaploom_capture.dll" \
+            -p:SnaploomMacOSNativePath="${RUNNER_TEMP}/snaploom-native-assets/libsnaploom_capture.dylib"
+          package="$(find "${RUNNER_TEMP}/snaploom-nuget" -maxdepth 1 -name 'Snaploom.Capture.*.nupkg' -type f -print -quit)"
+          symbols="$(find "${RUNNER_TEMP}/snaploom-nuget" -maxdepth 1 -name 'Snaploom.Capture.*.snupkg' -type f -print -quit)"
+          test -n "${package}"
+          test -n "${symbols}"
+          node tools/sdk/verify-dotnet-package.mjs \
+            --package "${package}" \
+            --platform unsupported \
+            --windows-native "${RUNNER_TEMP}/snaploom-native-assets/snaploom_capture.dll" \
+            --macos-native "${RUNNER_TEMP}/snaploom-native-assets/libsnaploom_capture.dylib"
+
+      - name: Upload final NuGet packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: snaploom-capture-nuget
+          path: |
+            ${{ runner.temp }}/snaploom-nuget/Snaploom.Capture.*.nupkg
+            ${{ runner.temp }}/snaploom-nuget/Snaploom.Capture.*.snupkg
+          if-no-files-found: error
+          retention-days: 1
+
+  dotnet-consumer:
+    name: .NET consumer (${{ matrix.platform }}, ${{ matrix.framework }})
+    needs: dotnet-package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            os: windows-2025
+            framework: net8.0
+            dotnet_version: 8.0.x
+          - platform: macos-arm64
+            os: macos-15
+            framework: net8.0
+            dotnet_version: 8.0.x
+          - platform: windows-x64
+            os: windows-2025
+            framework: net10.0
+            dotnet_version: 10.0.x
+          - platform: macos-arm64
+            os: macos-15
+            framework: net10.0
+            dotnet_version: 10.0.x
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.12.0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ matrix.dotnet_version }}
+
+      - name: Download final NuGet packages
+        uses: actions/download-artifact@v8
+        with:
+          name: snaploom-capture-nuget
+          path: ${{ runner.temp }}/snaploom-nuget
+
+      - name: Verify package-only consumer, trim, and NativeAOT
+        shell: bash
+        run: |
+          package="$(find "${RUNNER_TEMP}/snaploom-nuget" -maxdepth 1 -name 'Snaploom.Capture.*.nupkg' -type f -print -quit)"
+          test -n "${package}"
+          node tools/sdk/verify-dotnet-package.mjs \
+            --package "${package}" \
+            --platform "${{ matrix.platform }}" \
+            --framework "${{ matrix.framework }}"

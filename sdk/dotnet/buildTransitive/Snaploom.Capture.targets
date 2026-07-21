@@ -1,0 +1,6 @@
+<Project>
+  <Target Name="SnaploomCaptureValidateRuntimeIdentifier" BeforeTargets="ResolveReferences"
+          Condition="'$(RuntimeIdentifier)' != '' And '$(DesignTimeBuild)' != 'true' And '$(RuntimeIdentifier)' != 'win-x64' And '$(RuntimeIdentifier)' != 'osx-arm64'">
+    <Error Code="SNAPLOOM001" Text="Snaploom.Capture supports only RuntimeIdentifier win-x64 or osx-arm64; received '$(RuntimeIdentifier)'." />
+  </Target>
+</Project>
