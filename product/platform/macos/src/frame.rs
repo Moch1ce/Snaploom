@@ -4,6 +4,7 @@ use zeroize::Zeroize;
 pub(crate) struct SensitiveBgraFrame(Vec<u8>);
 
 impl SensitiveBgraFrame {
+    #[cfg(target_os = "macos")]
     pub(crate) fn into_bytes(mut self) -> Vec<u8> {
         std::mem::take(&mut self.0)
     }
