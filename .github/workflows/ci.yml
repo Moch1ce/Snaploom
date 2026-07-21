@@ -140,12 +140,26 @@ jobs:
           cargo clippy --manifest-path sdk/Cargo.toml --workspace --all-targets --all-features --locked -- -D warnings
           cargo clippy --manifest-path product/Cargo.toml --workspace --all-targets --all-features --locked -- -D warnings
 
-      - name: Test Rust
+      - name: Test platform-neutral Rust
         shell: bash
         run: |
           cargo test --manifest-path Cargo.toml --locked
           cargo test --manifest-path sdk/Cargo.toml --workspace --all-features --locked
+
+      - name: Test product Rust
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
           cargo test --manifest-path product/Cargo.toml --workspace --all-features --locked
+
+      # GitHub's Windows image is Windows Server rather than a supported
+      # interactive Windows 10/11 desktop. Link every product test here, then
+      # execute the same test suite on macOS and reserve WGC execution for the
+      # documented Windows 10/11 true-machine matrix.
+      - name: Compile Windows product Rust tests
+        if: runner.os == 'Windows'
+        shell: bash
+        run: cargo test --manifest-path product/Cargo.toml --workspace --all-features --locked --no-run
 
       - name: Verify generated Windows bindings
         shell: bash
