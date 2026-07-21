@@ -9,6 +9,8 @@ import {
 
 describe("Screenshot UI contract", () => {
   it("freezes the documented light theme and brand geometry", () => {
+    expect(screenshotUiTheme.borderWidth).toBe(1);
+    expect(screenshotUiTheme.typography.fontFamily).toContain("Segoe UI");
     expect(screenshotUiTheme.colors).toEqual({
       brand: "#07C977",
       danger: "#FF4D4F",
@@ -17,6 +19,7 @@ describe("Screenshot UI contract", () => {
       border: "#D8DADF",
       hover: "#F2F2F2",
       selected: "#EDEDED",
+      disabledText: "rgba(32, 33, 36, 0.32)",
       overlayMask: "rgba(0, 0, 0, 0.45098)",
     });
     expect(screenshotUiTheme.toolbar).toMatchObject({
@@ -27,6 +30,32 @@ describe("Screenshot UI contract", () => {
       radius: 8,
     });
     expect(screenshotUiTheme.selection.outlineWidth).toBe(2);
+    expect(screenshotUiTheme.annotation).toMatchObject({
+      colors: ["#FF4D4F", "#FADB14", "#07C977", "#1677FF", "#202124", "#FFFFFF"],
+      strokeWidths: [2, 4, 8],
+      fontSizes: [16, 24, 32],
+      mosaicBrushSizes: [16, 32, 64],
+      mosaicBlockSizes: [8, 12, 16],
+      mosaicTileSize: 128,
+    });
+    expect(screenshotUiTheme.annotationSettings).toMatchObject({
+      layer: 3,
+      gap: 8,
+      anchorOffset: 8,
+      radius: 8,
+    });
+    expect(screenshotUiTheme.textEditor).toEqual({
+      layer: 4,
+      minimumWidth: 64,
+      minimumHeight: 36,
+      radius: 2,
+      borderWidth: 1,
+      lineHeight: 1.25,
+      selectionBackground: "rgba(7, 201, 119, 0.22)",
+      handleSize: 5,
+      handleOffset: -3,
+      handleRadius: "50%",
+    });
     expect(screenshotUiTheme.magnifier).toMatchObject({
       size: 132,
       samplePhysicalSize: 55,

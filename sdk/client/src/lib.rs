@@ -16,6 +16,15 @@ pub enum CapturePermission {
     NotApplicable,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[repr(u8)]
+pub enum CaptureLanguage {
+    #[default]
+    System = 0,
+    ZhCn = 1,
+    En = 2,
+}
+
 #[cfg(any(unix, windows))]
 mod host_locator;
 #[cfg(any(unix, windows))]

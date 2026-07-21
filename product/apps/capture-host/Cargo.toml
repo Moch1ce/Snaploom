@@ -27,6 +27,8 @@ tauri-build.workspace = true
 getrandom.workspace = true
 prost.workspace = true
 png.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 tauri = { workspace = true, optional = true }
 tauri-plugin-dialog.workspace = true
 snaploom-capture-session = { path = "../../capture-session", version = "=0.1.0" }

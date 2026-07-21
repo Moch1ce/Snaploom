@@ -1,4 +1,5 @@
 mod ipc;
+mod preferences;
 #[cfg(all(feature = "tauri-runtime", any(windows, target_os = "macos", test)))]
 mod windows_bridge;
 
@@ -6,6 +7,8 @@ pub use ipc::{HostServer, HostServerError, HostServerOutcome};
 
 #[cfg(feature = "tauri-runtime")]
 pub fn run() {
+    use tauri::Manager;
+
     let bootstrap = ipc::read_bootstrap_challenge().expect("invalid Capture Host bootstrap");
     #[cfg(any(windows, target_os = "macos", test))]
     let bridge = std::sync::Arc::new(windows_bridge::NativeBridge::new());
@@ -31,6 +34,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             windows_bridge::capture_descriptor,
             windows_bridge::capture_frame,
+            windows_bridge::capture_preferences,
+            windows_bridge::update_annotation_preferences,
             windows_bridge::write_png_clipboard,
             windows_bridge::save_png,
             windows_bridge::set_overlay_visible,
@@ -41,9 +46,20 @@ pub fn run() {
     builder
         .setup(move |app| {
             #[cfg(any(windows, target_os = "macos", test))]
-            bridge
-                .initialize_shell(windows_bridge::NativeShell::new(app.handle().clone()))
-                .map_err(Box::<dyn std::error::Error>::from)?;
+            {
+                let preferences_path = app
+                    .path()
+                    .app_config_dir()?
+                    .join("capture-preferences.json");
+                bridge
+                    .initialize_preferences(preferences::HostPreferencesStore::new(
+                        preferences_path,
+                    ))
+                    .map_err(Box::<dyn std::error::Error>::from)?;
+                bridge
+                    .initialize_shell(windows_bridge::NativeShell::new(app.handle().clone()))
+                    .map_err(Box::<dyn std::error::Error>::from)?;
+            }
             ipc::signal_bootstrap_ready(bootstrap)
                 .map_err(|_| std::io::Error::other("Capture Host readiness failed"))?;
             let app_handle = app.handle().clone();

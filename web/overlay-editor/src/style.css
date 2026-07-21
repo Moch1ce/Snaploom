@@ -1,7 +1,5 @@
 :root {
-  color: #202124;
   background: transparent;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
 }
 
@@ -20,6 +18,8 @@ body {
 
 #app {
   position: relative;
+  color: var(--text);
+  font-family: var(--ui-font-family);
   user-select: none;
 }
 
@@ -33,28 +33,28 @@ body {
 
 .screenshot-toolbar {
   position: absolute;
-  z-index: 2;
+  z-index: var(--toolbar-layer);
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  width: 430px;
-  height: 44px;
-  padding: 0 14px;
+  width: var(--toolbar-width);
+  height: var(--toolbar-height);
+  padding: 0 var(--toolbar-padding-inline);
   visibility: hidden;
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+  border: var(--ui-border-width) solid var(--border);
+  border-radius: var(--toolbar-radius);
+  box-shadow: var(--toolbar-shadow);
 }
 
 .screenshot-toolbar__button {
   position: relative;
   box-sizing: border-box;
   display: grid;
-  flex: 0 0 40px;
-  width: 40px;
-  height: 40px;
+  flex: 0 0 var(--toolbar-hit-size);
+  width: var(--toolbar-hit-size);
+  height: var(--toolbar-hit-size);
   padding: 0;
   color: var(--text);
   background: transparent;
@@ -64,11 +64,11 @@ body {
 
 .screenshot-toolbar__button::before {
   position: absolute;
-  width: 28px;
-  height: 28px;
+  width: var(--toolbar-hover-size);
+  height: var(--toolbar-hover-size);
   content: "";
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--toolbar-item-radius);
 }
 
 .screenshot-toolbar__button:not(:disabled):hover::before {
@@ -76,18 +76,18 @@ body {
 }
 
 .screenshot-toolbar__button[aria-pressed="true"]::before {
-  width: 24px;
-  height: 24px;
+  width: var(--toolbar-selected-size);
+  height: var(--toolbar-selected-size);
   background: var(--selected);
 }
 
 .screenshot-toolbar__button:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: -4px;
+  outline: var(--toolbar-focus-outline-width) solid var(--brand);
+  outline-offset: var(--toolbar-focus-outline-offset);
 }
 
 .screenshot-toolbar__button:disabled {
-  color: rgb(32 33 36 / 32%);
+  color: var(--disabled-text);
   cursor: not-allowed;
 }
 
@@ -106,28 +106,28 @@ body {
 
 .screenshot-toolbar__separator {
   box-sizing: content-box;
-  flex: 0 0 1px;
-  width: 1px;
-  height: 20px;
-  margin: 0 10px;
+  flex: 0 0 var(--toolbar-separator-width);
+  width: var(--toolbar-separator-width);
+  height: var(--toolbar-separator-height);
+  margin: 0 var(--toolbar-separator-margin);
   background: var(--border);
 }
 
 .screenshot-size-label {
   position: absolute;
-  z-index: 2;
+  z-index: var(--size-label-layer);
   box-sizing: border-box;
-  min-width: 1px;
-  height: 24px;
-  padding: 0 8px;
+  min-width: var(--size-label-min-width);
+  height: var(--size-label-height);
+  padding: 0 var(--size-label-padding-inline);
   visibility: hidden;
-  color: #fff;
-  font-size: 12px;
+  color: var(--size-label-foreground);
+  font-size: var(--size-label-font-size);
   font-variant-numeric: tabular-nums;
-  line-height: 24px;
+  line-height: var(--size-label-height);
   white-space: nowrap;
-  background: rgb(32 33 36 / 92%);
-  border-radius: 4px;
+  background: var(--size-label-background);
+  border-radius: var(--size-label-radius);
 }
 
 .output-status {
@@ -158,29 +158,30 @@ body {
 
 .annotation-settings {
   position: absolute;
-  z-index: 3;
+  z-index: var(--annotation-settings-layer);
   display: flex;
-  gap: 8px;
+  gap: var(--annotation-settings-gap);
   box-sizing: border-box;
-  min-height: 42px;
-  padding: 6px 8px;
+  min-height: var(--annotation-settings-min-height);
+  padding: var(--annotation-settings-padding-block)
+    var(--annotation-settings-padding-inline);
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+  border: var(--ui-border-width) solid var(--border);
+  border-radius: var(--annotation-settings-radius);
+  box-shadow: var(--annotation-settings-shadow);
 }
 
 .annotation-settings::before {
   position: absolute;
-  top: -5px;
-  left: 16px;
-  width: 8px;
-  height: 8px;
+  top: var(--annotation-settings-pointer-top);
+  left: var(--annotation-settings-pointer-left);
+  width: var(--annotation-settings-pointer-size);
+  height: var(--annotation-settings-pointer-size);
   content: "";
   background: var(--surface);
-  border-top: 1px solid var(--border);
-  border-left: 1px solid var(--border);
+  border-top: var(--ui-border-width) solid var(--border);
+  border-left: var(--ui-border-width) solid var(--border);
   transform: rotate(45deg);
 }
 
@@ -191,7 +192,7 @@ body {
 .annotation-settings__group {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--annotation-settings-group-gap);
 }
 
 .annotation-settings__group[hidden] {
@@ -199,19 +200,19 @@ body {
 }
 
 .annotation-settings__group + .annotation-settings__group {
-  padding-left: 8px;
-  border-left: 1px solid var(--border);
+  padding-left: var(--annotation-settings-group-divider-padding);
+  border-left: var(--ui-border-width) solid var(--border);
 }
 
 .annotation-settings button {
   position: relative;
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: var(--annotation-settings-button-size);
+  height: var(--annotation-settings-button-size);
   padding: 0;
   background: transparent;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--annotation-settings-button-radius);
   place-items: center;
 }
 
@@ -221,45 +222,45 @@ body {
 }
 
 .annotation-settings__color::after {
-  width: 14px;
-  height: 14px;
+  width: var(--annotation-settings-swatch-size);
+  height: var(--annotation-settings-swatch-size);
   content: "";
   background: var(--swatch);
-  border: 1px solid rgb(32 33 36 / 20%);
+  border: var(--ui-border-width) solid var(--annotation-settings-swatch-border);
   border-radius: 50%;
 }
 
 .annotation-settings__color[aria-pressed="true"]::before {
   position: absolute;
-  inset: 3px;
+  inset: var(--annotation-settings-selected-inset);
   content: "";
-  border: 1px solid var(--brand);
-  border-radius: 4px;
+  border: var(--ui-border-width) solid var(--brand);
+  border-radius: var(--annotation-settings-button-radius);
 }
 
 .annotation-settings__width span {
   display: block;
-  width: 16px;
+  width: var(--annotation-settings-width-sample);
   background: currentcolor;
-  border-radius: 999px;
+  border-radius: var(--annotation-settings-pill-radius);
 }
 
 .annotation-settings__font {
   color: var(--text);
-  font-size: 11px;
+  font-size: var(--annotation-settings-numeric-font-size);
   font-variant-numeric: tabular-nums;
 }
 
 .text-editor {
   position: absolute;
-  z-index: 4;
+  z-index: var(--text-editor-layer);
   box-sizing: border-box;
-  min-width: 64px;
-  min-height: 36px;
+  min-width: var(--text-editor-min-width);
+  min-height: var(--text-editor-min-height);
   background: transparent;
   border: 0;
-  border-radius: 2px;
-  outline: 1px solid var(--border);
+  border-radius: var(--text-editor-radius);
+  outline: var(--text-editor-border-width) solid var(--border);
 }
 
 .text-editor[hidden] {
@@ -272,48 +273,48 @@ body {
   height: 100%;
   padding: 0;
   overflow: hidden;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  line-height: 1.25;
+  font-family: var(--ui-font-family);
+  line-height: var(--text-editor-line-height);
   caret-color: var(--brand);
   resize: none;
   background: transparent;
   border: 0;
-  border-radius: 2px;
+  border-radius: var(--text-editor-radius);
   outline: 0;
 }
 
 .text-editor textarea::selection {
   color: inherit;
-  background: rgb(7 201 119 / 22%);
+  background: var(--text-editor-selection-background);
 }
 
 .text-editor__handle {
   position: absolute;
   z-index: 1;
-  width: 5px;
-  height: 5px;
+  width: var(--text-editor-handle-size);
+  height: var(--text-editor-handle-size);
   pointer-events: none;
   background: var(--surface);
-  border: 1px solid var(--brand);
-  border-radius: 50%;
+  border: var(--ui-border-width) solid var(--brand);
+  border-radius: var(--text-editor-handle-radius);
 }
 
 .text-editor__handle--nw {
-  top: -3px;
-  left: -3px;
+  top: var(--text-editor-handle-offset);
+  left: var(--text-editor-handle-offset);
 }
 
 .text-editor__handle--ne {
-  top: -3px;
-  right: -3px;
+  top: var(--text-editor-handle-offset);
+  right: var(--text-editor-handle-offset);
 }
 
 .text-editor__handle--se {
-  right: -3px;
-  bottom: -3px;
+  right: var(--text-editor-handle-offset);
+  bottom: var(--text-editor-handle-offset);
 }
 
 .text-editor__handle--sw {
-  bottom: -3px;
-  left: -3px;
+  bottom: var(--text-editor-handle-offset);
+  left: var(--text-editor-handle-offset);
 }

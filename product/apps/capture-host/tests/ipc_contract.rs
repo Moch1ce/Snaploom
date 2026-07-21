@@ -11,17 +11,35 @@ use std::time::Duration;
 
 use snaploom_capture_client::ipc::{IpcClientConfig, IpcDriver};
 use snaploom_capture_client::local_transport::EndpointPaths;
-use snaploom_capture_client::{CaptureClient, CaptureOptions, StableError, Terminal};
+use snaploom_capture_client::{
+    CaptureClient, CaptureLanguage as ClientLanguage, CaptureOptions, StableError, Terminal,
+};
 use snaploom_capture_host_lib::{HostServer, HostServerOutcome};
 use snaploom_capture_protocol::CaptureOrigin;
 use snaploom_capture_session::{
-    CapturePermission, CaptureRequest, GateSnapshot, SessionBackend, SessionControl,
-    SessionFailure, SessionTerminal,
+    CaptureLanguage as SessionLanguage, CapturePermission, CaptureRequest, GateSnapshot,
+    SessionBackend, SessionControl, SessionFailure, SessionTerminal,
 };
 
 struct ScriptedBackend {
     calls: AtomicUsize,
     first_entered: mpsc::SyncSender<()>,
+}
+
+struct LanguageBackend {
+    captured: mpsc::SyncSender<SessionLanguage>,
+}
+
+impl SessionBackend for LanguageBackend {
+    fn run(&self, request: CaptureRequest, _control: SessionControl) -> SessionTerminal {
+        self.captured.send(request.language).unwrap();
+        SessionTerminal::Completed {
+            png: tiny_png().into(),
+            pixel_width: 1,
+            pixel_height: 1,
+            clipboard_written: true,
+        }
+    }
 }
 
 #[cfg(unix)]
@@ -197,6 +215,51 @@ fn authenticated_minor_one_connection_controls_host_permission_without_starting_
     driver.open_capture_permission_settings().unwrap();
     assert_eq!(server.gate().snapshot(), GateSnapshot::Idle);
 
+    drop(server);
+    #[cfg(unix)]
+    fs::remove_dir_all(_base.unwrap()).unwrap();
+}
+
+#[test]
+fn capture_language_is_carried_by_each_authenticated_start_request() {
+    let (_base, paths) = test_paths();
+    let (captured_sender, captured_receiver) = mpsc::sync_channel(1);
+    let backend = Arc::new(LanguageBackend {
+        captured: captured_sender,
+    });
+    let HostServerOutcome::Leader(server) = HostServer::start_at(paths.clone(), backend).unwrap()
+    else {
+        panic!("isolated test endpoint must elect this process");
+    };
+    let driver = Arc::new(IpcDriver::new(IpcClientConfig {
+        endpoint_override: Some(paths),
+        origin: CaptureOrigin::App,
+        language: ClientLanguage::ZhCn,
+        ..IpcClientConfig::default()
+    }));
+    driver.set_capture_language(ClientLanguage::En);
+    let capture_client = CaptureClient::new(driver).unwrap();
+    let (terminal_sender, terminal_receiver) = mpsc::sync_channel(1);
+
+    capture_client
+        .start(CaptureOptions::default(), move |terminal| {
+            terminal_sender.send(terminal).unwrap();
+        })
+        .unwrap();
+
+    assert_eq!(
+        captured_receiver
+            .recv_timeout(Duration::from_secs(2))
+            .unwrap(),
+        SessionLanguage::En
+    );
+    assert!(matches!(
+        terminal_receiver
+            .recv_timeout(Duration::from_secs(2))
+            .unwrap(),
+        Terminal::Completed { .. }
+    ));
+    capture_client.close().unwrap();
     drop(server);
     #[cfg(unix)]
     fs::remove_dir_all(_base.unwrap()).unwrap();

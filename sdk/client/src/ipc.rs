@@ -4,6 +4,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -14,14 +15,14 @@ use snaploom_capture_protocol::{
     CAPABILITY_PERMISSION_CONTROL, CancelCapture, CancelSource, CaptureOrigin, ClipboardMode,
     ClipboardOutcome, Envelope, Frame, FrameType, FramedReader, Hello, PROTOCOL_MINOR,
     PermissionAction, PermissionCommand, PermissionResult, PermissionState, PngAccumulator,
-    StableError, StartCapture, StreamError, Welcome, write_frame,
+    StableError, StartCapture, StreamError, UiLanguage, Welcome, write_frame,
 };
 
 use crate::host_locator::resolve_host_executable;
 use crate::local_transport::{
     EndpointPaths, LocalStream, TransportSecurityError, connect_authenticated,
 };
-use crate::{CaptureDriver, CapturePermission, DriverRequest, Terminal};
+use crate::{CaptureDriver, CaptureLanguage, CapturePermission, DriverRequest, Terminal};
 
 const BOOTSTRAP_REQUEST_MAGIC: &[u8; 4] = b"SLBR";
 const BOOTSTRAP_READY_MAGIC: &[u8; 4] = b"SLRD";
@@ -35,6 +36,7 @@ pub struct IpcClientConfig {
     pub launch_timeout: Duration,
     pub handshake_timeout: Duration,
     pub origin: CaptureOrigin,
+    pub language: CaptureLanguage,
 }
 
 impl Default for IpcClientConfig {
@@ -45,6 +47,7 @@ impl Default for IpcClientConfig {
             launch_timeout: Duration::from_secs(5),
             handshake_timeout: Duration::from_secs(2),
             origin: CaptureOrigin::Sdk,
+            language: CaptureLanguage::System,
         }
     }
 }
@@ -52,12 +55,21 @@ impl Default for IpcClientConfig {
 #[derive(Debug)]
 pub struct IpcDriver {
     config: IpcClientConfig,
+    language: AtomicU8,
 }
 
 impl IpcDriver {
     #[must_use]
     pub const fn new(config: IpcClientConfig) -> Self {
-        Self { config }
+        let language = config.language as u8;
+        Self {
+            config,
+            language: AtomicU8::new(language),
+        }
+    }
+
+    pub fn set_capture_language(&self, language: CaptureLanguage) {
+        self.language.store(language as u8, Ordering::Release);
     }
 
     fn capture_inner(&self, request: &DriverRequest) -> Result<Terminal, StableError> {
@@ -105,6 +117,11 @@ impl IpcDriver {
                     .interaction_timeout
                     .map(|duration| duration.as_millis().min(u64::MAX as u128) as u64),
                 origin: self.config.origin as i32,
+                language: match self.language.load(Ordering::Acquire) {
+                    value if value == CaptureLanguage::ZhCn as u8 => UiLanguage::ZhCn as i32,
+                    value if value == CaptureLanguage::En as u8 => UiLanguage::En as i32,
+                    _ => UiLanguage::System as i32,
+                },
             }),
         )?;
         let mut expected_incoming_sequence = 2_u64;

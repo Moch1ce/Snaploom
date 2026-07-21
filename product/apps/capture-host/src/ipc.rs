@@ -18,12 +18,13 @@ use snaploom_capture_protocol::{
     CaptureCanceled, CaptureFailed, CaptureOrigin, CaptureRejected, ClipboardMode,
     ClipboardOutcome, Envelope, FrameType, FramedReader, Hello, PROTOCOL_MAJOR, PROTOCOL_MINOR,
     PermissionAction, PermissionCommand, PermissionResult, PermissionState, ProtocolRange,
-    ResultBegin, ResultChunk, ResultEnd, StableError, StreamError, Welcome, negotiate_version,
-    write_frame_payload,
+    ResultBegin, ResultChunk, ResultEnd, StableError, StreamError, UiLanguage, Welcome,
+    negotiate_version, write_frame_payload,
 };
 use snaploom_capture_session::{
-    BeginError, CapturePermission, CaptureRequest, CaptureSessionGate, ClientId, HostLifecycle,
-    SessionBackend, SessionFailure, SessionLease, SessionOrigin, SessionPhase, SessionTerminal,
+    BeginError, CaptureLanguage, CapturePermission, CaptureRequest, CaptureSessionGate, ClientId,
+    HostLifecycle, SessionBackend, SessionFailure, SessionLease, SessionOrigin, SessionPhase,
+    SessionTerminal,
 };
 use zeroize::{Zeroize, Zeroizing};
 
@@ -380,6 +381,12 @@ fn serve_connection(
                 let request = CaptureRequest {
                     origin,
                     clipboard_enabled: message.clipboard_mode != ClipboardMode::Disabled as i32,
+                    language: match UiLanguage::try_from(message.language) {
+                        Ok(UiLanguage::System) => CaptureLanguage::System,
+                        Ok(UiLanguage::ZhCn) => CaptureLanguage::ZhCn,
+                        Ok(UiLanguage::En) => CaptureLanguage::En,
+                        Err(_) => return Err(StableError::ProtocolError),
+                    },
                 };
                 let (terminal_sender, terminal) = mpsc::sync_channel(1);
                 let session_backend = backend.clone();

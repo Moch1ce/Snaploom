@@ -3,9 +3,10 @@ use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
+use serde::Serialize;
 use snaploom_capture_session::{
-    CapturePermission, CaptureRequest, SensitivePng, SessionBackend, SessionControl,
-    SessionFailure, SessionTerminal,
+    CaptureLanguage, CapturePermission, CaptureRequest, SensitivePng, SessionBackend,
+    SessionControl, SessionFailure, SessionTerminal,
 };
 #[cfg(target_os = "macos")]
 use snaploom_platform_contract::CapturePermissionState;
@@ -19,6 +20,8 @@ use snaploom_platform_windows::SaveDisposition;
 use tauri::ipc::{InvokeBody, Request, Response};
 use tauri::{State, Wry};
 use zeroize::Zeroize;
+
+use crate::preferences::{AnnotationStylePreferences, HostPreferencesStore};
 
 #[cfg(target_os = "macos")]
 pub(crate) type NativeShell = snaploom_platform_macos::MacShell<Wry>;
@@ -62,11 +65,13 @@ struct ActiveSession {
     frame: Option<Vec<u8>>,
     pending_output: Option<PendingOutput>,
     clipboard_enabled: bool,
+    language: CaptureLanguage,
     terminal: SyncSender<SessionTerminal>,
 }
 
 pub(crate) struct NativeBridge {
     shell: OnceLock<NativeShell>,
+    preferences: OnceLock<HostPreferencesStore>,
     active: Mutex<Option<ActiveSession>>,
 }
 
@@ -74,6 +79,7 @@ impl NativeBridge {
     pub(crate) fn new() -> Self {
         Self {
             shell: OnceLock::new(),
+            preferences: OnceLock::new(),
             active: Mutex::new(None),
         }
     }
@@ -84,8 +90,21 @@ impl NativeBridge {
             .map_err(|_| PlatformError::InternalState)
     }
 
+    pub(crate) fn initialize_preferences(
+        &self,
+        preferences: HostPreferencesStore,
+    ) -> Result<(), PlatformError> {
+        self.preferences
+            .set(preferences)
+            .map_err(|_| PlatformError::InternalState)
+    }
+
     fn shell(&self) -> Result<&NativeShell, PlatformError> {
         self.shell.get().ok_or(PlatformError::InternalState)
+    }
+
+    fn preferences(&self) -> Result<&HostPreferencesStore, PlatformError> {
+        self.preferences.get().ok_or(PlatformError::InternalState)
     }
 
     fn with_session<T>(
@@ -108,6 +127,7 @@ impl NativeBridge {
         &self,
         snapshot: CaptureSnapshot,
         clipboard_enabled: bool,
+        language: CaptureLanguage,
     ) -> Result<Receiver<SessionTerminal>, PlatformError> {
         let (descriptor, frame) = snapshot.into_parts();
         let (terminal, receiver) = sync_channel(1);
@@ -123,6 +143,7 @@ impl NativeBridge {
             frame: Some(frame.into_bytes()),
             pending_output: None,
             clipboard_enabled,
+            language,
             terminal,
         });
         Ok(receiver)
@@ -191,6 +212,29 @@ impl NativeBridge {
             .ok_or(PlatformError::InternalState)
     }
 
+    fn capture_preferences(&self, session_id: &str) -> Result<CapturePreferences, PlatformError> {
+        let language = self.with_session(session_id, |session| Ok(session.language))?;
+        Ok(CapturePreferences {
+            language: match language {
+                CaptureLanguage::System => "system",
+                CaptureLanguage::ZhCn => "zh-cn",
+                CaptureLanguage::En => "en",
+            },
+            annotation_style: self.preferences()?.snapshot().annotation_style,
+        })
+    }
+
+    fn update_annotation_style(
+        &self,
+        session_id: &str,
+        style: AnnotationStylePreferences,
+    ) -> Result<(), PlatformError> {
+        self.with_session(session_id, |_| Ok(()))?;
+        self.preferences()?
+            .update_annotation_style(style)
+            .map_err(|_| PlatformError::InternalState)
+    }
+
     fn take_frame(&self, session_id: &str) -> Result<Vec<u8>, PlatformError> {
         self.with_session(session_id, |session| {
             session.frame.take().ok_or(PlatformError::InternalState)
@@ -222,16 +266,25 @@ impl NativeBridge {
     ) -> Result<SaveDisposition, PlatformError> {
         let (width, height) = png_dimensions(png.as_slice())?;
         self.with_session(session_id, |_| Ok(()))?;
-        let Some(destination) =
-            self.shell()?
-                .choose_png_destination(session_id, suggested_name, None)?
+        let recent_directory = self.preferences()?.snapshot().recent_save_directory;
+        let Some(destination) = self.shell()?.choose_png_destination(
+            session_id,
+            suggested_name,
+            recent_directory.as_deref(),
+        )?
         else {
             return Ok(SaveDisposition::Cancelled);
         };
-        self.commit_save(session_id, png, width, height, |bytes| {
+        let disposition = self.commit_save(session_id, png, width, height, |bytes| {
             self.shell()?
                 .commit_png_save(session_id, destination, bytes)
-        })
+        })?;
+        if let Ok(directory) = self.shell()?.recent_directory() {
+            let _ = self
+                .preferences()?
+                .update_recent_save_directory(directory.as_deref());
+        }
+        Ok(disposition)
     }
 
     fn commit_save(
@@ -265,6 +318,13 @@ impl NativeBridge {
     }
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CapturePreferences {
+    language: &'static str,
+    annotation_style: AnnotationStylePreferences,
+}
+
 pub(crate) struct NativeSessionBackend {
     bridge: Arc<NativeBridge>,
 }
@@ -293,13 +353,17 @@ impl SessionBackend for NativeSessionBackend {
             let _ = shell.finish_session(&platform_session_id);
             return SessionTerminal::Canceled { by_user: false };
         }
-        let terminal = match self.bridge.start(snapshot, request.clipboard_enabled) {
-            Ok(terminal) => terminal,
-            Err(error) => {
-                let _ = shell.finish_session(&platform_session_id);
-                return failed(error);
-            }
-        };
+        let terminal =
+            match self
+                .bridge
+                .start(snapshot, request.clipboard_enabled, request.language)
+            {
+                Ok(terminal) => terminal,
+                Err(error) => {
+                    let _ = shell.finish_session(&platform_session_id);
+                    return failed(error);
+                }
+            };
         if let Err(error) = shell.reload_overlay() {
             self.bridge.finish();
             return failed(error);
@@ -567,6 +631,29 @@ pub(crate) fn capture_frame(
 }
 
 #[tauri::command]
+pub(crate) fn capture_preferences(
+    request: Request<'_>,
+    bridge: State<'_, Arc<NativeBridge>>,
+) -> Result<CapturePreferences, String> {
+    let session_id = session_id(&request)?;
+    bridge
+        .capture_preferences(&session_id)
+        .map_err(stable_error)
+}
+
+#[tauri::command]
+pub(crate) fn update_annotation_preferences(
+    request: Request<'_>,
+    style: AnnotationStylePreferences,
+    bridge: State<'_, Arc<NativeBridge>>,
+) -> Result<(), String> {
+    let session_id = session_id(&request)?;
+    bridge
+        .update_annotation_style(&session_id, style)
+        .map_err(stable_error)
+}
+
+#[tauri::command]
 pub(crate) async fn write_png_clipboard(
     request: Request<'_>,
     bridge: State<'_, Arc<NativeBridge>>,
@@ -696,6 +783,7 @@ mod tests {
             frame: Some(vec![1, 2, 3, 4]),
             pending_output: None,
             clipboard_enabled: false,
+            language: CaptureLanguage::En,
             terminal,
         });
         bridge

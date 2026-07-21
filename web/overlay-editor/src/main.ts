@@ -1,4 +1,6 @@
 import {
+  applyScreenshotToolbarLabels,
+  applyScreenshotUiTheme,
   createScreenshotToolbar,
   screenshotUiTheme,
   type ScreenshotToolbarAction,
@@ -8,9 +10,11 @@ import {
   ANNOTATION_COLORS,
   ANNOTATION_FONT_SIZES,
   ANNOTATION_STROKE_WIDTHS,
+  DEFAULT_ANNOTATION_STYLE,
   MOSAIC_BLOCK_SIZES,
   MOSAIC_BRUSH_SIZES,
   annotationShortcut,
+  type AnnotationStyle,
   type AnnotationState,
 } from "./annotations";
 import {
@@ -26,6 +30,11 @@ import {
   type OutputOutcome,
   type OutputWorkflowState,
 } from "./output-workflow";
+import {
+  overlayMessage,
+  overlayToolbarLabels,
+  type OverlayLanguage,
+} from "./localization";
 import "./style.css";
 
 declare global {
@@ -51,75 +60,15 @@ const root = document.querySelector<HTMLElement>("#app") ?? (() => {
 })();
 root.hidden = true;
 
-root.style.setProperty("--brand", screenshotUiTheme.colors.brand);
-root.style.setProperty("--danger", screenshotUiTheme.colors.danger);
-root.style.setProperty("--text", screenshotUiTheme.colors.text);
-root.style.setProperty("--surface", screenshotUiTheme.colors.surface);
-root.style.setProperty("--border", screenshotUiTheme.colors.border);
-root.style.setProperty("--hover", screenshotUiTheme.colors.hover);
-root.style.setProperty("--selected", screenshotUiTheme.colors.selected);
-root.style.setProperty(
-  "--output-status-layer",
-  String(screenshotUiTheme.outputStatus.layer),
-);
-root.style.setProperty(
-  "--output-status-top",
-  `${screenshotUiTheme.outputStatus.top}px`,
-);
-root.style.setProperty(
-  "--output-status-horizontal-center",
-  `${screenshotUiTheme.outputStatus.horizontalCenterPercent}%`,
-);
-root.style.setProperty(
-  "--output-status-horizontal-translate",
-  `${screenshotUiTheme.outputStatus.horizontalTranslatePercent}%`,
-);
-root.style.setProperty(
-  "--output-status-viewport-margin",
-  `${screenshotUiTheme.outputStatus.viewportInset * 2}px`,
-);
-root.style.setProperty(
-  "--output-status-max-width",
-  `${screenshotUiTheme.outputStatus.maxWidth}px`,
-);
-root.style.setProperty(
-  "--output-status-padding-block",
-  `${screenshotUiTheme.outputStatus.paddingBlock}px`,
-);
-root.style.setProperty(
-  "--output-status-padding-inline",
-  `${screenshotUiTheme.outputStatus.paddingInline}px`,
-);
-root.style.setProperty(
-  "--output-status-foreground",
-  screenshotUiTheme.outputStatus.foreground,
-);
-root.style.setProperty(
-  "--output-status-background",
-  screenshotUiTheme.outputStatus.background,
-);
-root.style.setProperty(
-  "--output-status-font-size",
-  `${screenshotUiTheme.outputStatus.fontSize}px`,
-);
-root.style.setProperty(
-  "--output-status-line-height",
-  `${screenshotUiTheme.outputStatus.lineHeight}px`,
-);
-root.style.setProperty(
-  "--output-status-radius",
-  `${screenshotUiTheme.outputStatus.radius}px`,
-);
-root.style.setProperty(
-  "--output-status-shadow",
-  screenshotUiTheme.outputStatus.shadow,
-);
+applyScreenshotUiTheme(root);
+
+let activeLanguage: OverlayLanguage = resolveSystemLanguage();
 
 const canvas = document.createElement("canvas");
 canvas.id = "capture-surface";
 canvas.dataset.overlayRole = "canvas";
 canvas.tabIndex = 0;
-canvas.setAttribute("aria-label", "截图编辑画布");
+canvas.setAttribute("aria-label", overlayMessage(activeLanguage, "canvas"));
 
 const sizeLabel = document.createElement("output");
 sizeLabel.className = "screenshot-size-label";
@@ -132,7 +81,7 @@ textEditorFrame.dataset.overlayUi = "textarea";
 textEditorFrame.hidden = true;
 const textEditor = document.createElement("textarea");
 textEditor.dataset.overlayUi = "textarea";
-textEditor.setAttribute("aria-label", "文字标注输入");
+textEditor.setAttribute("aria-label", overlayMessage(activeLanguage, "textEditor"));
 textEditor.setAttribute("wrap", "soft");
 textEditor.spellcheck = false;
 for (const corner of ["nw", "ne", "se", "sw"] as const) {
@@ -232,18 +181,16 @@ function updateOutputUi(state: OutputWorkflowState): void {
     if (button) button.disabled = state.busy;
   }
   outputStatus.hidden = state.error === null;
-  outputStatus.textContent =
-    state.error === "clipboard-write-failed"
-      ? "复制失败，请重试"
-      : state.error === "save-failed"
-        ? "保存失败，请更换位置后重试"
-        : state.error === "png-encode-failed"
-          ? "图片生成失败，请重试"
-          : state.error === "overlay-close-failed"
-            ? "截图窗口关闭失败"
-            : state.error === "overlay-restore-failed"
-              ? "截图窗口恢复失败，请重新唤起截图"
-            : "";
+  const errorMessage = {
+    "clipboard-write-failed": "clipboardWriteFailed",
+    "save-failed": "saveFailed",
+    "png-encode-failed": "pngEncodeFailed",
+    "overlay-close-failed": "overlayCloseFailed",
+    "overlay-restore-failed": "overlayRestoreFailed",
+  } as const;
+  outputStatus.textContent = state.error
+    ? overlayMessage(activeLanguage, errorMessage[state.error])
+    : "";
 }
 
 function browserOutputPort(): NativeOutputPort {
@@ -292,6 +239,57 @@ function sessionOptions(sessionId: string): {
   headers: Record<string, string>;
 } {
   return { headers: { "x-snaploom-session-id": sessionId } };
+}
+
+interface CapturePreferences {
+  readonly language: "system" | OverlayLanguage;
+  readonly annotationStyle: AnnotationStyle;
+}
+
+function resolveSystemLanguage(): OverlayLanguage {
+  return navigator.language.toLowerCase().startsWith("zh") ? "zh-cn" : "en";
+}
+
+function defaultAnnotationStyle(): AnnotationStyle {
+  return { ...DEFAULT_ANNOTATION_STYLE };
+}
+
+async function capturePreferences(sessionId: string): Promise<CapturePreferences> {
+  if (!window.__TAURI_INTERNALS__) {
+    return {
+      language: "system",
+      annotationStyle: defaultAnnotationStyle(),
+    };
+  }
+  try {
+    return await invoke<CapturePreferences>(
+      "capture_preferences",
+      undefined,
+      sessionOptions(sessionId),
+    );
+  } catch {
+    return {
+      language: "system",
+      annotationStyle: defaultAnnotationStyle(),
+    };
+  }
+}
+
+function setAndPersistAnnotationStyle(style: Partial<AnnotationStyle>): void {
+  editor.setAnnotationStyle(style);
+  const sessionId = nativeSessionId;
+  if (!window.__TAURI_INTERNALS__ || !sessionId) return;
+  void invoke(
+    "update_annotation_preferences",
+    { style: editor.annotations.snapshotState().style },
+    sessionOptions(sessionId),
+  )
+    .then(() => {
+      root.dataset.preferenceWrite = "saved";
+    })
+    .catch(() => {
+      root.dataset.preferenceWrite = "failed";
+    });
 }
 
 function tauriOutputPort(sessionId: string): NativeOutputPort {
@@ -360,86 +358,119 @@ const toolbar = createScreenshotToolbar({
     "complete",
   ]),
   onAction: onToolbarAction,
+  labels: overlayToolbarLabels(activeLanguage),
 });
 
 const settingsFlyout = document.createElement("section");
 settingsFlyout.className = "annotation-settings";
 settingsFlyout.dataset.overlayUi = "settings";
-settingsFlyout.setAttribute("aria-label", "标注样式");
+settingsFlyout.setAttribute(
+  "aria-label",
+  overlayMessage(activeLanguage, "annotationStyle"),
+);
 settingsFlyout.hidden = true;
 const colorGroup = document.createElement("div");
 colorGroup.className = "annotation-settings__group";
-colorGroup.setAttribute("aria-label", "颜色");
+colorGroup.setAttribute("aria-label", overlayMessage(activeLanguage, "color"));
 for (const color of ANNOTATION_COLORS) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "annotation-settings__color";
   button.dataset.color = color;
   button.dataset.overlayUi = "settings";
-  button.setAttribute("aria-label", `颜色 ${color}`);
+  button.setAttribute(
+    "aria-label",
+    `${overlayMessage(activeLanguage, "color")} ${color}`,
+  );
   button.style.setProperty("--swatch", color);
-  button.addEventListener("click", () => editor.setAnnotationStyle({ color }));
+  button.addEventListener("click", () => setAndPersistAnnotationStyle({ color }));
   colorGroup.append(button);
 }
 const widthGroup = document.createElement("div");
 widthGroup.className = "annotation-settings__group";
-widthGroup.setAttribute("aria-label", "线宽");
+widthGroup.setAttribute(
+  "aria-label",
+  overlayMessage(activeLanguage, "strokeWidth"),
+);
 for (const strokeWidth of ANNOTATION_STROKE_WIDTHS) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "annotation-settings__width";
   button.dataset.strokeWidth = String(strokeWidth);
   button.dataset.overlayUi = "settings";
-  button.setAttribute("aria-label", `线宽 ${strokeWidth}`);
+  button.setAttribute(
+    "aria-label",
+    `${overlayMessage(activeLanguage, "strokeWidth")} ${strokeWidth}`,
+  );
   const sample = document.createElement("span");
-  sample.style.height = `${Math.min(strokeWidth, 6)}px`;
+  sample.style.height = `${Math.min(
+    strokeWidth,
+    screenshotUiTheme.annotationSettings.maximumWidthSampleThickness,
+  )}px`;
   button.append(sample);
-  button.addEventListener("click", () => editor.setAnnotationStyle({ strokeWidth }));
+  button.addEventListener("click", () =>
+    setAndPersistAnnotationStyle({ strokeWidth }),
+  );
   widthGroup.append(button);
 }
 const fontGroup = document.createElement("div");
 fontGroup.className = "annotation-settings__group";
-fontGroup.setAttribute("aria-label", "字号");
+fontGroup.setAttribute("aria-label", overlayMessage(activeLanguage, "fontSize"));
 for (const fontSize of ANNOTATION_FONT_SIZES) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "annotation-settings__font";
   button.dataset.fontSize = String(fontSize);
   button.dataset.overlayUi = "settings";
-  button.setAttribute("aria-label", `字号 ${fontSize}`);
+  button.setAttribute(
+    "aria-label",
+    `${overlayMessage(activeLanguage, "fontSize")} ${fontSize}`,
+  );
   button.textContent = String(fontSize);
-  button.addEventListener("click", () => editor.setAnnotationStyle({ fontSize }));
+  button.addEventListener("click", () => setAndPersistAnnotationStyle({ fontSize }));
   fontGroup.append(button);
 }
 const mosaicBrushGroup = document.createElement("div");
 mosaicBrushGroup.className = "annotation-settings__group";
-mosaicBrushGroup.setAttribute("aria-label", "马赛克画笔");
+mosaicBrushGroup.setAttribute(
+  "aria-label",
+  overlayMessage(activeLanguage, "mosaicBrush"),
+);
 for (const mosaicBrushSize of MOSAIC_BRUSH_SIZES) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "annotation-settings__font";
   button.dataset.mosaicBrushSize = String(mosaicBrushSize);
   button.dataset.overlayUi = "settings";
-  button.setAttribute("aria-label", `马赛克画笔 ${mosaicBrushSize}`);
+  button.setAttribute(
+    "aria-label",
+    `${overlayMessage(activeLanguage, "mosaicBrush")} ${mosaicBrushSize}`,
+  );
   button.textContent = String(mosaicBrushSize);
   button.addEventListener("click", () =>
-    editor.setAnnotationStyle({ mosaicBrushSize }),
+    setAndPersistAnnotationStyle({ mosaicBrushSize }),
   );
   mosaicBrushGroup.append(button);
 }
 const mosaicBlockGroup = document.createElement("div");
 mosaicBlockGroup.className = "annotation-settings__group";
-mosaicBlockGroup.setAttribute("aria-label", "马赛克强度");
+mosaicBlockGroup.setAttribute(
+  "aria-label",
+  overlayMessage(activeLanguage, "mosaicStrength"),
+);
 for (const mosaicBlockSize of MOSAIC_BLOCK_SIZES) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "annotation-settings__font";
   button.dataset.mosaicBlockSize = String(mosaicBlockSize);
   button.dataset.overlayUi = "settings";
-  button.setAttribute("aria-label", `马赛克强度 ${mosaicBlockSize}`);
+  button.setAttribute(
+    "aria-label",
+    `${overlayMessage(activeLanguage, "mosaicStrength")} ${mosaicBlockSize}`,
+  );
   button.textContent = String(mosaicBlockSize);
   button.addEventListener("click", () =>
-    editor.setAnnotationStyle({ mosaicBlockSize }),
+    setAndPersistAnnotationStyle({ mosaicBlockSize }),
   );
   mosaicBlockGroup.append(button);
 }
@@ -458,6 +489,63 @@ root.append(
   textEditorFrame,
   outputStatus,
 );
+
+function applyOverlayLanguage(language: OverlayLanguage): void {
+  activeLanguage = language;
+  root.lang = language === "zh-cn" ? "zh-CN" : "en";
+  applyScreenshotToolbarLabels(toolbar, overlayToolbarLabels(language));
+  canvas.setAttribute("aria-label", overlayMessage(language, "canvas"));
+  textEditor.setAttribute("aria-label", overlayMessage(language, "textEditor"));
+  settingsFlyout.setAttribute(
+    "aria-label",
+    overlayMessage(language, "annotationStyle"),
+  );
+  const groupLabels = [
+    [colorGroup, "color"],
+    [widthGroup, "strokeWidth"],
+    [fontGroup, "fontSize"],
+    [mosaicBrushGroup, "mosaicBrush"],
+    [mosaicBlockGroup, "mosaicStrength"],
+  ] as const;
+  for (const [group, key] of groupLabels) {
+    group.setAttribute("aria-label", overlayMessage(language, key));
+  }
+  for (const button of colorGroup.querySelectorAll<HTMLButtonElement>("[data-color]")) {
+    button.setAttribute(
+      "aria-label",
+      `${overlayMessage(language, "color")} ${button.dataset.color}`,
+    );
+  }
+  for (const button of widthGroup.querySelectorAll<HTMLButtonElement>("[data-stroke-width]")) {
+    button.setAttribute(
+      "aria-label",
+      `${overlayMessage(language, "strokeWidth")} ${button.dataset.strokeWidth}`,
+    );
+  }
+  for (const button of fontGroup.querySelectorAll<HTMLButtonElement>("[data-font-size]")) {
+    button.setAttribute(
+      "aria-label",
+      `${overlayMessage(language, "fontSize")} ${button.dataset.fontSize}`,
+    );
+  }
+  for (const button of mosaicBrushGroup.querySelectorAll<HTMLButtonElement>(
+    "[data-mosaic-brush-size]",
+  )) {
+    button.setAttribute(
+      "aria-label",
+      `${overlayMessage(language, "mosaicBrush")} ${button.dataset.mosaicBrushSize}`,
+    );
+  }
+  for (const button of mosaicBlockGroup.querySelectorAll<HTMLButtonElement>(
+    "[data-mosaic-block-size]",
+  )) {
+    button.setAttribute(
+      "aria-label",
+      `${overlayMessage(language, "mosaicStrength")} ${button.dataset.mosaicBlockSize}`,
+    );
+  }
+  if (outputWorkflow) updateOutputUi(outputWorkflow.snapshot());
+}
 
 function updateAnnotationUi(state: AnnotationState): void {
   root.dataset.annotationTool = state.tool;
@@ -483,8 +571,8 @@ function updateAnnotationUi(state: AnnotationState): void {
     );
     const toolbarLeft = Number.parseFloat(toolbar.style.left || "0");
     const toolbarTop = Number.parseFloat(toolbar.style.top || "0");
-    settingsFlyout.style.left = `${toolbarLeft + (anchor?.offsetLeft ?? 14)}px`;
-    settingsFlyout.style.top = `${toolbarTop + 52}px`;
+    settingsFlyout.style.left = `${toolbarLeft + (anchor?.offsetLeft ?? screenshotUiTheme.toolbar.horizontalPadding)}px`;
+    settingsFlyout.style.top = `${toolbarTop + screenshotUiTheme.toolbar.height + screenshotUiTheme.annotationSettings.anchorOffset}px`;
   }
   for (const button of settingsFlyout.querySelectorAll<HTMLButtonElement>("[data-color]")) {
     button.setAttribute("aria-pressed", String(button.dataset.color === state.style.color));
@@ -606,11 +694,18 @@ async function bootstrapOverlay(): Promise<void> {
   nativeSessionId = window.__TAURI_INTERNALS__
     ? capture.snapshot.sessionId
     : null;
+  const preferences = await capturePreferences(capture.snapshot.sessionId);
+  applyOverlayLanguage(
+    preferences.language === "system"
+      ? resolveSystemLanguage()
+      : preferences.language,
+  );
   editor = new OverlayEditor(
     capture.snapshot,
     capture.binary,
     { canvas, toolbar, sizeLabel },
     {
+      initialAnnotationStyle: preferences.annotationStyle,
       onReady: () => {
         root.hidden = false;
         root.dataset.status = "ready";

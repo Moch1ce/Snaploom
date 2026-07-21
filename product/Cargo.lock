@@ -3678,6 +3678,8 @@ dependencies = [
  "libc",
  "png 0.18.1",
  "prost",
+ "serde",
+ "serde_json",
  "snaploom-capture-client",
  "snaploom-capture-protocol",
  "snaploom-capture-session",

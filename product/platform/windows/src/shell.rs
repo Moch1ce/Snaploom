@@ -499,6 +499,13 @@ impl<R: Runtime> WindowsShell<R> {
         Ok(())
     }
 
+    pub fn recent_directory(&self) -> Result<Option<PathBuf>, PlatformError> {
+        self.recent_directory
+            .lock()
+            .map(|directory| directory.clone())
+            .map_err(|_| PlatformError::InternalState)
+    }
+
     pub fn finish_session(&self, session_id: &str) -> Result<(), PlatformError> {
         let mut active = self
             .active_session

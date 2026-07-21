@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use serde::Serialize;
 use snaploom_capture_client::ipc::{IpcClientConfig, IpcDriver};
 use snaploom_capture_client::{
-    CaptureClient, CaptureOptions, CapturePermission, StableError, Terminal,
+    CaptureClient, CaptureLanguage, CaptureOptions, CapturePermission, StableError, Terminal,
 };
 use snaploom_capture_protocol::CaptureOrigin;
 use snaploom_desktop_shell::{
@@ -227,6 +227,9 @@ fn set_autostart_inner(enabled: bool, state: &DesktopState) -> Result<SettingsMu
 
 #[tauri::command]
 fn set_language(language: Language, state: State<'_, DesktopState>) -> SettingsMutation {
+    state
+        .capture_driver
+        .set_capture_language(capture_language(language));
     let settings = {
         let mut settings = state
             .settings
@@ -618,6 +621,13 @@ const fn platform_language(language: Language) -> PlatformLanguage {
     }
 }
 
+const fn capture_language(language: Language) -> CaptureLanguage {
+    match language {
+        Language::ZhCn => CaptureLanguage::ZhCn,
+        Language::En => CaptureLanguage::En,
+    }
+}
+
 fn host_executable() -> Option<PathBuf> {
     let executable = std::env::current_exe().ok()?;
     let executable_dir = executable.parent()?;
@@ -675,6 +685,7 @@ pub fn run() {
             let driver = Arc::new(IpcDriver::new(IpcClientConfig {
                 host_executable_override: host_executable(),
                 origin: CaptureOrigin::App,
+                language: capture_language(loaded.settings.language),
                 ..IpcClientConfig::default()
             }));
             let client = CaptureClient::new(driver.clone())

@@ -265,6 +265,14 @@ impl SessionControl {
 pub struct CaptureRequest {
     pub origin: SessionOrigin,
     pub clipboard_enabled: bool,
+    pub language: CaptureLanguage,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureLanguage {
+    System,
+    ZhCn,
+    En,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

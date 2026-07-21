@@ -536,6 +536,7 @@ export interface OverlayEditorElements {
 }
 
 export interface OverlayEditorOptions {
+  readonly initialAnnotationStyle?: AnnotationStyle;
   readonly onReady?: () => void;
   readonly onStateChange?: (state: OverlayEditorState) => void;
   readonly onAnnotationStateChange?: (state: AnnotationState) => void;
@@ -574,6 +575,9 @@ export class OverlayEditor {
         height: snapshot.physicalSize.height,
       },
       scale,
+      ...(options.initialAnnotationStyle
+        ? { initialStyle: options.initialAnnotationStyle }
+        : {}),
     });
     const source = new Uint8Array(binary);
     this.#rgba = bgraToRgba(

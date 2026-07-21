@@ -13,6 +13,12 @@ enum CaptureOrigin {
   CAPTURE_ORIGIN_SDK = 2;
 }
 
+enum UiLanguage {
+  UI_LANGUAGE_SYSTEM = 0;
+  UI_LANGUAGE_ZH_CN = 1;
+  UI_LANGUAGE_EN = 2;
+}
+
 enum ClipboardOutcome {
   CLIPBOARD_OUTCOME_UNSPECIFIED = 0;
   CLIPBOARD_OUTCOME_WRITTEN = 1;
@@ -94,6 +100,7 @@ message StartCapture {
   ClipboardMode clipboard_mode = 2;
   optional uint64 interaction_timeout_ms = 3;
   CaptureOrigin origin = 4;
+  UiLanguage language = 5;
 }
 
 message CaptureAccepted { bytes request_id = 1; }

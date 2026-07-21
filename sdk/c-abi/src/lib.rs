@@ -147,6 +147,7 @@ fn driver_for_new_client(config: DriverConfiguration) -> Arc<dyn CaptureDriver> 
             launch_timeout: config.launch_timeout,
             handshake_timeout: config.handshake_timeout,
             origin: snaploom_capture_protocol::CaptureOrigin::Sdk,
+            language: snaploom_capture_client::CaptureLanguage::System,
         }))
     }
     #[cfg(not(any(unix, windows)))]

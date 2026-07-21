@@ -5,20 +5,12 @@ import {
 } from "@snaploom/screenshot-ui";
 import type { SnapshotScale } from "./app";
 
-export const ANNOTATION_COLORS = [
-  "#FF4D4F",
-  "#FADB14",
-  "#07C977",
-  "#1677FF",
-  "#202124",
-  "#FFFFFF",
-] as const;
-
-export const ANNOTATION_STROKE_WIDTHS = [2, 4, 8] as const;
-export const ANNOTATION_FONT_SIZES = [16, 24, 32] as const;
-export const MOSAIC_BRUSH_SIZES = [16, 32, 64] as const;
-export const MOSAIC_BLOCK_SIZES = [8, 12, 16] as const;
-export const MOSAIC_TILE_SIZE = 128;
+export const ANNOTATION_COLORS = screenshotUiTheme.annotation.colors;
+export const ANNOTATION_STROKE_WIDTHS = screenshotUiTheme.annotation.strokeWidths;
+export const ANNOTATION_FONT_SIZES = screenshotUiTheme.annotation.fontSizes;
+export const MOSAIC_BRUSH_SIZES = screenshotUiTheme.annotation.mosaicBrushSizes;
+export const MOSAIC_BLOCK_SIZES = screenshotUiTheme.annotation.mosaicBlockSizes;
+export const MOSAIC_TILE_SIZE = screenshotUiTheme.annotation.mosaicTileSize;
 
 export type AnnotationColor = (typeof ANNOTATION_COLORS)[number];
 export type AnnotationStrokeWidth = (typeof ANNOTATION_STROKE_WIDTHS)[number];
@@ -44,6 +36,14 @@ export interface AnnotationStyle {
   readonly mosaicBrushSize: MosaicBrushSize;
   readonly mosaicBlockSize: MosaicBlockSize;
 }
+
+export const DEFAULT_ANNOTATION_STYLE: AnnotationStyle = {
+  color: ANNOTATION_COLORS[0],
+  strokeWidth: ANNOTATION_STROKE_WIDTHS[1],
+  fontSize: ANNOTATION_FONT_SIZES[1],
+  mosaicBrushSize: MOSAIC_BRUSH_SIZES[1],
+  mosaicBlockSize: MOSAIC_BLOCK_SIZES[1],
+};
 
 export interface RectangleAnnotation {
   readonly id: string;
@@ -529,13 +529,7 @@ export class AnnotationSession {
   #objects: AnnotationObject[] = [];
   #selectedId: string | null = null;
   #tool: AnnotationTool = "select";
-  #style: AnnotationStyle = {
-    color: "#FF4D4F",
-    strokeWidth: 4,
-    fontSize: 24,
-    mosaicBrushSize: 32,
-    mosaicBlockSize: 12,
-  };
+  #style: AnnotationStyle = cloneStyle(DEFAULT_ANNOTATION_STYLE);
   #settingsOpen: "rectangle" | "arrow" | "text" | "mosaic" | null = null;
   #undo: HistoryEntry[] = [];
   #redo: HistoryEntry[] = [];
@@ -545,9 +539,14 @@ export class AnnotationSession {
   #everEdited = false;
   #nextId = 1;
 
-  constructor(options: { readonly selection: Rect; readonly scale: SnapshotScale }) {
+  constructor(options: {
+    readonly selection: Rect;
+    readonly scale: SnapshotScale;
+    readonly initialStyle?: AnnotationStyle;
+  }) {
     this.#selection = { ...options.selection };
     this.#scale = options.scale;
+    if (options.initialStyle) this.setStyle(options.initialStyle);
   }
 
   setTool(tool: AnnotationTool, openSettings: boolean): void {

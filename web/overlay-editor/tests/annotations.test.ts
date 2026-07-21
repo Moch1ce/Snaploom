@@ -28,6 +28,21 @@ describe("rectangle, arrow, and annotation history", () => {
     });
   });
 
+  it("starts a new capture session with validated persisted annotation styles", () => {
+    const style = {
+      color: "#1677FF" as const,
+      strokeWidth: 8 as const,
+      fontSize: 32 as const,
+      mosaicBrushSize: 64 as const,
+      mosaicBlockSize: 16 as const,
+    };
+    expect(
+      new AnnotationSession({ selection, scale, initialStyle: style })
+        .snapshotState()
+        .style,
+    ).toEqual(style);
+  });
+
   it("maps unmodified R/A/V shortcuts and leaves modified keys alone", () => {
     expect(annotationShortcut({ key: "r" })).toBe("rectangle");
     expect(annotationShortcut({ key: "A" })).toBe("arrow");
