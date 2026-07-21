@@ -3,6 +3,7 @@ import {
   screenshotUiTheme,
   type ScreenshotToolbarAction,
 } from "@snaploom/screenshot-ui";
+import { invoke } from "@tauri-apps/api/core";
 import {
   ANNOTATION_COLORS,
   ANNOTATION_FONT_SIZES,
@@ -48,6 +49,7 @@ declare global {
 const root = document.querySelector<HTMLElement>("#app") ?? (() => {
   throw new Error("missing #app");
 })();
+root.hidden = true;
 
 root.style.setProperty("--brand", screenshotUiTheme.colors.brand);
 root.style.setProperty("--danger", screenshotUiTheme.colors.danger);
@@ -146,6 +148,7 @@ let outputWorkflow: OutputWorkflow | undefined;
 let lastPng: Uint8Array | null = null;
 let lastNativeClipboard: Uint8Array | null = null;
 let lastNativeSave: Uint8Array | null = null;
+let nativeSessionId: string | null = null;
 
 const outputStatus = document.createElement("output");
 outputStatus.className = "output-status";
@@ -153,7 +156,18 @@ outputStatus.dataset.overlayUi = "output-status";
 outputStatus.setAttribute("aria-live", "assertive");
 outputStatus.hidden = true;
 
+function cancelNativeSession(): void {
+  const sessionId = nativeSessionId;
+  nativeSessionId = null;
+  if (window.__TAURI_INTERNALS__ && sessionId) {
+    void invoke("cancel_overlay", undefined, sessionOptions(sessionId)).catch(
+      () => undefined,
+    );
+  }
+}
+
 function cancel(): void {
+  cancelNativeSession();
   outputWorkflow?.dispose();
   clearLocalCaptureResult();
   editor.dispose();
@@ -274,9 +288,41 @@ function unavailableOutputPort(): NativeOutputPort {
   };
 }
 
-function resolveOutputPort(): NativeOutputPort {
+function sessionOptions(sessionId: string): {
+  headers: Record<string, string>;
+} {
+  return { headers: { "x-snaploom-session-id": sessionId } };
+}
+
+function tauriOutputPort(sessionId: string): NativeOutputPort {
+  return {
+    async writePngClipboard(png) {
+      await invoke("write_png_clipboard", png, sessionOptions(sessionId));
+    },
+    async savePng(request, png) {
+      return invoke<"saved" | "cancelled">("save_png", png, {
+        headers: {
+          "x-snaploom-session-id": sessionId,
+          "x-snaploom-suggested-name": request.suggestedName,
+        },
+      });
+    },
+    async setOverlayVisible(visible) {
+      await invoke(
+        "set_overlay_visible",
+        { visible },
+        sessionOptions(sessionId),
+      );
+    },
+    async closeOverlay() {
+      await invoke("close_overlay", undefined, sessionOptions(sessionId));
+    },
+  };
+}
+
+function resolveOutputPort(sessionId: string): NativeOutputPort {
   if (window.__SNAPLOOM_NATIVE_OUTPUT__) return window.__SNAPLOOM_NATIVE_OUTPUT__;
-  if (window.__TAURI_INTERNALS__) return unavailableOutputPort();
+  if (window.__TAURI_INTERNALS__) return tauriOutputPort(sessionId);
   return window.location.hostname === "127.0.0.1" ||
     window.location.hostname === "localhost"
     ? browserOutputPort()
@@ -537,50 +583,85 @@ function fakeCaptureSnapshot(): { snapshot: CaptureSnapshot; binary: ArrayBuffer
   };
 }
 
-const capture = fakeCaptureSnapshot();
-editor = new OverlayEditor(
-  capture.snapshot,
-  capture.binary,
-  { canvas, toolbar, sizeLabel },
-  {
-    onReady: () => {
-      root.dataset.status = "ready";
-      canvas.dataset.status = "ready";
-    },
-    onStateChange: (state: OverlayEditorState) => {
-      invalidateOutput();
-      root.dataset.phase = state.phase;
-      root.dataset.hasSelection = String(state.selection !== null);
-    },
-    onAnnotationStateChange: (state) => {
-      invalidateOutput();
-      updateAnnotationUi(state);
-    },
-  },
-);
-updateAnnotationUi(editor.annotations.snapshotState());
-new Uint8Array(capture.binary).fill(0);
-capture.binary = new ArrayBuffer(0);
+async function captureSnapshot(): Promise<{
+  snapshot: CaptureSnapshot;
+  binary: ArrayBuffer;
+}> {
+  if (!window.__TAURI_INTERNALS__) return fakeCaptureSnapshot();
+  const snapshot = await invoke<CaptureSnapshot>("capture_descriptor");
+  nativeSessionId = snapshot.sessionId;
+  const raw = await invoke<ArrayBuffer | Uint8Array>(
+    "capture_frame",
+    undefined,
+    sessionOptions(snapshot.sessionId),
+  );
+  const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+  const binary = bytes.slice().buffer;
+  bytes.fill(0);
+  return { snapshot, binary };
+}
 
-outputWorkflow = new OutputWorkflow({
-  composer: { prepare: () => editor.prepareOutput() },
-  port: resolveOutputPort(),
-  record: recordOutputEvent,
-  onStateChange: updateOutputUi,
-});
-updateOutputUi(outputWorkflow.snapshot());
+async function bootstrapOverlay(): Promise<void> {
+  const capture = await captureSnapshot();
+  nativeSessionId = window.__TAURI_INTERNALS__
+    ? capture.snapshot.sessionId
+    : null;
+  editor = new OverlayEditor(
+    capture.snapshot,
+    capture.binary,
+    { canvas, toolbar, sizeLabel },
+    {
+      onReady: () => {
+        root.hidden = false;
+        root.dataset.status = "ready";
+        canvas.dataset.status = "ready";
+        if (window.__TAURI_INTERNALS__ && nativeSessionId) {
+          void invoke(
+            "overlay_ready",
+            undefined,
+            sessionOptions(nativeSessionId),
+          ).catch(() => {
+            root.dataset.status = "native-error";
+            root.hidden = true;
+            cancelNativeSession();
+          });
+        }
+      },
+      onStateChange: (state: OverlayEditorState) => {
+        invalidateOutput();
+        root.dataset.phase = state.phase;
+        root.dataset.hasSelection = String(state.selection !== null);
+      },
+      onAnnotationStateChange: (state) => {
+        invalidateOutput();
+        updateAnnotationUi(state);
+      },
+    },
+  );
+  updateAnnotationUi(editor.annotations.snapshotState());
+  new Uint8Array(capture.binary).fill(0);
+  capture.binary = new ArrayBuffer(0);
 
-window.__SNAPLOOM_OVERLAY__ = {
-  editor,
-  snapshot: capture.snapshot,
-  lastPng,
-  lastNativeClipboard,
-  lastNativeSave,
-  cancel,
-  complete,
-  copyAndContinue,
-  save,
-};
+  outputWorkflow = new OutputWorkflow({
+    composer: { prepare: () => editor.prepareOutput() },
+    port: resolveOutputPort(capture.snapshot.sessionId),
+    record: recordOutputEvent,
+    onStateChange: updateOutputUi,
+  });
+  updateOutputUi(outputWorkflow.snapshot());
+
+  window.__SNAPLOOM_OVERLAY__ = {
+    editor,
+    snapshot: capture.snapshot,
+    lastPng,
+    lastNativeClipboard,
+    lastNativeSave,
+    cancel,
+    complete,
+    copyAndContinue,
+    save,
+  };
+}
 
 function localPoint(
   event: Pick<MouseEvent, "clientX" | "clientY">,
@@ -701,4 +782,10 @@ window.addEventListener("keydown", (event) => {
       editor.setTool(tool, false);
     }
   }
+});
+
+void bootstrapOverlay().catch(() => {
+  root.dataset.status = "native-error";
+  root.hidden = true;
+  cancelNativeSession();
 });

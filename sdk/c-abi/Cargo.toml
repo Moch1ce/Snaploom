@@ -13,12 +13,12 @@ name = "snaploom_capture"
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
-snaploom-capture-client = { path = "../client" }
-snaploom-capture-protocol = { path = "../protocol" }
+snaploom-capture-client = { path = "../client", version = "=0.1.0" }
+snaploom-capture-protocol = { path = "../protocol", version = "=0.1.0" }
 zeroize.workspace = true
 
 [build-dependencies]
 cc = "1.2.57"
 
 [dev-dependencies]
-snaploom-capture-fake-host = { path = "../testkit/fake-host" }
+snaploom-capture-fake-host = { path = "../testkit/fake-host", version = "=0.1.0" }

@@ -33,7 +33,7 @@ impl SessionBackend for ScriptedBackend {
             return SessionTerminal::Canceled { by_user: false };
         }
         SessionTerminal::Completed {
-            png: tiny_png(),
+            png: tiny_png().into(),
             pixel_width: 1,
             pixel_height: 1,
             clipboard_written: true,

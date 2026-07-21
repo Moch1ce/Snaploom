@@ -8,3 +8,10 @@ publish = false
 [[bin]]
 name = "xtask"
 path = "tools/xtask/src/main.rs"
+
+[[bin]]
+name = "windows-bindings"
+path = "tools/windows-bindings/src/main.rs"
+
+[dependencies]
+windows-bindgen = "=0.62.1"

@@ -1,5 +1,8 @@
 fn main() {
     if std::env::var_os("CARGO_FEATURE_TAURI_RUNTIME").is_some() {
-        tauri_build::build();
+        let windows = tauri_build::WindowsAttributes::new()
+            .app_manifest(include_str!("windows-app-manifest.xml"));
+        let attributes = tauri_build::Attributes::new().windows_attributes(windows);
+        tauri_build::try_build(attributes).expect("failed to build Capture Host resources");
     }
 }

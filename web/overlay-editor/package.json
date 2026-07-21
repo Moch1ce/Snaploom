@@ -11,7 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@snaploom/screenshot-ui": "workspace:*"
+    "@snaploom/screenshot-ui": "workspace:*",
+    "@tauri-apps/api": "2.11.1"
   },
   "devDependencies": {
     "typescript": "catalog:",

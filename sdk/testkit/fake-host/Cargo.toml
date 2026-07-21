@@ -8,5 +8,5 @@ repository.workspace = true
 publish = false
 
 [dependencies]
-snaploom-capture-client = { path = "../../client" }
-snaploom-capture-protocol = { path = "../../protocol" }
+snaploom-capture-client = { path = "../../client", version = "=0.1.0" }
+snaploom-capture-protocol = { path = "../../protocol", version = "=0.1.0" }

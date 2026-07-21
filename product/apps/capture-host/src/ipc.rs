@@ -15,14 +15,15 @@ use snaploom_capture_client::local_transport::{
 use snaploom_capture_protocol::envelope::Body;
 use snaploom_capture_protocol::{
     CancelAcknowledged, CancelSource, CaptureAccepted, CaptureCanceled, CaptureFailed,
-    CaptureOrigin, CaptureRejected, ClipboardMode, ClipboardOutcome, Envelope, Frame, FrameType,
+    CaptureOrigin, CaptureRejected, ClipboardMode, ClipboardOutcome, Envelope, FrameType,
     FramedReader, Hello, ResultBegin, ResultChunk, ResultEnd, StableError, StreamError, Welcome,
-    write_frame,
+    write_frame_payload,
 };
 use snaploom_capture_session::{
     BeginError, CaptureRequest, CaptureSessionGate, ClientId, HostLifecycle, SessionBackend,
-    SessionFailure, SessionOrigin, SessionPhase, SessionTerminal,
+    SessionFailure, SessionLease, SessionOrigin, SessionPhase, SessionTerminal,
 };
+use zeroize::{Zeroize, Zeroizing};
 
 const CONNECTION_POLL: Duration = Duration::from_millis(25);
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -245,14 +246,16 @@ fn serve_connection(
     loop {
         if let Some(active_session) = &mut active {
             match active_session.terminal.try_recv() {
-                Ok(terminal) => {
-                    send_terminal(
+                Ok(completion) => {
+                    let sent = send_terminal(
                         &mut writer,
                         &connection_id,
                         &mut outgoing_sequence,
                         &active_session.request_id,
-                        terminal,
-                    )?;
+                        completion.terminal,
+                    );
+                    completion.lease.finish_cleanup();
+                    sent?;
                     return Ok(());
                 }
                 Err(mpsc::TryRecvError::Disconnected) => return Err(StableError::Internal),
@@ -334,8 +337,7 @@ fn serve_connection(
                     .spawn(move || {
                         let terminal = session_backend.run(request, worker_control);
                         lease.set_phase(SessionPhase::CleaningUp);
-                        lease.finish_cleanup();
-                        let _ = terminal_sender.send(terminal);
+                        let _ = terminal_sender.send(BackendCompletion { terminal, lease });
                     })
                     .map_err(|_| StableError::OutOfMemory)?;
                 active = Some(ActiveSession {
@@ -371,7 +373,12 @@ fn serve_connection(
 struct ActiveSession {
     request_id: Vec<u8>,
     control: snaploom_capture_session::SessionControl,
-    terminal: mpsc::Receiver<SessionTerminal>,
+    terminal: mpsc::Receiver<BackendCompletion>,
+}
+
+struct BackendCompletion {
+    terminal: SessionTerminal,
+    lease: SessionLease,
 }
 
 fn send_terminal(
@@ -395,7 +402,7 @@ fn send_terminal(
                 *sequence,
                 Body::ResultBegin(ResultBegin {
                     request_id: request_id.to_vec(),
-                    png_length: png.len() as u64,
+                    png_length: png.as_slice().len() as u64,
                     pixel_width,
                     pixel_height,
                     clipboard: if clipboard_written {
@@ -406,7 +413,7 @@ fn send_terminal(
                 }),
             )?;
             *sequence += 1;
-            for (index, chunk) in png.chunks(RESULT_CHUNK_BYTES).enumerate() {
+            for (index, chunk) in png.as_slice().chunks(RESULT_CHUNK_BYTES).enumerate() {
                 write_envelope(
                     writer,
                     FrameType::ResultChunk,
@@ -449,6 +456,10 @@ fn send_terminal(
         SessionTerminal::Failed { failure, retryable } => {
             let error = match failure {
                 SessionFailure::PlatformUnavailable => StableError::PlatformUnavailable,
+                SessionFailure::DisplayUnavailable => StableError::DisplayUnavailable,
+                SessionFailure::CaptureUnavailable => StableError::CaptureUnavailable,
+                SessionFailure::CaptureTimeout => StableError::CaptureTimeout,
+                SessionFailure::PixelConversionFailed => StableError::PixelConversionFailed,
                 SessionFailure::Internal => StableError::Internal,
             };
             write_envelope(
@@ -479,9 +490,15 @@ fn write_envelope(
         sequence,
         body: Some(body),
     };
-    let frame =
-        Frame::new(frame_type, envelope.encode_to_vec()).map_err(|_| StableError::ProtocolError)?;
-    write_frame(writer, &frame).map_err(|_| StableError::TransportFailed)
+    let mut envelope = envelope;
+    let payload = Zeroizing::new(envelope.encode_to_vec());
+    if let Some(Body::ResultChunk(chunk)) = &mut envelope.body {
+        chunk.data.zeroize();
+    }
+    write_frame_payload(writer, frame_type, payload.as_slice()).map_err(|error| match error {
+        StreamError::Wire(_) => StableError::ProtocolError,
+        StreamError::Io(_) | StreamError::Eof => StableError::TransportFailed,
+    })
 }
 
 fn read_envelope(

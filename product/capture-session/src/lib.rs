@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use zeroize::Zeroize;
 
 pub const HOST_IDLE_GRACE: Duration = Duration::from_secs(30);
 
@@ -269,13 +270,17 @@ pub struct CaptureRequest {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionFailure {
     PlatformUnavailable,
+    DisplayUnavailable,
+    CaptureUnavailable,
+    CaptureTimeout,
+    PixelConversionFailed,
     Internal,
 }
 
 #[derive(Debug)]
 pub enum SessionTerminal {
     Completed {
-        png: Vec<u8>,
+        png: SensitivePng,
         pixel_width: u32,
         pixel_height: u32,
         clipboard_written: bool,
@@ -287,6 +292,41 @@ pub enum SessionTerminal {
         failure: SessionFailure,
         retryable: bool,
     },
+}
+
+pub struct SensitivePng(Vec<u8>);
+
+impl SensitivePng {
+    #[must_use]
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    #[must_use]
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for SensitivePng {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SensitivePng")
+            .field("byte_length", &self.0.len())
+            .finish()
+    }
+}
+
+impl From<Vec<u8>> for SensitivePng {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self::new(bytes)
+    }
+}
+
+impl Drop for SensitivePng {
+    fn drop(&mut self) {
+        self.0.zeroize();
+    }
 }
 
 pub trait SessionBackend: Send + Sync + 'static {

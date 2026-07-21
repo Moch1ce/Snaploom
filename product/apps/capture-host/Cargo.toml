@@ -26,14 +26,22 @@ tauri-build.workspace = true
 [dependencies]
 getrandom.workspace = true
 prost.workspace = true
+png.workspace = true
 tauri = { workspace = true, optional = true }
-snaploom-capture-session = { path = "../../capture-session" }
-snaploom-capture-client = { path = "../../../sdk/client" }
-snaploom-capture-protocol = { path = "../../../sdk/protocol" }
-snaploom-platform-fake = { path = "../../platform/fake" }
+tauri-plugin-dialog.workspace = true
+snaploom-capture-session = { path = "../../capture-session", version = "=0.1.0" }
+snaploom-platform-contract = { path = "../../platform/contract", version = "=0.1.0" }
+snaploom-capture-client = { path = "../../../sdk/client", version = "=0.1.0" }
+snaploom-capture-protocol = { path = "../../../sdk/protocol", version = "=0.1.0" }
+snaploom-platform-fake = { path = "../../platform/fake", version = "=0.1.0" }
+zeroize.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+snaploom-platform-windows = { path = "../../platform/windows", version = "=0.1.0", features = ["tauri-shell"] }
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 
 [dev-dependencies]
-snaploom-capture-client = { path = "../../../sdk/client" }
+snaploom-capture-client = { path = "../../../sdk/client", version = "=0.1.0" }
+snaploom-platform-windows = { path = "../../platform/windows", version = "=0.1.0", features = ["tauri-shell"] }

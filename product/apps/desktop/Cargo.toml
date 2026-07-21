@@ -16,4 +16,4 @@ tauri-build.workspace = true
 
 [dependencies]
 tauri.workspace = true
-snaploom-desktop-shell = { path = "../../desktop-shell" }
+snaploom-desktop-shell = { path = "../../desktop-shell", version = "=0.1.0" }

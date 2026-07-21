@@ -8,4 +8,5 @@ repository.workspace = true
 publish = false
 
 [dependencies]
-snaploom-platform-contract = { path = "../platform/contract" }
+snaploom-platform-contract = { path = "../platform/contract", version = "=0.1.0" }
+zeroize.workspace = true

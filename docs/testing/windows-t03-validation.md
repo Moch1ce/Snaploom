@@ -7,12 +7,17 @@
 在 Windows 仓库根目录执行：
 
 ```powershell
-dotnet restore Snaploom.sln
-dotnet build Snaploom.sln -c Release --no-restore
-dotnet test Snaploom.sln -c Release --no-build
+corepack enable
+pnpm install --frozen-lockfile
+pnpm run check
+cargo test --manifest-path product/Cargo.toml --workspace --all-features --locked
+cargo clippy --manifest-path product/Cargo.toml --workspace --all-targets --all-features --locked -- -D warnings
+cargo run --manifest-path Cargo.toml --locked --bin windows-bindings -- --check
+pnpm run tauri:desktop
+pnpm run tauri:host
 ```
 
-Windows CI 会通过公共 `IScreenCaptureService` 调用 Windows Graphics Capture，验证当前显示器能够进入统一 `CapturedFrame`；无头环境不弹出保存对话框。
+GitHub Actions 的 `Windows x64` job 只验证无交互环境可执行的编译、合同测试、manifest、bindings、供应链和打包入口；不得把 hosted runner 冒充为真实 WGC、overlay、剪贴板或原生对话框证据。每次真机执行把 OS build、GPU/驱动、显示器/DPI/HDR、应用 commit、原始样本和结果写入 `docs/testing/evidence/<date>-windows-<machine>/`。
 
 ## 快捷键与捕获
 
@@ -21,6 +26,9 @@ Windows CI 会通过公共 `IScreenCaptureService` 调用 Windows Graphics Captu
 3. 连续再次按快捷键，确认不会叠加截图会话或闪烁工具栏。
 4. 核对捕获画面与触发瞬间一致，且不包含鼠标指针。
 5. 在 100%、125%、150%、175%、200% 缩放下重复捕获，确认物理尺寸、逻辑布局与选区边界一致。
+6. 覆盖双屏负原点、混合 DPI、主屏切换、旋转、热插拔；拓扑变化必须失败或完整重试，不能混用新旧 scale。
+7. 覆盖普通窗口、跨屏、最小化、tool/menu/tooltip、cloaked、透明、click-through、系统 UI 和 Snaploom 自身窗口，核对 Z 序与过滤。
+8. 分别在 SDR 与 Windows HDR 下核对白点、高光不过度裁切、最终 PNG 为 RGBA8/sRGB。
 
 ## 框选与保存
 
@@ -30,6 +38,7 @@ Windows CI 会通过公共 `IScreenCaptureService` 调用 Windows Graphics Captu
 4. 取消保存，确认原选区与会话仍保留。
 5. 再次保存，确认成功后浮层退出，Snaploom 继续常驻托盘。
 6. 打开 PNG，核对尺寸等于选区物理像素、颜色为 8 位 sRGB，且没有鼠标指针。
+7. 使用另一个进程占用剪贴板，核对最多 5 次、每次 20 ms 的有限重试；释放竞争后从注册 `PNG` 格式读回原字节，并与保存结果逐字节比较。
 
 ## 安全边界与恢复
 
@@ -37,6 +46,13 @@ Windows CI 会通过公共 `IScreenCaptureService` 调用 Windows Graphics Captu
 2. 确认 Snaploom 不请求管理员权限、不绕过系统保护，并显示可理解的失败信息。
 3. 制造不可写保存位置，确认浮层内提示保存失败，选区仍可继续保存。
 4. 按 `Esc` 或点击退出，确认像素缓冲被释放，再次按快捷键可以创建新会话。
+5. 验证快捷键冲突、睡眠/唤醒重注册、当前用户开机启动和失败通知，确认旧设置与可用注册不被破坏。
+
+## 性能与资源
+
+1. 真实默认快捷键至少 30 次，按 nearest-rank 记录 callback 到 overlay 可交互的 P50/P95/max，要求 P95 `≤ 150 ms`。
+2. 真实 4K 捕获记录显示器解析、WGC 首帧、GPU copy/tone-map、窗口枚举、WebView ready；4K 编辑帧 P95 `≤ 16.667 ms`，PNG P95 `≤ 1,000 ms`。
+3. tray-only 空闲 working set `≤ 100,000,000 bytes`；至少 20 次复制/保存成功循环，尾段 private memory 增长 `≤ 1%`，并核对 COM、D3D、frame event、power/shortcut registration 与 overlay 数量稳定。
 
 ## 双平台一致性
 

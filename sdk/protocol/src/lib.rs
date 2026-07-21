@@ -203,7 +203,26 @@ impl<R: Read> FramedReader<R> {
 }
 
 pub fn write_frame(writer: &mut impl Write, frame: &Frame) -> Result<(), StreamError> {
-    writer.write_all(&frame.encode()).map_err(StreamError::Io)
+    write_frame_payload(writer, frame.frame_type, &frame.payload)
+}
+
+pub fn write_frame_payload(
+    writer: &mut impl Write,
+    frame_type: FrameType,
+    payload: &[u8],
+) -> Result<(), StreamError> {
+    if payload.len() > MAX_FRAME_BYTES {
+        return Err(StreamError::Wire(WireError::FrameTooLarge));
+    }
+    let payload_length =
+        u32::try_from(payload.len()).map_err(|_| StreamError::Wire(WireError::FrameTooLarge))?;
+    let mut header = [0_u8; FRAME_HEADER_BYTES];
+    header[..4].copy_from_slice(b"SLCP");
+    header[4..6].copy_from_slice(&1_u16.to_le_bytes());
+    header[6..8].copy_from_slice(&(frame_type as u16).to_le_bytes());
+    header[8..12].copy_from_slice(&payload_length.to_le_bytes());
+    writer.write_all(&header).map_err(StreamError::Io)?;
+    writer.write_all(payload).map_err(StreamError::Io)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

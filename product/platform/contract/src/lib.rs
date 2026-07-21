@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
@@ -186,6 +186,22 @@ pub enum PlatformError {
     CaptureFrameExceedsLimit,
     CaptureFrameLengthMismatch,
     NoScriptedCaptureSnapshot,
+    PlatformUnavailable,
+    DisplayUnavailable,
+    CaptureUnavailable,
+    FrameTimeout,
+    PixelConversionFailed,
+    ClipboardBusy,
+    ClipboardWriteFailed,
+    SaveDialogFailed,
+    FileWriteFailed,
+    OverlayFailed,
+    SessionMismatch,
+    ShortcutConflict,
+    ShortcutFailed,
+    ShortcutResumeFailed,
+    AutoStartFailed,
+    NotificationFailed,
     InternalState,
 }
 
@@ -196,6 +212,22 @@ impl fmt::Display for PlatformError {
             Self::CaptureFrameExceedsLimit => "capture frame exceeds limit",
             Self::CaptureFrameLengthMismatch => "capture frame length mismatch",
             Self::NoScriptedCaptureSnapshot => "no scripted capture snapshot",
+            Self::PlatformUnavailable => "platform capture unavailable",
+            Self::DisplayUnavailable => "capture display unavailable",
+            Self::CaptureUnavailable => "native capture unavailable",
+            Self::FrameTimeout => "capture frame timed out",
+            Self::PixelConversionFailed => "capture pixel conversion failed",
+            Self::ClipboardBusy => "clipboard is busy",
+            Self::ClipboardWriteFailed => "clipboard write failed",
+            Self::SaveDialogFailed => "save dialog failed",
+            Self::FileWriteFailed => "PNG file write failed",
+            Self::OverlayFailed => "capture overlay unavailable",
+            Self::SessionMismatch => "capture session mismatch",
+            Self::ShortcutConflict => "shortcut is already registered",
+            Self::ShortcutFailed => "shortcut operation failed",
+            Self::ShortcutResumeFailed => "shortcut resume registration failed",
+            Self::AutoStartFailed => "autostart operation failed",
+            Self::NotificationFailed => "notification operation failed",
             Self::InternalState => "platform adapter internal state unavailable",
         })
     }
@@ -203,8 +235,67 @@ impl fmt::Display for PlatformError {
 
 impl Error for PlatformError {}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SaveDisposition {
+    Saved,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlatformEvent {
+    Resumed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlatformNotification {
+    ShortcutConflict,
+    ShortcutResumeFailed,
+    AutoStartFailed,
+}
+
+pub trait PlatformLease: Send + Sync + fmt::Debug {}
+
+impl<T> PlatformLease for T where T: Send + Sync + fmt::Debug {}
+
 pub trait PlatformAdapter: Send + Sync {
+    type PendingSave: Send;
+    type ResumeLease: PlatformLease;
+
     fn platform_name(&self) -> &'static str;
 
     fn capture_snapshot(&self) -> Result<CaptureSnapshot, PlatformError>;
+
+    fn show_overlay(&self, descriptor: &CaptureSnapshotDescriptor) -> Result<(), PlatformError>;
+
+    fn hide_overlay(&self, session_id: &str) -> Result<(), PlatformError>;
+
+    fn finish_session(&self, session_id: &str) -> Result<(), PlatformError>;
+
+    fn write_png(&self, session_id: &str, png: &[u8]) -> Result<(), PlatformError>;
+
+    fn choose_png_destination(
+        &self,
+        session_id: &str,
+        suggested_name: &str,
+    ) -> Result<Option<Self::PendingSave>, PlatformError>;
+
+    fn commit_png_save(
+        &self,
+        session_id: &str,
+        pending: Self::PendingSave,
+        png: &[u8],
+    ) -> Result<SaveDisposition, PlatformError>;
+
+    fn replace_shortcut(&self, accelerator: &str) -> Result<(), PlatformError>;
+
+    fn watch_resume(
+        &self,
+        sink: Arc<dyn Fn(PlatformEvent) + Send + Sync + 'static>,
+    ) -> Result<Self::ResumeLease, PlatformError>;
+
+    fn autostart_enabled(&self) -> Result<bool, PlatformError>;
+
+    fn set_autostart(&self, enabled: bool) -> Result<(), PlatformError>;
+
+    fn notify(&self, notification: PlatformNotification) -> Result<(), PlatformError>;
 }

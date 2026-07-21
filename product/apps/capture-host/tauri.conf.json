@@ -14,10 +14,12 @@
       {
         "label": "overlay",
         "title": "Snaploom Capture Host",
-        "fullscreen": true,
+        "fullscreen": false,
         "decorations": false,
         "resizable": false,
         "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
         "visible": false
       }
     ],
