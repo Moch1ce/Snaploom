@@ -66,9 +66,24 @@ if [[ "$signing_mode" == "developer-id" ]]; then
 fi
 
 export MACOSX_DEPLOYMENT_TARGET=14.0
-pnpm exec tauri build \
-  --config product/apps/capture-host/tauri.conf.json \
-  --bundles app -- --package snaploom-capture-host
+build_tauri_app() {
+  local app_directory="$1"
+  local frontend_directory="$2"
+
+  pnpm --dir "$repo_root/$frontend_directory" build
+  (
+    cd "$repo_root/$app_directory"
+    "$repo_root/node_modules/.bin/tauri" build \
+      --config tauri.conf.json \
+      --config '{"build":{"beforeBuildCommand":""}}' \
+      --bundles app
+  )
+}
+
+# Tauri discovers the Cargo package from its working directory. Running from the
+# workspace root can compile the requested package but bundle the first workspace
+# binary, which only appears to work when a stale binary is present.
+build_tauri_app "product/apps/capture-host" "web/overlay-editor"
 host_build="$repo_root/product/target/release/bundle/macos/Snaploom Capture Host.app"
 [[ -d "$host_build" ]] || { echo "Capture Host app bundle was not created." >&2; exit 1; }
 host_app="$temporary_root/Snaploom Capture Host.app"
@@ -125,9 +140,7 @@ host_zip="$output_directory/snaploom-capture-host-$version-macos-arm64.zip"
 node "$repo_root/tools/release/create-deterministic-archive.mjs" \
   --root "$host_package_root" --output "$host_zip" --format zip
 
-pnpm exec tauri build \
-  --config product/apps/desktop/tauri.conf.json \
-  --bundles app -- --package snaploom-desktop
+build_tauri_app "product/apps/desktop" "web/desktop-settings"
 desktop_build="$repo_root/product/target/release/bundle/macos/Snaploom.app"
 [[ -d "$desktop_build" ]] || { echo "Desktop app bundle was not created." >&2; exit 1; }
 desktop_app="$temporary_root/Snaploom.app"
