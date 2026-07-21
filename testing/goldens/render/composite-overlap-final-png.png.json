@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "golden": "composite-overlap-final-png.png",
+  "generator": {
+    "playwright": "1.61.1",
+    "browser": "chromium-headless-shell",
+    "revision": "1228"
+  },
+  "fixture": {
+    "name": "composite-overlap",
+    "sha256": "59d2179806d4b86b7d147e8e250964535c14a1562dbf54244cdcde2fd23a26a1"
+  },
+  "physicalSize": {
+    "width": 160,
+    "height": 96
+  },
+  "contracts": [
+    "QA-01",
+    "QA-02",
+    "ANN-01",
+    "IMG-01"
+  ]
+}

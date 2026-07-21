@@ -12,6 +12,7 @@
     "check:abi": "cargo build --manifest-path sdk/Cargo.toml -p snaploom-capture-c-abi --release --locked && node tools/architecture/check-abi-symbols.mjs",
     "check:contract-map": "node tools/testing/check-contract-map.mjs",
     "check:release": "node --test tools/release/*.test.mjs tools/performance/*.test.mjs tools/testing/*.test.mjs && pnpm run check:contract-map && node tools/release/check-release-version.mjs --version 0.1.0 && node tools/release/check-workflows.mjs",
+    "goldens:update": "pnpm --filter @snaploom/overlay-editor run goldens:update",
     "check": "pnpm run check:boundaries && pnpm run typecheck && pnpm run test && pnpm run build",
     "tauri:desktop": "tauri build --config product/apps/desktop/tauri.conf.json --no-bundle -- --package snaploom-desktop",
     "tauri:host": "tauri build --config product/apps/capture-host/tauri.conf.json --no-bundle -- --package snaploom-capture-host"

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "golden": "mosaic-final-png.png",
+  "generator": {
+    "playwright": "1.61.1",
+    "browser": "chromium-headless-shell",
+    "revision": "1228"
+  },
+  "fixture": {
+    "name": "mosaic",
+    "sha256": "5a8f3512d8efa445e04ab27fa5fd2e2cdb8b866ad681d90234664382dee6af5b"
+  },
+  "physicalSize": {
+    "width": 160,
+    "height": 96
+  },
+  "contracts": [
+    "QA-01",
+    "QA-02",
+    "ANN-01",
+    "IMG-01"
+  ]
+}

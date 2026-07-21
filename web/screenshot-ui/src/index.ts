@@ -34,7 +34,8 @@ export type ScreenshotToolbarAction =
 export const screenshotUiTheme = {
   borderWidth: 1,
   typography: {
-    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontFamily:
+      'Inter, "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   },
   colors: {
     brand: "#07C977",

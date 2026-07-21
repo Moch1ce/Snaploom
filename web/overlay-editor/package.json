@@ -8,13 +8,18 @@
     "dev": "vite --port 1421 --strictPort",
     "build": "vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run --exclude '**/*.visual.spec.ts'",
+    "test:visual": "playwright test --config playwright.visual.config.ts && node ../../tools/testing/write-render-golden-sidecars.mjs --check",
+    "goldens:update": "node ../../tools/testing/require-linux-golden-update.mjs && playwright test --config playwright.visual.config.ts --update-snapshots && node ../../tools/testing/write-render-golden-sidecars.mjs"
   },
   "dependencies": {
     "@snaploom/screenshot-ui": "workspace:*",
     "@tauri-apps/api": "2.11.1"
   },
   "devDependencies": {
+    "@fontsource/inter": "5.3.0",
+    "@fontsource/noto-sans-sc": "5.3.0",
+    "@playwright/test": "1.61.1",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

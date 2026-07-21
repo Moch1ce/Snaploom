@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "golden": "dpi-200-final-png.png",
+  "generator": {
+    "playwright": "1.61.1",
+    "browser": "chromium-headless-shell",
+    "revision": "1228"
+  },
+  "fixture": {
+    "name": "dpi-200",
+    "sha256": "f85e22ca4ba9dc810a63d38a31eef17ee0c26b580d544960d383c220184be499"
+  },
+  "physicalSize": {
+    "width": 160,
+    "height": 96
+  },
+  "contracts": [
+    "QA-01",
+    "QA-02",
+    "ANN-01",
+    "IMG-01"
+  ]
+}

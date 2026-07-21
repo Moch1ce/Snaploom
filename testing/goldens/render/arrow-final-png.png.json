@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "golden": "arrow-final-png.png",
+  "generator": {
+    "playwright": "1.61.1",
+    "browser": "chromium-headless-shell",
+    "revision": "1228"
+  },
+  "fixture": {
+    "name": "arrow",
+    "sha256": "8ffccd2a9a02d518b00d9993bf91b3c774b9eee0fa71d425ee3f5213d940d148"
+  },
+  "physicalSize": {
+    "width": 160,
+    "height": 96
+  },
+  "contracts": [
+    "QA-01",
+    "QA-02",
+    "ANN-01",
+    "IMG-01"
+  ]
+}

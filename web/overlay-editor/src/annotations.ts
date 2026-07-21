@@ -1453,7 +1453,7 @@ export function renderAnnotations(
       renderMosaic(context, object, options);
     } else {
       const layout = layoutTextAnnotation(object, options.scale);
-      context.font = `${layout.fontSizePhysical}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      context.font = `${layout.fontSizePhysical}px ${screenshotUiTheme.typography.fontFamily}`;
       context.textBaseline = "top";
       for (let index = 0; index < layout.lines.length; index += 1) {
         context.fillText(

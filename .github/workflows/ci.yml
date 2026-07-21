@@ -71,6 +71,44 @@ jobs:
           node tools/compliance/generate-rust-notice.mjs Cargo.toml "${{ runner.temp }}/binding-generator-rust-notice.txt"
           node tools/compliance/generate-rust-notice.mjs product/Cargo.toml "${{ runner.temp }}/product-rust-notice.txt"
 
+  web-contracts:
+    name: Pinned Chromium render goldens
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.12.0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.17.0
+          run_install: false
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install pinned headless Chromium
+        run: pnpm --filter @snaploom/overlay-editor exec playwright install --with-deps --only-shell chromium
+
+      - name: Compare final PNG pixels with committed goldens
+        run: pnpm --filter @snaploom/overlay-editor run test:visual
+
+      - name: Upload visual diffs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: render-golden-diffs
+          path: web/overlay-editor/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
   verify:
     name: ${{ matrix.name }}
     strategy:
@@ -404,6 +442,7 @@ jobs:
     name: Atomic release contract
     needs:
       - supply-chain
+      - web-contracts
       - verify
       - dotnet-package
       - dotnet-consumer

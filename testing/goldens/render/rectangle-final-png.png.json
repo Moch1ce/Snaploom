@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "golden": "rectangle-final-png.png",
+  "generator": {
+    "playwright": "1.61.1",
+    "browser": "chromium-headless-shell",
+    "revision": "1228"
+  },
+  "fixture": {
+    "name": "rectangle",
+    "sha256": "229de225682fe807bdbaf4493dd42b8a6d649afca8b9217d4881cb36a267164d"
+  },
+  "physicalSize": {
+    "width": 160,
+    "height": 96
+  },
+  "contracts": [
+    "QA-01",
+    "QA-02",
+    "ANN-01",
+    "IMG-01"
+  ]
+}

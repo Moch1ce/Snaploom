@@ -33,6 +33,17 @@ if (
   );
 }
 if (
+  !pullRequestCi.includes("web-contracts:") ||
+  !pullRequestCi.includes(
+    "playwright install --with-deps --only-shell chromium",
+  ) ||
+  !pullRequestCi.includes("- web-contracts")
+) {
+  throw new Error(
+    "branch CI must gate the atomic release contract on pinned Chromium render goldens",
+  );
+}
+if (
   !legalRc.includes("draft:true") ||
   !legalRc.includes("Stable publish remains blocked by Issue #33") ||
   !legalRc.includes("environment: release-signing") ||

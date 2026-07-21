@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "golden": "text-final-png.png",
+  "generator": {
+    "playwright": "1.61.1",
+    "browser": "chromium-headless-shell",
+    "revision": "1228"
+  },
+  "fixture": {
+    "name": "text",
+    "sha256": "c7467b6ebeccaa17200dfa8f64f6607e0a71bf0d60ddc2cb8691f658181b970c"
+  },
+  "physicalSize": {
+    "width": 160,
+    "height": 96
+  },
+  "contracts": [
+    "QA-01",
+    "QA-02",
+    "ANN-01",
+    "IMG-01"
+  ]
+}
