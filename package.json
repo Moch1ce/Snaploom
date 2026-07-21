@@ -9,6 +9,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "check:boundaries": "node tools/architecture/check-boundaries.mjs",
+    "check:abi": "cargo build --manifest-path sdk/Cargo.toml -p snaploom-capture-c-abi --release --locked && node tools/architecture/check-abi-symbols.mjs",
     "check": "pnpm run check:boundaries && pnpm run typecheck && pnpm run test && pnpm run build",
     "tauri:desktop": "tauri build --config product/apps/desktop/tauri.conf.json --no-bundle -- --package snaploom-desktop",
     "tauri:host": "tauri build --config product/apps/capture-host/tauri.conf.json --no-bundle -- --package snaploom-capture-host"

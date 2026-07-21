@@ -8,10 +8,16 @@ const checked = [];
 
 async function walk(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (entry.name === "target") {
+      continue;
+    }
     const path = join(directory, entry.name);
     if (entry.isDirectory()) {
       await walk(path);
-    } else if (entry.name === "Cargo.toml" || entry.name.endsWith(".rs")) {
+    } else if (
+      entry.name === "Cargo.toml" ||
+      /\.(rs|h|hpp|c|cpp|proto|cs|swift|ts|js|json)$/.test(entry.name)
+    ) {
       checked.push(path);
     }
   }

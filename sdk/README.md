@@ -11,3 +11,13 @@
 - SDK 的公开 ABI、错误码与 wire schema 变更必须有兼容性测试。
 
 详细边界见 [`docs/adr/0001-open-source-license-boundaries.md`](../docs/adr/0001-open-source-license-boundaries.md)。
+
+## v1 Capture SDK 基础
+
+- `protocol/`：使用 vendored `protoc` 生成的 protobuf v1 schema、12-byte 有界帧和 PNG 聚合校验。
+- `client/`：每 client 串行 callback executor、恰好一次终态、幂等取消与有界交互超时。
+- `c-abi/` 与 `include/snaploom_capture.h`：固定结构布局和恰好 7 个导出符号的 C ABI。
+- `testkit/fake-host/`：从 C 入口贯通 callback/free 的可脚本化 Apache-2.0 测试替身。
+
+在仓库根目录执行 `pnpm run check:abi` 会构建 release 动态库并将导出表与
+`c-abi/abi-symbols-v1.txt` 的冻结 allowlist 比较。

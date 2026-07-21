@@ -1,0 +1,7 @@
+snaploom_capture_cancel_v1
+snaploom_capture_client_create_v1
+snaploom_capture_client_destroy_v1
+snaploom_capture_completion_free_v1
+snaploom_capture_error_name_v1
+snaploom_capture_start_v1
+snaploom_capture_version_v1

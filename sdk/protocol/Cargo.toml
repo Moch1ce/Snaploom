@@ -8,4 +8,10 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+prost.workspace = true
 serde.workspace = true
+zeroize.workspace = true
+
+[build-dependencies]
+prost-build = "0.14.4"
+protoc-bin-vendored = "3.2.0"
