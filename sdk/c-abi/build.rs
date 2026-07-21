@@ -5,6 +5,7 @@ fn main() {
         .file("tests/c_harness.c")
         .include("../include")
         .define("SNAPLOOM_CAPTURE_BUILD", None)
+        .std("c11")
         .warnings(true)
         .compile("snaploom_capture_c_harness");
 }
