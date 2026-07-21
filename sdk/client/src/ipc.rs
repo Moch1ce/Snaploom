@@ -218,12 +218,20 @@ impl IpcDriver {
     }
 
     fn connect_or_launch(&self, paths: &EndpointPaths) -> Result<LocalStream, StableError> {
-        match connect_authenticated(paths) {
-            Ok(stream) => return Ok(stream),
-            Err(TransportSecurityError::Io(
-                std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused,
-            )) => {}
-            Err(error) => return Err(map_transport_error(error)),
+        let connect_deadline = Instant::now() + self.config.handshake_timeout;
+        loop {
+            match connect_authenticated(paths) {
+                Ok(stream) => return Ok(stream),
+                Err(TransportSecurityError::Io(
+                    std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused,
+                )) => break,
+                Err(TransportSecurityError::Io(kind))
+                    if transient_connect_error(kind) && Instant::now() < connect_deadline =>
+                {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => return Err(map_transport_error(error)),
+            }
         }
         let executable = self
             .config
@@ -247,6 +255,16 @@ impl IpcDriver {
             }
         }
     }
+}
+
+fn transient_connect_error(kind: std::io::ErrorKind) -> bool {
+    matches!(
+        kind,
+        std::io::ErrorKind::WouldBlock
+            | std::io::ErrorKind::TimedOut
+            | std::io::ErrorKind::ResourceBusy
+            | std::io::ErrorKind::Interrupted
+    )
 }
 
 impl CaptureDriver for IpcDriver {

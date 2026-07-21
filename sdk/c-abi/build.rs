@@ -8,7 +8,7 @@ fn main() {
         .define("SNAPLOOM_CAPTURE_BUILD", None)
         .std("c11")
         .warnings(true);
-    if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+    if build.get_compiler().is_like_msvc() {
         build.flag("/experimental:c11atomics");
     }
     build.compile("snaploom_capture_c_harness");

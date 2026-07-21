@@ -54,17 +54,20 @@ fn windows_pipe_elects_one_leader_rejects_remote_and_authenticates_peer_tokens()
     let LeaderOutcome::Leader(mut leader) = UnixLeader::try_bind(&paths).unwrap() else {
         panic!("leader must be available after all child processes exit");
     };
-    let client_paths = paths.clone();
-    let client = thread::spawn(move || connect_authenticated(&client_paths).unwrap());
-    let server_stream = loop {
-        match leader.accept_authenticated() {
-            Ok(stream) => break stream,
-            Err(TransportSecurityError::Io(std::io::ErrorKind::WouldBlock)) => {
-                thread::sleep(Duration::from_millis(1));
+    for _ in 0..16 {
+        let client_paths = paths.clone();
+        let client = thread::spawn(move || connect_authenticated(&client_paths).unwrap());
+        let server_stream = loop {
+            match leader.accept_authenticated() {
+                Ok(stream) => break stream,
+                Err(TransportSecurityError::Io(std::io::ErrorKind::WouldBlock)) => {
+                    thread::sleep(Duration::from_millis(1));
+                }
+                Err(error) => panic!("pipe accept failed: {error:?}"),
             }
-            Err(error) => panic!("pipe accept failed: {error:?}"),
-        }
-    };
-    let client_stream = client.join().unwrap();
-    drop((server_stream, client_stream, leader));
+        };
+        let client_stream = client.join().unwrap();
+        drop((server_stream, client_stream));
+    }
+    drop(leader);
 }

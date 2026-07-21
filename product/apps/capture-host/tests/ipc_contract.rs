@@ -77,7 +77,7 @@ fn client(paths: &EndpointPaths, origin: CaptureOrigin) -> CaptureClient {
 }
 
 #[test]
-fn real_uds_routes_app_and_sdk_through_one_gate_with_busy_cancel_and_completion() {
+fn real_local_transport_routes_app_and_sdk_through_one_gate() {
     let (_base, paths) = test_paths();
     let (entered_sender, entered_receiver) = mpsc::sync_channel(1);
     let backend = Arc::new(ScriptedBackend {
@@ -130,15 +130,19 @@ fn real_uds_routes_app_and_sdk_through_one_gate_with_busy_cancel_and_completion(
             completed_sender.send(terminal).unwrap();
         })
         .unwrap();
-    assert!(matches!(
-        completed_receiver
-            .recv_timeout(Duration::from_secs(2))
-            .unwrap(),
-        Terminal::Completed {
-            clipboard_written: true,
-            ..
-        }
-    ));
+    let completed = completed_receiver
+        .recv_timeout(Duration::from_secs(2))
+        .unwrap();
+    assert!(
+        matches!(
+            completed,
+            Terminal::Completed {
+                clipboard_written: true,
+                ..
+            }
+        ),
+        "unexpected terminal after local transport reconnect: {completed:?}"
+    );
     next_client.close().unwrap();
     assert_eq!(server.gate().snapshot(), GateSnapshot::Idle);
 

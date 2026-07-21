@@ -143,7 +143,11 @@ fn ensure_private_directory(paths: &EndpointPaths) -> Result<(), TransportSecuri
         Ok(_) => verify_private_directory(paths),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             let mut builder = fs::DirBuilder::new();
-            builder.mode(0o700).create(&paths.directory)?;
+            match builder.mode(0o700).create(&paths.directory) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                Err(error) => return Err(error.into()),
+            }
             verify_private_directory(paths)
         }
         Err(error) => Err(error.into()),
