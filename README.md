@@ -1,5 +1,7 @@
 # Snaploom
 
+> 当前仓库正在按 [Spec #34](https://github.com/moch1ce/Snaploom/issues/34) 从 .NET/Avalonia 迁移到 Tauri 2、Rust 与 TypeScript/Canvas。迁移前的最后可运行实现冻结于 `dotnet-final`；完成冻结前，本节中的 .NET 命令仍是当前树的开发入口。
+
 Snaploom 是一款面向 Windows 和 macOS 的轻量桌面截图与标注工具。
 
 v1 聚焦窗口吸附、矩形框选、矩形、箭头、文字、马赛克、复制和 PNG 保存，使用 .NET 10 与 Avalonia 构建。
@@ -70,3 +72,7 @@ pwsh -File scripts/build-windows-installer.ps1 -Version 1.0.0
 维护者推送 `vX.Y.Z` 标签后，测试版发布流水线会在 Windows x64 和 Apple Silicon runner 上重新执行完整测试，生成未签名 EXE、ad hoc DMG、对应 SHA256，并在全部验证成功后发布 GitHub prerelease。发布门槛、失败恢复和未来 Developer ID 升级步骤见 [`docs/distribution/test-release-process.md`](docs/distribution/test-release-process.md)。
 
 依赖许可证审计见 [`docs/licenses/dependency-licenses.md`](docs/licenses/dependency-licenses.md)。
+
+## 许可证与贡献
+
+产品、Capture Host 与截图实现使用 `GPL-3.0-or-later`；公开 Capture SDK 与示例使用 `Apache-2.0`。机器可读的文件归属以 [`REUSE.toml`](REUSE.toml) 为准，详情见 [`LICENSE.md`](LICENSE.md)。贡献者需遵守 [`CONTRIBUTING.md`](CONTRIBUTING.md) 并以 DCO 1.1 签署每个 commit。

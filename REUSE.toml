@@ -1,0 +1,16 @@
+version = 1
+SPDX-PackageName = "Snaploom"
+SPDX-PackageSupplier = "Snaploom contributors"
+SPDX-PackageDownloadLocation = "https://github.com/moch1ce/Snaploom"
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Snaploom contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = ["sdk/**", "examples/sdk/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Snaploom contributors"
+SPDX-License-Identifier = "Apache-2.0"
