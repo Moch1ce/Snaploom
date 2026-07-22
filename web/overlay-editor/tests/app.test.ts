@@ -4,6 +4,7 @@ import {
   OverlayEditorModel,
   bgraToRgba,
   cropRgba,
+  scheduleOverlayReady,
   selectionHandles,
   validateSnapshot,
 } from "../src/app";
@@ -23,6 +24,18 @@ const snapshot = {
 } as const;
 
 describe("OverlayEditor physical selection contract", () => {
+  it("reports readiness without waiting for a visible animation frame", async () => {
+    let ready = false;
+
+    scheduleOverlayReady(() => {
+      ready = true;
+    });
+
+    expect(ready).toBe(false);
+    await Promise.resolve();
+    expect(ready).toBe(true);
+  });
+
   it("validates bounded binary without using a data URL", () => {
     expect(validateSnapshot(snapshot, snapshot.stride * snapshot.physicalSize.height)).toEqual({
       scaleX: 1.25,

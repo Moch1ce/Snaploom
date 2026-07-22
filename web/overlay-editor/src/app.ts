@@ -544,6 +544,10 @@ export interface OverlayEditorOptions {
   readonly onAnnotationStateChange?: (state: AnnotationState) => void;
 }
 
+export function scheduleOverlayReady(callback: () => void): void {
+  queueMicrotask(callback);
+}
+
 export class OverlayEditor {
   readonly #snapshot: CaptureSnapshot;
   readonly #elements: OverlayEditorElements;
@@ -610,10 +614,8 @@ export class OverlayEditor {
     elements.canvas.dataset.scaleX = String(scale.scaleX);
     elements.canvas.dataset.scaleY = String(scale.scaleY);
     this.render();
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (!this.#disposed) this.#options.onReady?.();
-      });
+    scheduleOverlayReady(() => {
+      if (!this.#disposed) this.#options.onReady?.();
     });
   }
 
