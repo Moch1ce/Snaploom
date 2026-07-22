@@ -10,12 +10,13 @@ param(
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$Version,
 
-    [ValidateSet('candidate-unsigned', 'stable-signed')]
+    [ValidateSet('candidate-unsigned', 'stable-unsigned', 'stable-signed')]
     [string]$ExpectedSigning = 'candidate-unsigned'
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+$expectsSigned = $ExpectedSigning -eq 'stable-signed'
 
 $metadataPath = Join-Path $Directory 'windows-package-metadata.json'
 $metadata = Get-Content $metadataPath -Raw | ConvertFrom-Json
@@ -63,10 +64,12 @@ try {
         throw 'Standalone Host differs from the installer staging binary.'
     }
 
-    if ($ExpectedSigning -eq 'candidate-unsigned') {
+    if (-not $expectsSigned) {
         if ((Get-AuthenticodeSignature $installer).Status -ne 'NotSigned' -or
-            (Get-AuthenticodeSignature $standaloneHost.FullName).Status -ne 'NotSigned') {
-            throw 'Unsigned candidate unexpectedly contains Authenticode.'
+            (Get-AuthenticodeSignature $standaloneHost.FullName).Status -ne 'NotSigned' -or
+            $metadata.authenticodeVerified -or $metadata.rfc3161TimestampVerified -or
+            -not $metadata.unknownPublisherWarning) {
+            throw 'Unsigned Windows package does not disclose its unknown-publisher status.'
         }
     }
     else {

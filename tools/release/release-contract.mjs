@@ -3,6 +3,8 @@
 
 export const RELEASE_SCHEMA_VERSION = 1;
 export const MAX_INSTALLER_BYTES = 50_000_000;
+export const WINDOWS_UNSIGNED_RISK_LANGUAGE =
+  "Windows executables and DLLs are unsigned and may show Unknown publisher or Microsoft Defender SmartScreen warnings; verify SHA256SUMS and GitHub attestations before running them.";
 
 export function assertVersion(version) {
   if (!/^\d+\.\d+\.\d+$/.test(version)) {
@@ -118,6 +120,7 @@ export function candidateSigningEvidence() {
       mode: "unsigned",
       authenticodeVerified: false,
       rfc3161TimestampVerified: false,
+      unknownPublisherWarning: true,
     },
     macos: {
       mode: "adhoc",
@@ -137,6 +140,7 @@ export function validateSigningEvidence(mode, signing) {
     if (
       signing.windows?.mode !== "unsigned" ||
       signing.windows?.authenticodeVerified !== false ||
+      signing.windows?.unknownPublisherWarning !== true ||
       signing.macos?.mode !== "adhoc" ||
       signing.macos?.notarizationStatus !== "not-submitted"
     ) {
@@ -144,21 +148,17 @@ export function validateSigningEvidence(mode, signing) {
     }
     return;
   }
-  if (mode !== "stable-signed") {
+  if (mode !== "stable-release") {
     throw new Error(`unsupported release mode: ${mode}`);
   }
   if (
-    signing.windows?.mode !== "authenticode" ||
-    signing.windows?.authenticodeVerified !== true ||
-    signing.windows?.rfc3161TimestampVerified !== true ||
-    typeof signing.windows?.certificateThumbprint !== "string" ||
-    signing.windows.certificateThumbprint.length < 16 ||
-    signing.windows?.additionalSignedBinaries?.length !== 1 ||
-    signing.windows.additionalSignedBinaries[0]?.name !== "snaploom_capture.dll" ||
-    !/^[0-9a-f]{64}$/.test(signing.windows.additionalSignedBinaries[0]?.sha256 ?? "")
+    signing.windows?.mode !== "unsigned" ||
+    signing.windows?.authenticodeVerified !== false ||
+    signing.windows?.rfc3161TimestampVerified !== false ||
+    signing.windows?.unknownPublisherWarning !== true
   ) {
     throw new Error(
-      "stable Windows product and SDK assets require verified Authenticode and RFC3161 evidence",
+      "stable Windows assets must be explicitly unsigned with unknown-publisher risk disclosure",
     );
   }
   if (

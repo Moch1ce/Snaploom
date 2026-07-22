@@ -102,6 +102,19 @@ test("release qualification uses GitHub-hosted platform gates without custom run
   assert.doesNotMatch(legalRcWorkflow, /true-machine/i);
 });
 
+test("legal RC publishes explicitly unsigned Windows assets without certificate access", () => {
+  assert.match(legalRcWorkflow, /name: Unsigned Windows products and SDK/);
+  assert.match(legalRcWorkflow, /-SigningMode stable-unsigned/);
+  assert.match(legalRcWorkflow, /-ExpectedSigning stable-unsigned/);
+  assert.match(legalRcWorkflow, /--mode stable-release/);
+  assert.doesNotMatch(
+    legalRcWorkflow,
+    /WINDOWS_SIGNING_|WINDOWS_RFC3161|Authenticode|signtool|Get-AuthenticodeSignature/,
+  );
+  assert.equal((legalRcWorkflow.match(/environment: release-signing/g) ?? []).length, 1);
+  assert.match(legalRcWorkflow, /name: Developer ID and notarized macOS products/);
+});
+
 test("stable publish mutation policy accepts an equivalent CRLF checkout", () => {
   assert.doesNotThrow(() => checkStablePublishMutationPolicy(asCrlf(workflow)));
 });

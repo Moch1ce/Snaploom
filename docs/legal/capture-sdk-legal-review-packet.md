@@ -89,7 +89,7 @@ GPL Desktop/Host -> Apache protocol <- GPL capture/session/platform/UI
 - 不可变 `vX.Y.Z` tag 与可重建的 corresponding-source archive。
 - Cargo/pnpm/Swift/.NET 的精确锁定文件或恢复输入。
 - `.proto`、C header、Windows bindings 生成输入与生成脚本。
-- Tauri/Rust/TypeScript 构建、Windows installer、macOS DMG、签名/公证和验证脚本。
+- Tauri/Rust/TypeScript 构建、Windows unsigned installer、macOS DMG、签名/公证和验证脚本。
 - GPL-3.0-or-later 和 Apache-2.0 完整文本、文件级 SPDX/REUSE 映射、准确 NOTICE 与第三方声明。
 - 按实际产物分开的 SBOM，以及锁文件、SBOM、NOTICE 和解包内容的交叉检查。
 - 用于构建和运行修改版的说明。证书私钥不需要提供，但不得因二进制被修改而在产品协议中禁止其正常本地使用。
@@ -140,14 +140,14 @@ cyclonedx validate --input-file <sbom.cdx.json>
 | --- | --- | --- |
 | C ABI/IPC 事实 | 已决策 | 实现后对照 binary/schema 复核 |
 | SDK wrapper/package 事实 | 已决策 | 实现后解包复核 |
-| 安装/发现/更新事实 | 自动化已实现，待签名实物 | 运行签名法律 RC workflow 并核对最终 installer/DMG |
+| 安装/发现/更新事实 | 自动化已实现，待最终实物 | 运行稳定 RC workflow 并核对最终 installer/DMG |
 | Corresponding Source/NOTICE/SBOM | 自动化已实现，待签名实物 | 同一 RC workflow 原子汇总、重下载复验通过 |
 | 闭源宿主集成走查 | 自动化已实现，待签名实物 | 法律 RC 对最终 C/C++/C#/Swift 包逐项执行 package-only consumer |
 | 所有者风险接受 | **阻塞** | 第 9 节完整填写并绑定最终 draft/checksum |
 | 稳定 SDK publish | **禁止** | 上述全部通过；没有 bypass input |
 
-签名法律 RC 的生成、GitHub draft 重下载和复核包字段见
-[签名法律 RC draft 流程](../distribution/legal-rc-process.md)。该自动化不会填写本节，也没有 stable
+稳定 RC 的生成、GitHub draft 重下载和复核包字段见
+[稳定 RC draft 流程](../distribution/legal-rc-process.md)。该自动化不会填写本节，也没有 stable
 publish 权限。所有者风险接受记录完成后，只能由
 [受保护的稳定 Release 公开入口](../distribution/stable-release-process.md) 重新验证同一 draft 并执行一次
 不可变转换。

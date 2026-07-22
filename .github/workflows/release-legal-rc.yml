@@ -1,4 +1,4 @@
-name: Signed legal RC draft
+name: Stable release candidate draft
 
 on:
   workflow_dispatch:
@@ -21,7 +21,7 @@ on:
         type: string
 
 concurrency:
-  group: signed-legal-rc-${{ inputs.version }}-${{ inputs.commit }}
+  group: stable-release-candidate-${{ inputs.version }}-${{ inputs.commit }}
   cancel-in-progress: false
 
 permissions:
@@ -116,12 +116,11 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  windows-sign:
-    name: Authenticode products and Windows SDK
+  windows-build:
+    name: Unsigned Windows products and SDK
     needs: validate
     runs-on: windows-2025
     timeout-minutes: 45
-    environment: release-signing
     permissions:
       contents: read
 
@@ -158,22 +157,11 @@ jobs:
         shell: pwsh
         run: choco upgrade innosetup --version=6.7.1 --allow-downgrade --yes --no-progress
 
-      - name: Build, Authenticode-sign, timestamp, and verify Windows assets
+      - name: Build and verify explicitly unsigned Windows assets
         shell: pwsh
         env:
-          WINDOWS_SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
-          WINDOWS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
-          WINDOWS_RFC3161_TIMESTAMP_URL: ${{ secrets.WINDOWS_RFC3161_TIMESTAMP_URL }}
           VERSION: ${{ inputs.version }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERTIFICATE_BASE64)) {
-              throw 'WINDOWS_SIGNING_CERTIFICATE_BASE64 is required in release-signing.'
-          }
-          $certificate = Join-Path $env:RUNNER_TEMP 'snaploom-signing.pfx'
-          [System.IO.File]::WriteAllBytes(
-              $certificate,
-              [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERTIFICATE_BASE64))
-          $env:WINDOWS_SIGNING_CERTIFICATE_PATH = $certificate
           $env:RUSTFLAGS = "--remap-path-prefix=$env:GITHUB_WORKSPACE=."
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
           $vsInstall = (& $vswhere -latest -products * `
@@ -194,23 +182,17 @@ jobs:
           }
           Set-Content (Join-Path $env:RUNNER_TEMP 'windows-sdk-version.txt') `
             $selectedWindowsSdk -NoNewline
-          $signTool = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe'
-          if (-not (Test-Path $signTool -PathType Leaf)) { throw 'Pinned Windows SDK 10.0.26100.0 is unavailable.' }
           cargo build --manifest-path sdk/Cargo.toml --package snaploom-capture-c-abi --release --locked
           & ./scripts/build-windows-packages.ps1 `
             -Version $env:VERSION `
-            -SigningMode stable-signed `
-            -SignTool $signTool `
+            -SigningMode stable-unsigned `
             -CaptureSdkDllPath 'sdk/target/release/snaploom_capture.dll' `
-            *>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/windows-signing.log"
+            *>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/windows-validation.log"
           & ./tests/packaging/verify-windows-packages.ps1 `
             -Directory ./artifacts/release/windows-x64 `
             -Version $env:VERSION `
-            -ExpectedSigning stable-signed `
-            *>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/windows-signing.log" -Append
-          if ((Get-AuthenticodeSignature ./sdk/target/release/snaploom_capture.dll).Status -ne 'Valid') {
-              throw 'Windows Capture SDK DLL does not have a valid Authenticode signature.'
-          }
+            -ExpectedSigning stable-unsigned `
+            *>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/windows-validation.log" -Append
           $dumpbin = (node --input-type=module --eval `
             "import { findDumpbin } from './tools/sdk/windows-tools.mjs'; console.log(findDumpbin());").Trim()
           & $dumpbin /exports ./sdk/target/release/snaploom_capture.dll `
@@ -219,8 +201,6 @@ jobs:
           & $dumpbin /dependents ./sdk/target/release/snaploom_capture.dll `
             *>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/windows-binary-inspection.log" -Append
           if ($LASTEXITCODE -ne 0) { throw 'dumpbin /dependents failed.' }
-          Get-AuthenticodeSignature ./sdk/target/release/snaploom_capture.dll | `
-            Format-List * | Out-File "$env:RUNNER_TEMP/windows-binary-inspection.log" -Append -Encoding utf8
           $archive = node tools/sdk/package-c-sdk.mjs `
             --platform windows-x64 --version $env:VERSION `
             --output "$env:RUNNER_TEMP/snaploom-windows-c-sdk"
@@ -246,28 +226,22 @@ jobs:
               rustc = (rustc --version)
               cargo = (cargo --version)
               windowsSdk = (Get-Content (Join-Path $env:RUNNER_TEMP 'windows-sdk-version.txt') -Raw)
-              signTool = (Get-Item (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe')).VersionInfo.FileVersion
           }
           [System.IO.File]::WriteAllText(
               (Join-Path $env:RUNNER_TEMP 'windows-builder.json'),
               (($record | ConvertTo-Json) + "`n"),
               [System.Text.UTF8Encoding]::new($false))
 
-      - name: Remove the ephemeral signing certificate
-        if: always()
-        shell: pwsh
-        run: Remove-Item (Join-Path $env:RUNNER_TEMP 'snaploom-signing.pfx') -Force -ErrorAction SilentlyContinue
-
-      - name: Upload verified signed Windows assets
+      - name: Upload verified unsigned Windows assets
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: legal-rc-windows-signed
+          name: legal-rc-windows-platform
           path: |
             artifacts/release/windows-x64/*
             ${{ runner.temp }}/snaploom-windows-c-sdk/*
             ${{ runner.temp }}/snaploom-windows-native/snaploom_capture.dll
             ${{ runner.temp }}/windows-builder.json
-            ${{ runner.temp }}/windows-signing.log
+            ${{ runner.temp }}/windows-validation.log
             ${{ runner.temp }}/windows-c-cpp-consumer.log
             ${{ runner.temp }}/windows-binary-inspection.log
           if-no-files-found: error
@@ -425,7 +399,7 @@ jobs:
       - name: Upload verified signed macOS and SDK assets
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: legal-rc-macos-signed
+          name: legal-rc-macos-platform
           path: |
             artifacts/release/macos-arm64/*
             ${{ runner.temp }}/snaploom-macos-c-sdk/*
@@ -441,9 +415,9 @@ jobs:
           compression-level: 0
 
   dotnet-package:
-    name: Package signed dual-RID NuGet
+    name: Package dual-RID NuGet
     needs:
-      - windows-sign
+      - windows-build
       - macos-sign-notary
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -468,19 +442,19 @@ jobs:
         with:
           dotnet-version: 8.0.423
 
-      - name: Download signed native assets
+      - name: Download verified native assets
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          pattern: legal-rc-*-signed
-          path: ${{ runner.temp }}/signed-input
+          pattern: legal-rc-*-platform
+          path: ${{ runner.temp }}/platform-input
 
-      - name: Pack and verify NuGet from the signed Windows DLL
+      - name: Pack and verify NuGet from the exact platform libraries
         shell: bash
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          windows_native="$(find "${RUNNER_TEMP}/signed-input" -name snaploom_capture.dll -type f -print -quit)"
-          macos_native="$(find "${RUNNER_TEMP}/signed-input" -name libsnaploom_capture.dylib -type f -print -quit)"
+          windows_native="$(find "${RUNNER_TEMP}/platform-input" -name snaploom_capture.dll -type f -print -quit)"
+          macos_native="$(find "${RUNNER_TEMP}/platform-input" -name libsnaploom_capture.dylib -type f -print -quit)"
           test -n "${windows_native}"
           test -n "${macos_native}"
           dotnet restore sdk/dotnet/src/Snaploom.Capture/Snaploom.Capture.csproj --locked-mode
@@ -509,7 +483,7 @@ jobs:
             '{imageOS:$imageOS,imageVersion:$imageVersion,runnerArchitecture:$runnerArchitecture,node:$node,dotnet:$dotnet}' \
             > "${RUNNER_TEMP}/dotnet-builder.json"
 
-      - name: Upload signed dual-RID NuGet
+      - name: Upload dual-RID NuGet
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: legal-rc-nuget
@@ -523,7 +497,7 @@ jobs:
           compression-level: 0
 
   dotnet-consumer:
-    name: .NET signed consumer (${{ matrix.platform }}, ${{ matrix.framework }})
+    name: .NET final consumer (${{ matrix.platform }}, ${{ matrix.framework }})
     needs: dotnet-package
     strategy:
       fail-fast: false
@@ -568,7 +542,7 @@ jobs:
         with:
           dotnet-version: ${{ matrix.dotnet_version }}
 
-      - name: Download final signed NuGet package
+      - name: Download final NuGet package
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: legal-rc-nuget
@@ -587,7 +561,7 @@ jobs:
             --sdk-version '${{ steps.setup-dotnet.outputs.dotnet-version }}' 2>&1 | \
             tee "${RUNNER_TEMP}/dotnet-${{ matrix.platform }}-${{ matrix.framework }}-consumer.log"
 
-      - name: Upload final signed consumer evidence
+      - name: Upload final consumer evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: legal-rc-dotnet-consumer-${{ matrix.platform }}-${{ matrix.framework }}
@@ -596,10 +570,10 @@ jobs:
           retention-days: 30
 
   assemble:
-    name: Assemble exact stable-signed asset set
+    name: Assemble exact stable release asset set
     needs:
       - validate
-      - windows-sign
+      - windows-build
       - macos-sign-notary
       - dotnet-package
       - dotnet-consumer
@@ -626,7 +600,7 @@ jobs:
         with:
           python-version: "3.13.14"
 
-      - name: Download all signed platform and SDK assets
+      - name: Download all platform and SDK assets
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: legal-rc-*
@@ -654,7 +628,7 @@ jobs:
           node tools/release/generate-release-materials.mjs \
             --directory "${RUNNER_TEMP}/release-payloads" --version "${VERSION}"
 
-      - name: Assemble and verify stable signing evidence and exact files
+      - name: Assemble and verify platform trust evidence and exact files
         shell: bash
         env:
           VERSION: ${{ inputs.version }}
@@ -672,7 +646,7 @@ jobs:
             --payloads "${RUNNER_TEMP}/release-payloads" \
             --output "${RUNNER_TEMP}/release-assets" \
             --version "${VERSION}" --tag "v${VERSION}" --commit "${COMMIT}" \
-            --mode stable-signed --run-id "${GITHUB_RUN_ID}" \
+            --mode stable-release --run-id "${GITHUB_RUN_ID}" \
             --signing-evidence "${RUNNER_TEMP}/signing-evidence.json"
           node tools/release/verify-release.mjs \
             --directory "${RUNNER_TEMP}/release-assets" --version "${VERSION}"
@@ -698,11 +672,11 @@ jobs:
           for log in "${consumer_logs[@]}"; do
             cp "${log}" "${RUNNER_TEMP}/legal-rc-stage/platform/consumer-logs/$(basename "${log}")"
           done
-          windows_signing_log="$(find "${RUNNER_TEMP}/legal-rc-input" -name windows-signing.log -type f -print -quit)"
+          windows_validation_log="$(find "${RUNNER_TEMP}/legal-rc-input" -name windows-validation.log -type f -print -quit)"
           macos_signing_log="$(find "${RUNNER_TEMP}/legal-rc-input" -name macos-signing.log -type f -print -quit)"
-          test -n "${windows_signing_log}"
+          test -n "${windows_validation_log}"
           test -n "${macos_signing_log}"
-          cp "${windows_signing_log}" "${RUNNER_TEMP}/legal-rc-stage/platform/windows-signing.log"
+          cp "${windows_validation_log}" "${RUNNER_TEMP}/legal-rc-stage/platform/windows-validation.log"
           cp "${macos_signing_log}" "${RUNNER_TEMP}/legal-rc-stage/platform/macos-signing.log"
           windows_inspection_log="$(find "${RUNNER_TEMP}/legal-rc-input" -name windows-binary-inspection.log -type f -print -quit)"
           macos_inspection_log="$(find "${RUNNER_TEMP}/legal-rc-input" -name macos-binary-inspection.log -type f -print -quit)"
@@ -716,17 +690,17 @@ jobs:
           cp -R "${RUNNER_TEMP}/legal-rc-input/legal-rc-validated-identity/." \
             "${RUNNER_TEMP}/legal-rc-stage/identity/"
 
-      - name: Upload exact stable-signed staging set
+      - name: Upload exact stable release staging set
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: legal-rc-stable-signed-stage
+          name: legal-rc-stable-release-stage
           path: ${{ runner.temp }}/legal-rc-stage
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
 
   attest:
-    name: Attest stable-signed payload provenance and SBOM
+    name: Attest stable release payload provenance and SBOM
     needs: assemble
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -736,10 +710,10 @@ jobs:
       id-token: write
 
     steps:
-      - name: Download exact stable-signed staging set
+      - name: Download exact stable release staging set
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: legal-rc-stable-signed-stage
+          name: legal-rc-stable-release-stage
           path: ${{ runner.temp }}/legal-rc-stage
 
       - name: Attest final release file provenance
@@ -777,13 +751,13 @@ jobs:
         with:
           node-version: 22.12.0
 
-      - name: Download exact stable-signed staging set
+      - name: Download exact stable release staging set
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: legal-rc-stable-signed-stage
+          name: legal-rc-stable-release-stage
           path: ${{ runner.temp }}/legal-rc-stage
 
-      - name: Preserve final signed consumer and attestation evidence
+      - name: Preserve final consumer and attestation evidence
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -813,7 +787,7 @@ jobs:
           jq -n \
             --arg tag "v${VERSION}" --arg commit "${COMMIT}" \
             --arg name "Snaploom ${VERSION}" \
-            --arg body "Snaploom ${VERSION} provides GPL-3.0-or-later Desktop and Capture Host assets plus separately licensed Apache-2.0 Capture SDK assets. The Apache Capture SDK communicates with a separately distributed GPL-3.0-or-later Capture Host; IPC does not automatically eliminate GPL compliance obligations. Install or provide the Capture Host separately and review the included license, NOTICE, SBOM, source, and integration-risk materials before redistribution." \
+                --arg body "Snaploom ${VERSION} provides GPL-3.0-or-later Desktop and Capture Host assets plus separately licensed Apache-2.0 Capture SDK assets. The Apache Capture SDK communicates with a separately distributed GPL-3.0-or-later Capture Host; IPC does not automatically eliminate GPL compliance obligations. Windows executables and DLLs are unsigned and may show Unknown publisher or Microsoft Defender SmartScreen warnings; verify SHA256SUMS and GitHub attestations before running them. Install or provide the Capture Host separately and review the included license, NOTICE, SBOM, source, and integration-risk materials before redistribution." \
             '{tag_name:$tag,target_commitish:$commit,name:$name,body:$body,draft:true,prerelease:false,generate_release_notes:false}' \
             > "${RUNNER_TEMP}/create-release.json"
           gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \

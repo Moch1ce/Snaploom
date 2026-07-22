@@ -18,13 +18,14 @@ const version = "1.2.3";
 const commit = "3".repeat(40);
 const approvedPublicRiskLanguage =
   "The Apache SDK communicates with a separately distributed GPL Host; IPC does not automatically eliminate GPL compliance obligations.";
+const windowsUnsignedRiskLanguage =
+  "Windows executables and DLLs are unsigned and may show Unknown publisher or Microsoft Defender SmartScreen warnings; verify SHA256SUMS and GitHub attestations before running them.";
 const signingEvidence = {
   windows: {
-    mode: "authenticode",
-    authenticodeVerified: true,
-    rfc3161TimestampVerified: true,
-    certificateThumbprint: "a".repeat(40),
-    additionalSignedBinaries: [{ name: "snaploom_capture.dll", sha256: "1".repeat(64) }],
+    mode: "unsigned",
+    authenticodeVerified: false,
+    rfc3161TimestampVerified: false,
+    unknownPublisherWarning: true,
   },
   macos: {
     mode: "developer-id",
@@ -54,7 +55,7 @@ function fixture() {
     outputDirectory: directory,
     version,
     commit,
-    mode: "stable-signed",
+    mode: "stable-release",
     signingEvidence,
   });
   const assets = expectedReleaseFiles(version).map((name, index) => {
@@ -78,7 +79,7 @@ function fixture() {
     target_commitish: commit,
     resolved_tag_commit: commit,
     name: `Snaploom ${version}`,
-    body: `Snaploom ${version}\n\n${approvedPublicRiskLanguage}`,
+    body: `Snaploom ${version}\n\n${approvedPublicRiskLanguage} ${windowsUnsignedRiskLanguage}`,
     html_url: "https://github.com/Moch1ce/Snaploom/releases/tag/untagged-test",
     assets,
   };
@@ -642,6 +643,32 @@ test("rejects a draft whose public notes omit the owner-approved risk language",
           skipArchiveBoundaries: true,
         }),
       /approved public risk language/,
+    );
+  } finally {
+    rmSync(paths.root, { recursive: true, force: true });
+  }
+});
+
+test("rejects a draft whose public notes omit the unsigned Windows warning", () => {
+  const paths = fixture();
+  try {
+    assert.throws(
+      () =>
+        verifyStablePublish({
+          release: {
+            ...paths.release,
+            body: paths.release.body.replace(windowsUnsignedRiskLanguage, ""),
+          },
+          directory: paths.directory,
+          version,
+          commit,
+          issue: paths.issue,
+          ownerPermission: paths.ownerPermission,
+          ownerApprovalComment: paths.ownerApprovalComment,
+          repositoryOwner: "Moch1ce",
+          skipArchiveBoundaries: true,
+        }),
+      /unsigned Windows risk disclosure/,
     );
   } finally {
     rmSync(paths.root, { recursive: true, force: true });

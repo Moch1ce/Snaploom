@@ -245,12 +245,12 @@ Tracer：App 与多个 SDK client 并发，恰好一个 Accepted，其他 SDK �
 
 ## 14. M14～M15：Release candidate 与 stable
 
-M14 创建签名的不可见 draft：
+M14 创建最终平台信任状态的不可见 draft：
 
 1. 同一 tag/commit 生成 exact asset set；
-2. Windows Authenticode/RFC3161，macOS Developer ID/hardened runtime/notary/staple；
+2. Windows `stable-unsigned` 与 SmartScreen 风险披露，macOS Developer ID/hardened runtime/notary/staple；
 3. 上传后重新下载，复验 manifest、checksum、架构、包边界、SBOM/NOTICE/source 和 consumer tests；
-4. 生成 #33 review bundle：draft URL、tag/commit、manifest digest、payload checksums、签名/公证记录。
+4. 生成 #33 review bundle：draft URL、tag/commit、manifest digest、payload checksums、Windows 未签名风险与 macOS 签名/公证记录。
 
 M15 只在 #33 所有者批准记录精确覆盖该 RC 且明确确认未经过外部法律复核后执行：publish job 不重建、不重签、不替换资产，只复验后一次把 draft 改为 stable，再 promotion 同一 `.nupkg` 到 NuGet.org；SwiftPM 直接消费同 tag/Release。
 

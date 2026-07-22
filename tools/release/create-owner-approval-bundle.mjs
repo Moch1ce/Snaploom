@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { createSigningEvidence } from "./create-signing-evidence.mjs";
+import { WINDOWS_UNSIGNED_RISK_LANGUAGE } from "./release-contract.mjs";
 import { verifyDraftRelease } from "./verify-draft-release.mjs";
 import { verifyQualificationSet } from "./verify-qualification-set.mjs";
 
@@ -63,31 +64,31 @@ export function verifyRunEvidence(ciRun, qualificationRun, commit) {
   }
 }
 
-const requiredSignedConsumerJobs = [
-  "Authenticode products and Windows SDK",
+const requiredReleaseConsumerJobs = [
+  "Unsigned Windows products and SDK",
   "Developer ID and notarized macOS products",
-  "Package signed dual-RID NuGet",
-  ".NET signed consumer (windows-x64, net8.0)",
-  ".NET signed consumer (windows-x64, net10.0)",
-  ".NET signed consumer (macos-arm64, net8.0)",
-  ".NET signed consumer (macos-arm64, net10.0)",
+  "Package dual-RID NuGet",
+  ".NET final consumer (windows-x64, net8.0)",
+  ".NET final consumer (windows-x64, net10.0)",
+  ".NET final consumer (macos-arm64, net8.0)",
+  ".NET final consumer (macos-arm64, net10.0)",
 ];
 const requiredLegalRcGateJobs = [
-  ...requiredSignedConsumerJobs,
-  "Assemble exact stable-signed asset set",
-  "Attest stable-signed payload provenance and SBOM",
+  ...requiredReleaseConsumerJobs,
+  "Assemble exact stable release asset set",
+  "Attest stable release payload provenance and SBOM",
 ];
 
 export function verifyLegalRcRunEvidence(legalRcRun) {
   if (
-    legalRcRun.workflowName !== "Signed legal RC draft" ||
+    legalRcRun.workflowName !== "Stable release candidate draft" ||
     !Number.isInteger(legalRcRun.databaseId) ||
     !/^https:\/\//.test(legalRcRun.url ?? "") ||
     !requiredLegalRcGateJobs.every((name) => successfulJob(legalRcRun, name))
   ) {
-    throw new Error("legal RC run does not prove the final signed release consumers");
+    throw new Error("legal RC run does not prove the final release consumers");
   }
-  return requiredSignedConsumerJobs;
+  return requiredReleaseConsumerJobs;
 }
 
 export function createOwnerApprovalBundle({
@@ -117,8 +118,11 @@ export function createOwnerApprovalBundle({
     commit,
     skipArchiveBoundaries,
   });
+  if (!release.body?.includes(WINDOWS_UNSIGNED_RISK_LANGUAGE)) {
+    throw new Error("reviewed draft must contain the unsigned Windows risk disclosure");
+  }
   verifyRunEvidence(ciRun, qualificationRun, commit);
-  const signedConsumerJobs = verifyLegalRcRunEvidence(legalRcRun);
+  const releaseConsumerJobs = verifyLegalRcRunEvidence(legalRcRun);
   const qualification = verifyQualificationSet(qualificationDirectory, { version, commit });
   const ciRunLog = readFileSync(ciRunLogPath, "utf8");
   const qualificationRunLog = readFileSync(qualificationRunLogPath, "utf8");
@@ -160,7 +164,7 @@ export function createOwnerApprovalBundle({
       "python",
       "rustc",
       "cargo",
-      ...(name === "Windows" ? ["windowsSdk", "signTool"] : ["xcode", "swift"]),
+      ...(name === "Windows" ? ["windowsSdk"] : ["xcode", "swift"]),
     ];
     if (
       !requiredBuilderFields.every(
@@ -218,7 +222,7 @@ export function createOwnerApprovalBundle({
       (name) => readFileSync(join(consumerLogDirectory, name), "utf8").trim().length === 0,
     ) ||
     [
-      "windows-signing.log",
+      "windows-validation.log",
       "macos-signing.log",
       "windows-binary-inspection.log",
       "macos-binary-inspection.log",
@@ -227,7 +231,7 @@ export function createOwnerApprovalBundle({
       (name) => readFileSync(join(platformEvidenceDirectory, name), "utf8").trim().length === 0,
     )
   ) {
-    throw new Error("final signing or C/C++/C#/Swift consumer logs are incomplete");
+    throw new Error("final platform validation or C/C++/C#/Swift consumer logs are incomplete");
   }
 
   mkdirSync(outputDirectory, { recursive: true });
@@ -281,7 +285,7 @@ export function createOwnerApprovalBundle({
         "no-interactive-desktop",
         "no-real-machine-performance",
       ],
-      signedConsumerJobs,
+      releaseConsumerJobs,
     },
     requiredHumanFields: [
       "ownerName",
@@ -309,8 +313,9 @@ export function createOwnerApprovalBundle({
       `本复核包精确对应未公开 draft：${release.html_url}`,
       `tag/commit：${manifest.tag} / ${commit}`,
       "",
-      "该包不是法律意见。仓库所有者必须核对 review-subject.json、全部 payload checksum、签名/公证记录、GitHub-hosted 自动资格证据和实际 draft，并明确接受未经过外部法律复核即发布的风险。",
-      "hosted 资格证据不包含交互桌面或真机性能证明；这些人工验证属于非阻塞建议，不是签名 RC 或 stable publish 的前置条件。",
+      "该包不是法律意见。仓库所有者必须核对 review-subject.json、全部 payload checksum、Windows 未签名风险、macOS 签名/公证记录、GitHub-hosted 自动资格证据和实际 draft，并明确接受未经过外部法律复核即发布的风险。",
+      "Windows 安装包、Desktop、Capture Host 与 Capture SDK DLL 均不含 Authenticode；用户会看到未知发布者或 SmartScreen 提示，必须依靠 GitHub attestation、SHA256SUMS 与逐文件 checksum 验证来源和完整性。",
+      "hosted 资格证据不包含交互桌面或真机性能证明；这些人工验证属于非阻塞建议，不是稳定 RC 或 stable publish 的前置条件。",
       "platform-evidence/ 保存 builder identity、原始 notarization JSON、签名/二进制检查日志及最终 C/C++/C#/Swift consumer 输出；legal-rc-run.json 指向完整 Actions 日志。",
       "在所有者审批记录完整且精确覆盖本 draft 前，stable publish 保持禁止；不得重建、替换或覆盖已审批资产。",
       "",

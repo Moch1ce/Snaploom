@@ -18,17 +18,16 @@
 NOTICE/SBOM、Host 与 installer staging digest 一致、当前用户安装/Host 登记、Desktop 启动、覆盖升级、
 卸载。候选 EXE/installer 必须明确未签名。
 
-## 稳定签名模式
+## 稳定未签名模式
 
-稳定 runner 在受保护环境提供 PFX/托管证书路径、密码和 RFC3161 URL，然后使用
-`-SigningMode stable-signed`，并通过 `-SignTool` 传入已锁定 Windows SDK 的 x64
-`signtool.exe` 绝对路径。脚本显式使用 `/fd SHA256 /td SHA256 /tr` 签署 Desktop、Host 和
-installer，并以 `signtool verify /pa /all /v /tw` 与 `Get-AuthenticodeSignature` 复验。任一步失败
-立即停止，不能回退为 unsigned。
+稳定 runner 不读取证书或时间戳 secrets，使用 `-SigningMode stable-unsigned` 和
+`-ExpectedSigning stable-unsigned`。脚本必须确认 Desktop、Host、installer 与 Capture SDK DLL 均未
+签名，metadata 必须包含 `unknownPublisherWarning=true`；Release notes 和审批包必须说明未知发布者/
+SmartScreen 风险，并提供逐文件 SHA-256、`SHA256SUMS` 与 GitHub attestation 验证方式。
 
 ## 非阻塞人工真机建议
 
 如自愿在 Windows 10 和 Windows 11 执行人工验证，证据应来自普通用户交互桌面，覆盖 100%–200%
 混合 DPI、单双屏/4K、热插拔、睡眠唤醒、快捷键冲突、复制/保存、失败恢复、安装/覆盖升级/卸载，
 并确认不提权、不捕获 UAC 安全桌面。Windows Server hosted runner 的静态/安装验证不能冒充这两项
-真机记录；缺少人工记录不阻止签名 RC 或 stable publish。
+真机记录；缺少人工记录不阻止稳定 RC 或 stable publish。

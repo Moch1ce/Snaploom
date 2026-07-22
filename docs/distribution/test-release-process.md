@@ -39,19 +39,21 @@ Windows CI 使用 Inno Setup 6.7.1 构建普通用户安装包，并真实执行
 
 Windows 10/11 普通用户安装、真实 WGC/WebView2、macOS TCC/SCK/WKWebView、单双屏、混合
 DPI/Retina、热插拔、睡眠唤醒以及 PERF-01 的真实桌面采样仍保留为人工验证建议。项目不配置 Windows
-或 macOS self-hosted runner，这些人工项不再阻止签名 RC 或 stable publish；未完成状态必须继续在
+或 macOS self-hosted runner，这些人工项不再阻止稳定 RC 或 stable publish；未完成状态必须继续在
 #44/#45 和审批包中如实披露。
 
-## 稳定版不可降级规则
+## 稳定版平台信任规则
 
-稳定资产必须使用 Authenticode SHA-256 + RFC3161、Developer ID + hardened runtime + notarization +
-stapling，并通过 Gatekeeper/签名复验。缺少任一签名、公证、GitHub-hosted 自动平台门禁、合规、SDK
-consumer、源码或 exact manifest 证据时只能保留 draft，不能发布 unsigned/ad hoc 或部分 Release。
+稳定 Windows 资产必须使用 `stable-unsigned`，确认 installer、Desktop、Host 与 SDK DLL 均未签名，并在
+Release notes 与审批包披露未知发布者/SmartScreen 风险；来源和完整性依靠 GitHub attestation、逐文件
+`.sha256` 与 `SHA256SUMS`。稳定 macOS 资产仍必须使用 Developer ID + hardened runtime + notarization +
+stapling，并通过 Gatekeeper/签名复验。缺少任一 macOS 签名公证、GitHub-hosted 自动平台门禁、合规、
+SDK consumer、源码或 exact manifest 证据时只能保留 draft，不能发布 ad hoc 或部分 Release。
 缺少真机与真实桌面 PERF-01 证据不会阻止发布；hosted qualification 与审批包必须如实披露这一限制。
 
 Issue #33 的所有者风险接受记录只阻止 stable publish，不阻止构建和 draft；CI 不生成、补写或代签
 该记录。稳定发布还必须使用同一 tag/commit 的已批准 draft 实物，不重建、不替换、不移动 tag。
 
-最终签名候选的环境、Secrets、原子 draft、重下载复验与所有者审批包操作见
-[签名法律 RC draft 流程](./legal-rc-process.md)；所有者记录通过后的唯一公开动作见
+最终稳定候选的环境、Secrets、原子 draft、重下载复验与所有者审批包操作见
+[稳定 RC draft 流程](./legal-rc-process.md)；所有者记录通过后的唯一公开动作见
 [稳定 Release 公开流程](./stable-release-process.md)。

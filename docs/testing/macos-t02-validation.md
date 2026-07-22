@@ -80,8 +80,8 @@ Capture Host 触发，并记录应用版本、签名身份和系统版本。
 
 | 场景 | 样本/门限 | RC 证据 |
 | --- | --- | --- |
-| 快捷键到浮层可见 | 30 次，P95 ≤ 150 ms | 待签名 RC |
-| 空闲 physical footprint | ≤ 100 MB | 待签名 RC |
-| 连续捕获资源稳定性 | 20 次后尾部增长 ≤ 1% | 待签名 RC |
-| 分段耗时 | 1x、Retina 4K、混合 Retina | 待签名 RC |
-| completion 竞态 | timeout、late callback、取消、退出 | 待签名 RC |
+| 快捷键到浮层可见 | 30 次，P95 ≤ 150 ms | 待稳定 RC |
+| 空闲 physical footprint | ≤ 100 MB | 待稳定 RC |
+| 连续捕获资源稳定性 | 20 次后尾部增长 ≤ 1% | 待稳定 RC |
+| 分段耗时 | 1x、Retina 4K、混合 Retina | 待稳定 RC |
+| completion 竞态 | timeout、late callback、取消、退出 | 待稳定 RC |

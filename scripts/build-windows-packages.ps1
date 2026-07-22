@@ -7,7 +7,7 @@ param(
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$Version,
 
-    [ValidateSet('candidate-unsigned', 'stable-signed')]
+    [ValidateSet('candidate-unsigned', 'stable-unsigned', 'stable-signed')]
     [string]$SigningMode = 'candidate-unsigned',
 
     [string]$OutputDirectory = '',
@@ -19,6 +19,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+$isSigned = $SigningMode -eq 'stable-signed'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
@@ -90,14 +91,14 @@ try {
     Copy-Item $hostExecutable $desktopStaging
 
     $additionalSignedBinaries = @()
-    if ($SigningMode -eq 'stable-signed') {
+    if ($isSigned) {
         Sign-And-Verify (Join-Path $desktopStaging 'snaploom-desktop.exe')
         Sign-And-Verify (Join-Path $desktopStaging 'snaploom-capture-host.exe')
     }
     else {
         foreach ($path in @((Join-Path $desktopStaging 'snaploom-desktop.exe'), (Join-Path $desktopStaging 'snaploom-capture-host.exe'))) {
             if ((Get-AuthenticodeSignature $path).Status -ne 'NotSigned') {
-                throw "Candidate executable unexpectedly contains an Authenticode signature: $path"
+                throw "Unsigned executable unexpectedly contains an Authenticode signature: $path"
             }
         }
     }
@@ -112,11 +113,11 @@ try {
             [System.IO.Path]::GetFileName($captureSdkDll) -ne 'snaploom_capture.dll') {
             throw "Capture SDK signing target must be snaploom_capture.dll: $captureSdkDll"
         }
-        if ($SigningMode -eq 'stable-signed') {
+        if ($isSigned) {
             Sign-And-Verify $captureSdkDll
         }
         elseif ((Get-AuthenticodeSignature $captureSdkDll).Status -ne 'NotSigned') {
-            throw "Candidate Capture SDK DLL unexpectedly contains Authenticode: $captureSdkDll"
+            throw "Unsigned Capture SDK DLL unexpectedly contains Authenticode: $captureSdkDll"
         }
         $additionalSignedBinaries += [ordered]@{
             name = [System.IO.Path]::GetFileName($captureSdkDll)
@@ -175,15 +176,15 @@ try {
     $installer = Join-Path $OutputDirectory "snaploom-$Version-windows-x64-setup.exe"
     if (-not (Test-Path $installer -PathType Leaf)) { throw 'Windows installer was not generated.' }
     if ((Get-Item $installer).Length -gt 50000000) { throw 'Windows installer exceeds 50,000,000 bytes.' }
-    if ($SigningMode -eq 'stable-signed') {
+    if ($isSigned) {
         Sign-And-Verify $installer
     }
     elseif ((Get-AuthenticodeSignature $installer).Status -ne 'NotSigned') {
-        throw 'Candidate installer unexpectedly contains an Authenticode signature.'
+        throw 'Unsigned installer unexpectedly contains an Authenticode signature.'
     }
 
     $thumbprint = ''
-    if ($SigningMode -eq 'stable-signed') {
+    if ($isSigned) {
         $thumbprint = (Get-AuthenticodeSignature $installer).SignerCertificate.Thumbprint.ToLowerInvariant()
     }
     $metadata = [ordered]@{
@@ -191,8 +192,9 @@ try {
         version = $Version
         platform = 'windows-x64'
         signingMode = $SigningMode
-        authenticodeVerified = $SigningMode -eq 'stable-signed'
-        rfc3161TimestampVerified = $SigningMode -eq 'stable-signed'
+        authenticodeVerified = $isSigned
+        rfc3161TimestampVerified = $isSigned
+        unknownPublisherWarning = -not $isSigned
         certificateThumbprint = $thumbprint
         additionalSignedBinaries = $additionalSignedBinaries
         installer = [System.IO.Path]::GetFileName($installer)

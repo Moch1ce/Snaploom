@@ -24,6 +24,8 @@ import { assetsForVersion, expectedReleaseFiles } from "./release-contract.mjs";
 
 const version = "1.2.3";
 const commit = "3".repeat(40);
+const windowsUnsignedRiskLanguage =
+  "Windows executables and DLLs are unsigned and may show Unknown publisher or Microsoft Defender SmartScreen warnings; verify SHA256SUMS and GitHub attestations before running them.";
 
 function runEvidence() {
   const required = [
@@ -58,19 +60,19 @@ function runEvidence() {
     ].map((name) => ({ name, conclusion: "success" })),
   };
   const legalRcRun = {
-    workflowName: "Signed legal RC draft",
+    workflowName: "Stable release candidate draft",
     databaseId: 13,
     url: "https://example.test/legal-rc/13",
     jobs: [
-      "Authenticode products and Windows SDK",
+      "Unsigned Windows products and SDK",
       "Developer ID and notarized macOS products",
-      "Package signed dual-RID NuGet",
-      ".NET signed consumer (windows-x64, net8.0)",
-      ".NET signed consumer (windows-x64, net10.0)",
-      ".NET signed consumer (macos-arm64, net8.0)",
-      ".NET signed consumer (macos-arm64, net10.0)",
-      "Assemble exact stable-signed asset set",
-      "Attest stable-signed payload provenance and SBOM",
+      "Package dual-RID NuGet",
+      ".NET final consumer (windows-x64, net8.0)",
+      ".NET final consumer (windows-x64, net10.0)",
+      ".NET final consumer (macos-arm64, net8.0)",
+      ".NET final consumer (macos-arm64, net10.0)",
+      "Assemble exact stable release asset set",
+      "Attest stable release payload provenance and SBOM",
     ].map((name) => ({ name, conclusion: "success" })),
   };
   return { ciRun, qualificationRun, legalRcRun };
@@ -89,11 +91,10 @@ function fixture() {
   }
   const signingEvidence = {
     windows: {
-      mode: "authenticode",
-      authenticodeVerified: true,
-      rfc3161TimestampVerified: true,
-      certificateThumbprint: "a".repeat(40),
-      additionalSignedBinaries: [{ name: "snaploom_capture.dll", sha256: "1".repeat(64) }],
+      mode: "unsigned",
+      authenticodeVerified: false,
+      rfc3161TimestampVerified: false,
+      unknownPublisherWarning: true,
     },
     macos: {
       mode: "developer-id",
@@ -112,7 +113,7 @@ function fixture() {
     outputDirectory: releaseDirectory,
     version,
     commit,
-    mode: "stable-signed",
+    mode: "stable-release",
     signingEvidence,
   });
   const assets = expectedReleaseFiles(version).map((name, index) => {
@@ -127,6 +128,8 @@ function fixture() {
   });
   const release = {
     id: 42,
+    name: `Snaploom ${version}`,
+    body: windowsUnsignedRiskLanguage,
     draft: true,
     prerelease: false,
     published_at: null,
@@ -167,11 +170,10 @@ function fixture() {
   writeFileSync(
     windowsMetadataPath,
     `${JSON.stringify({
-      signingMode: "stable-signed",
-      authenticodeVerified: true,
-      rfc3161TimestampVerified: true,
-      certificateThumbprint: "a".repeat(40),
-      additionalSignedBinaries: [{ name: "snaploom_capture.dll", sha256: "1".repeat(64) }],
+      signingMode: "stable-unsigned",
+      authenticodeVerified: false,
+      rfc3161TimestampVerified: false,
+      unknownPublisherWarning: true,
     })}\n`,
   );
   writeFileSync(
@@ -186,7 +188,7 @@ function fixture() {
   );
   writeFileSync(
     join(platformEvidenceDirectory, "windows-builder.json"),
-    '{"imageOS":"win25","imageVersion":"1","runnerArchitecture":"X64","node":"v22","pnpm":"10","python":"3.13.14","rustc":"1.97","cargo":"1.97","windowsSdk":"10.0.26100.0","signTool":"10.0.26100"}\n',
+    '{"imageOS":"win25","imageVersion":"1","runnerArchitecture":"X64","node":"v22","pnpm":"10","python":"3.13.14","rustc":"1.97","cargo":"1.97","windowsSdk":"10.0.26100.0"}\n',
   );
   writeFileSync(
     join(platformEvidenceDirectory, "macos-builder.json"),
@@ -220,7 +222,10 @@ function fixture() {
   ]) {
     writeFileSync(join(platformEvidenceDirectory, "consumer-logs", name), "passed\n");
   }
-  writeFileSync(join(platformEvidenceDirectory, "windows-signing.log"), "signtool passed\n");
+  writeFileSync(
+    join(platformEvidenceDirectory, "windows-validation.log"),
+    "unsigned package verification passed\n",
+  );
   writeFileSync(join(platformEvidenceDirectory, "macos-signing.log"), "codesign passed\n");
   writeFileSync(
     join(platformEvidenceDirectory, "windows-binary-inspection.log"),
@@ -284,7 +289,9 @@ test("creates an immutable owner approval subject without granting stable publis
       "no-interactive-desktop",
       "no-real-machine-performance",
     ]);
-    assert.equal(subject.evidence.signedConsumerJobs.length, 7);
+    assert.equal(subject.evidence.releaseConsumerJobs.length, 7);
+    assert.equal(subject.signing.windows.mode, "unsigned");
+    assert.equal(subject.signing.windows.unknownPublisherWarning, true);
     const readme = readFileSync(join(paths.outputDirectory, "README.md"), "utf8");
     assert.match(readme, /仓库所有者/);
     assert.match(readme, /未经过外部法律复核/);
@@ -294,7 +301,7 @@ test("creates an immutable owner approval subject without granting stable publis
   }
 });
 
-test("rejects incomplete CI, qualification, or signed consumer evidence", () => {
+test("rejects incomplete CI, qualification, or final consumer evidence", () => {
   const { ciRun, qualificationRun, legalRcRun } = runEvidence();
   assert.throws(
     () => verifyRunEvidence({ ...ciRun, conclusion: "failure" }, qualificationRun, commit),
@@ -306,10 +313,33 @@ test("rejects incomplete CI, qualification, or signed consumer evidence", () => 
   );
   assert.throws(
     () => verifyLegalRcRunEvidence({ ...legalRcRun, jobs: [] }),
-    /signed release consumers/,
+    /final release consumers/,
   );
   assert.throws(
     () => verifyRunEvidence(ciRun, { ...qualificationRun, headSha: "4".repeat(40) }, commit),
     /complete hosted platform/,
   );
+});
+
+test("rejects an approval bundle whose draft omits the unsigned Windows warning", () => {
+  const paths = fixture();
+  const { ciRun, qualificationRun, legalRcRun } = runEvidence();
+  try {
+    assert.throws(
+      () =>
+        createOwnerApprovalBundle({
+          ...paths,
+          release: { ...paths.release, body: "No Windows risk disclosure." },
+          ciRun,
+          qualificationRun,
+          legalRcRun,
+          version,
+          commit,
+          skipArchiveBoundaries: true,
+        }),
+      /unsigned Windows risk disclosure/,
+    );
+  } finally {
+    rmSync(paths.root, { recursive: true, force: true });
+  }
 });

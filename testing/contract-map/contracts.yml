@@ -413,7 +413,7 @@
         {"category": "automatic", "status": "verified", "path": "tools/release/release-contract.test.mjs", "contains": "assembles and verifies the exact candidate asset set"},
         {"category": "release", "status": "verified", "path": "tools/release/verify-draft-release.test.mjs", "contains": "rejects public, partial, extra, or digest-mismatched releases"},
         {"category": "release", "status": "verified", "path": "tools/release/verify-stable-publish.test.mjs", "contains": "accepts only an immutable publication that preserves the reviewed draft identity and assets"},
-        {"category": "installation", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "完整 CI、最终签名"},
+        {"category": "installation", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "完整 CI、最终"},
         {"category": "signing", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "当前已有的公开 `v0.1.0` prerelease"}
       ]
     },
@@ -454,7 +454,7 @@
         {"category": "automatic", "status": "verified", "path": "tools/testing/check-contract-map.test.mjs", "contains": "rejects missing, extra, duplicate, and renamed evidence anchors"},
         {"category": "automatic", "status": "verified", "path": "tools/release/check-workflows.test.mjs", "contains": "stable publish mutation policy rejects extra REST mutations and implicit POST fields"},
         {"category": "automatic", "status": "verified", "path": "tools/release/verify-stable-publish.test.mjs", "contains": "rejects approval from anyone other than the repository owner"},
-        {"category": "signing", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "签名法律 RC draft 流程"}
+        {"category": "signing", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "稳定 RC draft 流程"}
       ]
     }
   ]

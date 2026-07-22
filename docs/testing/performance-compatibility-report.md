@@ -6,7 +6,7 @@
 > Rust/Tauri 实现的发布证据。当前 Release qualification 只使用 GitHub-hosted `windows-2025` 与
 > `macos-15`，验证自动平台合同并精确绑定 release version/commit；它明确不证明交互桌面或真机
 > PERF-01。`tools/release/verify-machine-evidence.mjs` 仍可校验自愿收集的人工证据，但该人工矩阵不是
-> 签名 RC 或 stable publish 的前置条件。
+> 稳定 RC 或 stable publish 的前置条件。
 
 ## 指标口径
 

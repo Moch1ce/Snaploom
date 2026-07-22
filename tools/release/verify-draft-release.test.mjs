@@ -15,11 +15,10 @@ const version = "1.2.3";
 const commit = "2".repeat(40);
 const signingEvidence = {
   windows: {
-    mode: "authenticode",
-    authenticodeVerified: true,
-    rfc3161TimestampVerified: true,
-    certificateThumbprint: "a".repeat(40),
-    additionalSignedBinaries: [{ name: "snaploom_capture.dll", sha256: "1".repeat(64) }],
+    mode: "unsigned",
+    authenticodeVerified: false,
+    rfc3161TimestampVerified: false,
+    unknownPublisherWarning: true,
   },
   macos: {
     mode: "developer-id",
@@ -45,7 +44,7 @@ function fixture() {
     outputDirectory: directory,
     version,
     commit,
-    mode: "stable-signed",
+    mode: "stable-release",
     signingEvidence,
   });
   const assets = expectedReleaseFiles(version).map((name, index) => {
@@ -73,7 +72,7 @@ function fixture() {
   return { root, directory, release };
 }
 
-test("accepts an exact stable-signed draft after redownload", () => {
+test("accepts an exact stable release draft after redownload", () => {
   const paths = fixture();
   try {
     const result = verifyDraftRelease({
@@ -84,7 +83,7 @@ test("accepts an exact stable-signed draft after redownload", () => {
       skipArchiveBoundaries: true,
     });
     assert.equal(result.release.id, 42);
-    assert.equal(result.manifest.mode, "stable-signed");
+    assert.equal(result.manifest.mode, "stable-release");
   } finally {
     rmSync(paths.root, { recursive: true, force: true });
   }

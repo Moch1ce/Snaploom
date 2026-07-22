@@ -24,8 +24,8 @@ export function verifyDraftRelease({
   skipArchiveBoundaries = false,
 }) {
   const manifest = verifyRelease(directory, { version, skipArchiveBoundaries });
-  if (manifest.mode !== "stable-signed" || manifest.commit !== commit) {
-    throw new Error("draft does not contain the stable-signed manifest for the requested commit");
+  if (manifest.mode !== "stable-release" || manifest.commit !== commit) {
+    throw new Error("draft does not contain the stable release manifest for the requested commit");
   }
   if (
     release?.draft !== true ||
@@ -81,6 +81,6 @@ if (process.argv[1] && basename(process.argv[1]) === "verify-draft-release.mjs")
     commit,
   });
   process.stdout.write(
-    `verified GitHub draft ${release.id} for stable-signed ${manifest.tag} at ${manifest.commit}\n`,
+    `verified GitHub draft ${release.id} for stable release ${manifest.tag} at ${manifest.commit}\n`,
   );
 }

@@ -391,7 +391,7 @@
 
 基准必须独占运行，不能与构建/测试并行争抢 CPU。取消或直接关闭不计成功循环；每次采样前应等待 Capture Session 资源释放，并按实现语言使用可解释的回收/稳定化流程。
 
-上述真机与真实交互桌面指标是产品质量目标，不是签名 RC 或 stable publish 的硬前置条件。发布只硬门禁
+上述真机与真实交互桌面指标是产品质量目标，不是稳定 RC 或 stable publish 的硬前置条件。发布只硬门禁
 GitHub-hosted 可诚实复现的自动平台合同；缺少真机样本时不得把 PERF-01 标记为已完成，qualification
 与审批包必须披露没有真机证明。
 
@@ -471,7 +471,7 @@ GitHub-hosted 可诚实复现的自动平台合同；缺少真机样本时不得
 - Windows 用户级未签名安装/覆盖/卸载；macOS ad hoc DMG/Gatekeeper/权限/卸载；未来正式签名时补公证链。
 
 历史 Issue #18 的人工完成状态不免除 Tauri 新实现重新执行与风险相匹配的迁移真机验收。
-项目不配置 Windows 或 macOS self-hosted runner；本矩阵保留为非阻塞人工建议，不接入签名 RC 或
+项目不配置 Windows 或 macOS self-hosted runner；本矩阵保留为非阻塞人工建议，不接入稳定 RC 或
 stable publish 的 required job 集。缺少证据时不得声称对应目标系统、显示矩阵或真实桌面性能已经完成验收。
 
 ### QA-04 完成判定（MUST）

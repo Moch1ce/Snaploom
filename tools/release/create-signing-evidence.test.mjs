@@ -6,11 +6,10 @@ import test from "node:test";
 import { createSigningEvidence } from "./create-signing-evidence.mjs";
 
 const windows = {
-  signingMode: "stable-signed",
-  authenticodeVerified: true,
-  rfc3161TimestampVerified: true,
-  certificateThumbprint: "A".repeat(40),
-  additionalSignedBinaries: [{ name: "snaploom_capture.dll", sha256: "1".repeat(64) }],
+  signingMode: "stable-unsigned",
+  authenticodeVerified: false,
+  rfc3161TimestampVerified: false,
+  unknownPublisherWarning: true,
 };
 const macos = {
   signingMode: "developer-id",
@@ -20,21 +19,25 @@ const macos = {
   dmgNotarySubmissionId: "dmg-submission",
 };
 
-test("normalizes platform metadata into stable signing evidence", () => {
+test("records explicit unsigned Windows risk beside notarized macOS evidence", () => {
   const evidence = createSigningEvidence(windows, macos);
-  assert.equal(evidence.windows.certificateThumbprint, "a".repeat(40));
+  assert.deepEqual(evidence.windows, {
+    mode: "unsigned",
+    authenticodeVerified: false,
+    rfc3161TimestampVerified: false,
+    unknownPublisherWarning: true,
+  });
   assert.equal(evidence.macos.notarySubmissionId, "dmg-submission");
-  assert.equal(evidence.windows.additionalSignedBinaries.length, 1);
 });
 
-test("rejects unsigned or non-notarized platform metadata", () => {
+test("rejects ambiguous Windows risk or non-notarized macOS metadata", () => {
   assert.throws(
-    () => createSigningEvidence({ ...windows, authenticodeVerified: false }, macos),
-    /not complete Authenticode/,
+    () => createSigningEvidence({ ...windows, unknownPublisherWarning: false }, macos),
+    /does not explicitly disclose an unsigned release/,
   );
   assert.throws(
-    () => createSigningEvidence({ ...windows, additionalSignedBinaries: [] }, macos),
-    /not complete Authenticode/,
+    () => createSigningEvidence({ ...windows, signingMode: "authenticode" }, macos),
+    /does not explicitly disclose an unsigned release/,
   );
   assert.throws(
     () => createSigningEvidence(windows, { ...macos, notarized: false }),

@@ -31,7 +31,7 @@ OIDC 换取短期 API key；仓库及 environment 都不保存长期 NuGet API k
 
 1. 只读 job 验证 tag 精确指向该 commit、commit 可从 `main` 到达，并从 GitHub 重新下载完整资产集；
    Release 必须是 `draft=false`、`prerelease=false`、`immutable=true`，manifest 必须是同一 commit 的
-   `stable-signed` 模式，GitHub asset size/digest 与重新下载的 bytes 必须一致。
+   `stable-release` 模式，GitHub asset size/digest 与重新下载的 bytes 必须一致。
 2. `nuget-org` environment 批准后，publish job 再次从公开 Release 下载 `.nupkg`、`.snupkg` 及各自
    checksum sidecar。若 registry 已有同 ID/version，必须验证 NuGet.org repository signature，并在排除
    repository signature entry 后逐项比较 ZIP 内容；不同则 hard fail，相同才进入幂等恢复。新版本仅 push

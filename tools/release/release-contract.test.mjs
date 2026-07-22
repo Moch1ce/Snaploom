@@ -76,20 +76,37 @@ test("rejects extra payloads and refuses to overwrite output", () => {
   }
 });
 
-test("stable mode cannot use unsigned or ad hoc evidence", () => {
+test("stable release accepts explicit unsigned Windows evidence with notarized macOS assets", () => {
   const paths = fixture();
   try {
-    assert.throws(
-      () =>
-        assembleRelease({
-          payloadDirectory: paths.payloads,
-          outputDirectory: paths.output,
-          version,
-          commit,
-          mode: "stable-signed",
-        }),
-      /stable Windows product and SDK assets require verified Authenticode/,
-    );
+    const manifest = assembleRelease({
+      payloadDirectory: paths.payloads,
+      outputDirectory: paths.output,
+      version,
+      commit,
+      mode: "stable-release",
+      signingEvidence: {
+        windows: {
+          mode: "unsigned",
+          authenticodeVerified: false,
+          rfc3161TimestampVerified: false,
+          unknownPublisherWarning: true,
+        },
+        macos: {
+          mode: "developer-id",
+          developerIdVerified: true,
+          notarizationStatus: "Accepted",
+          stapled: true,
+          gatekeeperVerified: true,
+          teamId: "ABCDE12345",
+          notarySubmissionId: "notary-submission",
+        },
+      },
+    });
+
+    assert.equal(manifest.mode, "stable-release");
+    assert.equal(manifest.signing.windows.mode, "unsigned");
+    assert.equal(manifest.signing.windows.unknownPublisherWarning, true);
   } finally {
     rmSync(paths.root, { recursive: true, force: true });
   }

@@ -24,9 +24,9 @@ export function verifyPublicRelease({
   skipArchiveBoundaries = false,
 }) {
   const manifest = verifyRelease(directory, { version, skipArchiveBoundaries });
-  if (manifest.mode !== "stable-signed" || manifest.commit !== commit) {
+  if (manifest.mode !== "stable-release" || manifest.commit !== commit) {
     throw new Error(
-      "public release does not contain the stable-signed manifest for the requested commit",
+      "public release does not contain the stable release manifest for the requested commit",
     );
   }
   verifyPublicReleaseIdentity(release, { version, commit });

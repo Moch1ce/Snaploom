@@ -11,17 +11,13 @@ function argument(name) {
 }
 
 export function createSigningEvidence(windows, macos) {
-  const additionalSignedBinaries = windows?.additionalSignedBinaries ?? [];
   if (
-    windows?.signingMode !== "stable-signed" ||
-    windows.authenticodeVerified !== true ||
-    windows.rfc3161TimestampVerified !== true ||
-    typeof windows.certificateThumbprint !== "string" ||
-    additionalSignedBinaries.length !== 1 ||
-    additionalSignedBinaries[0]?.name !== "snaploom_capture.dll" ||
-    !/^[0-9a-f]{64}$/.test(additionalSignedBinaries[0]?.sha256 ?? "")
+    windows?.signingMode !== "stable-unsigned" ||
+    windows.authenticodeVerified !== false ||
+    windows.rfc3161TimestampVerified !== false ||
+    windows.unknownPublisherWarning !== true
   ) {
-    throw new Error("Windows product and SDK metadata is not complete Authenticode evidence");
+    throw new Error("Windows metadata does not explicitly disclose an unsigned release");
   }
   if (
     macos?.signingMode !== "developer-id" ||
@@ -35,11 +31,10 @@ export function createSigningEvidence(windows, macos) {
 
   const evidence = {
     windows: {
-      mode: "authenticode",
-      authenticodeVerified: true,
-      rfc3161TimestampVerified: true,
-      certificateThumbprint: windows.certificateThumbprint.toLowerCase(),
-      additionalSignedBinaries,
+      mode: "unsigned",
+      authenticodeVerified: false,
+      rfc3161TimestampVerified: false,
+      unknownPublisherWarning: true,
     },
     macos: {
       mode: "developer-id",
@@ -53,7 +48,7 @@ export function createSigningEvidence(windows, macos) {
       dmgNotarySubmissionId: macos.dmgNotarySubmissionId,
     },
   };
-  validateSigningEvidence("stable-signed", evidence);
+  validateSigningEvidence("stable-release", evidence);
   return evidence;
 }
 
@@ -69,5 +64,5 @@ if (process.argv[1] && basename(process.argv[1]) === "create-signing-evidence.mj
     JSON.parse(readFileSync(resolve(macosPath), "utf8")),
   );
   writeFileSync(resolve(output), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
-  process.stdout.write("created stable signing and notarization evidence\n");
+  process.stdout.write("created stable Windows risk and macOS notarization evidence\n");
 }

@@ -53,9 +53,9 @@ const approvedStablePublishJobSha256 =
 const approvedStableSdkPromotionJobSha256 =
   "c05a4ce09af0a2f26ff63ffb5947a127017257e49b1137d373b8a1d3ba18bbcf";
 const approvedStablePublishVerifierSha256 = {
-  "verify-stable-publish.mjs": "9bda8572e9382102fa48fa9c763cb22f9dc04e1d8370d62c40ecb905b7c4efba",
-  "verify-draft-release.mjs": "3216d1180f5e05a58e7771a428438c7d7ba35db765386708a40c90456fc2a3de",
-  "release-contract.mjs": "d1a224cfa4c6d95f9b844634c7f4f34ebed8f13618c9f5e3762a6496f56f9aec",
+  "verify-stable-publish.mjs": "64e50bf26cb2d5843fba724c7b7e7dd76008348b0e8ad675895c221ab13a66c1",
+  "verify-draft-release.mjs": "4a3ef40958ab07527cf640126171dd4139c0a6e98b0fa17911e09aac4a6b37f7",
+  "release-contract.mjs": "2be72154dbf50c61b2a985d3106e0dbdbc3e349e45edf7bcb18c293800335994",
   "verify-release.mjs": "4f4ae402d5eb2b8b4b0b39c0cb7911b3d8cde59c29e224ab605296d0b90d4a68",
 };
 
@@ -327,7 +327,7 @@ if (
   !legalRc.includes("issue-33-owner-approval") ||
   !legalRc.includes("environment: release-signing") ||
   !legalRc.includes("environment: release-draft") ||
-  !legalRc.includes(".NET signed consumer") ||
+  !legalRc.includes(".NET final consumer") ||
   !legalRc.includes("refs/snaploom-legal-rc") ||
   !legalRc.includes("apple-signing-evidence") ||
   !legalRc.includes("legal-rc-run.json") ||
@@ -376,7 +376,7 @@ if (
   (stablePublish.match(/--method PATCH/g) ?? []).length !== 1
 ) {
   throw new Error(
-    "stable workflow must reverify one owner-approved immutable signed draft before one publish transition",
+    "stable workflow must reverify one owner-approved immutable draft before one publish transition",
   );
 }
 checkStablePublishMutationPolicy(stablePublish);
