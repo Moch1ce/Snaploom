@@ -37,6 +37,12 @@ test("stable publish mutation policy accepts the reviewed one-PATCH workflow", (
   assert.doesNotThrow(() => checkStablePublishMutationPolicy(workflow));
 });
 
+test("stable publish mutation policy accepts an equivalent CRLF checkout", () => {
+  assert.doesNotThrow(() =>
+    checkStablePublishMutationPolicy(workflow.replaceAll("\n", "\r\n")),
+  );
+});
+
 test("stable publish mutation policy rejects extra REST mutations and implicit POST fields", () => {
   assert.throws(
     () =>
@@ -158,4 +164,17 @@ test("stable publish mutation policy pins the complete write-token verifier clos
       /verifier implementation is not allowlisted/,
     );
   }
+});
+
+test("stable publish verifier accepts an equivalent CRLF checkout", () => {
+  assert.doesNotThrow(() =>
+    checkStablePublishVerifier(
+      Object.fromEntries(
+        Object.entries(verifierClosure).map(([name, contents]) => [
+          name,
+          contents.replaceAll("\n", "\r\n"),
+        ]),
+      ),
+    ),
+  );
 });

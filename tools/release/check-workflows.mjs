@@ -49,6 +49,10 @@ const approvedStablePublishVerifierSha256 = {
   "verify-release.mjs": "f71ae74c290d4cc76a9b0b04ec87617fac417e3c83812ff7aebebe028c83af8c",
 };
 
+function canonicalText(contents) {
+  return contents.replace(/\r\n?/g, "\n");
+}
+
 export function checkStablePublishVerifier(closure) {
   const names = Object.keys(closure ?? {}).sort();
   if (
@@ -56,7 +60,7 @@ export function checkStablePublishVerifier(closure) {
     !names.every((name, index) => name === [...stablePublishVerifierNames].sort()[index]) ||
     names.some(
       (name) =>
-        createHash("sha256").update(closure[name]).digest("hex") !==
+        createHash("sha256").update(canonicalText(closure[name])).digest("hex") !==
         approvedStablePublishVerifierSha256[name],
     )
   ) {
@@ -65,12 +69,13 @@ export function checkStablePublishVerifier(closure) {
 }
 
 export function checkStablePublishMutationPolicy(contents) {
-  const publishStart = contents.indexOf("\n  publish:");
-  const evidenceStart = contents.indexOf("\n  record-evidence:");
+  const canonicalContents = canonicalText(contents);
+  const publishStart = canonicalContents.indexOf("\n  publish:");
+  const evidenceStart = canonicalContents.indexOf("\n  record-evidence:");
   if (publishStart < 0 || evidenceStart <= publishStart) {
     throw new Error("stable workflow must have distinct publish and evidence jobs");
   }
-  const publishJob = contents.slice(publishStart, evidenceStart);
+  const publishJob = canonicalContents.slice(publishStart, evidenceStart);
   if (publishJob.includes("actions/upload-artifact")) {
     throw new Error("protected publish job cannot upload artifacts");
   }
@@ -135,7 +140,9 @@ export function checkStablePublishMutationPolicy(contents) {
       throw new Error("protected publish job must contain only one exact Release PATCH");
     }
   }
-  const commandPlanSha256 = createHash("sha256").update(publishJob).digest("hex");
+  const commandPlanSha256 = createHash("sha256")
+    .update(canonicalText(publishJob))
+    .digest("hex");
   if (commandPlanSha256 !== approvedStablePublishJobSha256) {
     throw new Error("protected publish job command plan is not allowlisted");
   }
