@@ -239,7 +239,7 @@
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/text-annotations.test.ts", "contains": "tracks committed and pre-edit text without creating a permanent DOM object"},
         {"category": "visual", "status": "verified", "path": "web/overlay-editor/tests/ui-goldens.visual.spec.ts", "contains": "textarea-composition"},
-        {"category": "platform", "status": "pending-external", "issue": "#41", "path": "docs/testing/macos-t02-validation.md", "contains": "hosted runner 的编译与单元测试不能替代这些真机结论"}
+        {"category": "platform", "status": "pending-external", "issue": "#41", "path": "docs/testing/macos-t02-validation.md", "contains": "hosted runner 的编译与单元测试不能冒充这些真机结论"}
       ]
     },
     {
@@ -259,7 +259,7 @@
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/mosaic.test.ts", "contains": "damages only 128px tiles touched by the stroke"},
         {"category": "visual", "status": "pending-external", "issue": "#34", "path": "docs/ui/screenshot-ui.md", "contains": "马赛克"},
-        {"category": "performance", "status": "pending-external", "issue": "#34", "path": "docs/testing/performance-compatibility-report.md", "contains": "Headless、synthetic 或旧 commit 的结果会被硬拒绝"}
+        {"category": "performance", "status": "pending-external", "issue": "#34", "path": "docs/testing/performance-compatibility-report.md", "contains": "真实选区移动帧率必须由真机矩阵确认"}
       ]
     },
     {
@@ -367,10 +367,10 @@
       "id": "PERF-01",
       "title": "硬门槛",
       "status": "required",
-      "implementation": ["tools/performance/evaluate-evidence.mjs", ".github/workflows/release-qualification.yml"],
+      "implementation": ["tools/performance/evaluate-evidence.mjs", "tools/release/verify-machine-evidence.mjs"],
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "tools/performance/evaluate-evidence.test.mjs", "contains": "headless or synthetic evidence cannot satisfy PERF-01"},
-        {"category": "performance", "status": "pending-external", "issue": "#34", "path": "docs/testing/performance-compatibility-report.md", "contains": "当前实现的稳定 Release 必须通过"}
+        {"category": "performance", "status": "pending-external", "issue": "#34", "path": "docs/testing/performance-compatibility-report.md", "contains": "不得据此声称已经完成目标系统"}
       ]
     },
     {
@@ -400,7 +400,7 @@
       "implementation": ["scripts/build-macos-packages.sh", "tests/packaging/verify-macos-packages.sh", "packaging/macos/Snaploom.entitlements"],
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "tests/packaging/verify-macos-packages.sh", "contains": "macOS DMG, standalone Host, signing, architecture, install, launch, and boundary checks passed"},
-        {"category": "installation", "status": "pending-external", "issue": "#34", "path": "docs/testing/macos-dmg-validation.md", "contains": "不能替代带真实交互"},
+        {"category": "installation", "status": "pending-external", "issue": "#34", "path": "docs/testing/macos-dmg-validation.md", "contains": "Hosted runner 的包验证不能冒充"},
         {"category": "signing", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "Developer ID hardened-runtime"}
       ]
     },
@@ -443,18 +443,6 @@
         {"category": "automatic", "status": "verified", "path": "web/overlay-editor/tests/ui-goldens.visual.spec.ts", "contains": "keeps pointer capture"},
         {"category": "visual", "status": "verified", "path": "web/overlay-editor/tests/ui-goldens.visual.spec.ts", "contains": "accepts numeric symbol emoji text"},
         {"category": "performance", "status": "pending-external", "issue": "#34", "path": "docs/testing/performance-compatibility-report.md", "contains": "真实选区移动帧率必须由真机矩阵确认"}
-      ]
-    },
-    {
-      "id": "QA-03",
-      "title": "真机矩阵",
-      "status": "required",
-      "implementation": [".github/workflows/release-qualification.yml", "tools/release/verify-qualification-set.mjs"],
-      "evidence": [
-        {"category": "automatic", "status": "verified", "path": "tools/release/verify-qualification-set.mjs", "contains": "windows-10"},
-        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/windows-t03-validation.md", "contains": "真机验收"},
-        {"category": "performance", "status": "pending-external", "issue": "#34", "path": "docs/testing/performance-compatibility-report.md", "contains": "独占运行"},
-        {"category": "installation", "status": "pending-external", "issue": "#34", "path": "docs/testing/macos-dmg-validation.md", "contains": "真机证据"}
       ]
     },
     {

@@ -26,9 +26,9 @@ NOTICE/SBOM、Host 与 installer staging digest 一致、当前用户安装/Host
 installer，并以 `signtool verify /pa /all /v /tw` 与 `Get-AuthenticodeSignature` 复验。任一步失败
 立即停止，不能回退为 unsigned。
 
-## 真机证据
+## 非阻塞人工真机建议
 
-Windows 10 和 Windows 11 分别执行 `Release qualification`。证据必须来自普通用户交互桌面，覆盖
-100%–200% 混合 DPI、单双屏/4K、热插拔、睡眠唤醒、快捷键冲突、复制/保存、失败恢复、安装/
-覆盖升级/卸载，并确认不提权、不捕获 UAC 安全桌面。Windows Server hosted runner 的静态/安装验证
-不能代替这两项真机记录。
+如自愿在 Windows 10 和 Windows 11 执行人工验证，证据应来自普通用户交互桌面，覆盖 100%–200%
+混合 DPI、单双屏/4K、热插拔、睡眠唤醒、快捷键冲突、复制/保存、失败恢复、安装/覆盖升级/卸载，
+并确认不提权、不捕获 UAC 安全桌面。Windows Server hosted runner 的静态/安装验证不能冒充这两项
+真机记录；缺少人工记录不阻止签名 RC 或 stable publish。

@@ -9,7 +9,8 @@ GitHub draft，不包含把 draft 改为 stable、公开 prerelease 或推送 Nu
 2. 不可移动的 `vX.Y.Z` tag 已指向该 commit；该 tag 尚无任何 GitHub Release，`v*` ruleset 禁止
    更新和删除 tag。
 3. 同一 commit 的完整 `CI` 已成功，包含 Windows/macOS、四组 .NET consumer 与 `Atomic release contract`。
-4. 同一 version/commit 的 `Release qualification` 已在 Windows 10、Windows 11 与 macOS 14+ 真机完成。
+4. 同一 version/commit 的 `Release qualification` 已在 GitHub-hosted `windows-2025` 与 `macos-15`
+   完成自动平台门禁；它不声称具备交互桌面或真机性能证据。
 5. `release-qualification`、`release-signing` 与 `release-draft` environment 都只允许 `main`
    deployment。单人仓库允许所有者批准自己触发的 deployment，并保留 admin bypass；签名 secrets 只存在于
    `release-signing`：
@@ -37,7 +38,7 @@ dispatch，所有构建仍显式 checkout 已验证 tag commit。
 `qualification_run_id`。工作流依次执行：
 
 1. 复验 tag/commit/main 可达性、版本、无同 tag Release、CI 与资格 workflow 的精确 head commit、
-   required job 集及三平台真机证据。
+   required job 集及两平台 GitHub-hosted qualification 证据。
 2. Windows 构建并签署 Desktop、Host、installer 与 C SDK DLL，验证 Authenticode 和 RFC3161。
 3. macOS 构建 Developer ID hardened-runtime App/Host/DMG，等待 notarization，staple 后用
    `codesign`、`stapler` 与 Gatekeeper 复验；SDK dylib/XCFramework 保持 consumer-resignable。
@@ -53,7 +54,7 @@ dispatch，所有构建仍显式 checkout 已验证 tag commit。
    manifest、签名/公证证据、许可证边界和 Swift checksum。
 9. 上传 `snaploom-vX.Y.Z-issue-33-owner-approval` Actions artifact，其中含 draft URL、tag/commit、manifest
    digest、全部 payload checksums、签名/公证原始结果与日志、builder identity、完整 CI、最终签名
-   consumer 与真机资格证据。
+   consumer 与 hosted 资格证据，并保留无交互桌面/无真机性能证明的限制。
 
 ## 失败与所有者风险接受门禁
 
@@ -62,7 +63,8 @@ draft 不得补传或覆盖；在尚未提交所有者批准记录时可删除�
 一旦所有者批准记录已覆盖该候选，任何 byte 变化都必须使用新的 patch、manifest 和批准记录。
 
 Issue #33 由仓库所有者本人填写日期、风险接受、结论、修改项、公开风险文案、决策记录
-SHA-256/受控位置与签名，并明确设置 `acknowledgedWithoutExternalLegalReview=true`。CI 和 Agent 不能代填，
+SHA-256/受控位置与签名，并明确设置 `acknowledgedWithoutExternalLegalReview=true` 和
+`acknowledgedWithoutRealMachineQualification=true`。CI 和 Agent 不能代填，
 本工作流成功也不能自动把 draft 改为 stable。stable publish 是后续独立事项，必须只消费同一已批准
 draft，不能重建、重签或替换资产。记录格式、`stable-release` 环境与唯一公开入口见
 [所有者批准后的稳定 Release 公开流程](./stable-release-process.md)。

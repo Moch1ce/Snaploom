@@ -92,7 +92,7 @@ jobs:
             --qualification-run "${RUNNER_TEMP}/identity/qualification-run.json" \
             --commit '${{ inputs.commit }}'
 
-      - name: Download true-machine qualification evidence
+      - name: Download GitHub-hosted qualification evidence
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: qualification-*

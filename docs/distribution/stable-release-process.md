@@ -9,8 +9,9 @@
 1. 签名法律 RC workflow 已为同一 `vX.Y.Z`/commit 创建完整的不可见 draft，并从 GitHub 重新下载
    复验全部资产。
 2. tag 指向 `main` 可达的精确 commit；仓库已启用 Immutable Releases，`v*` ruleset 禁止更新和删除。
-3. 仓库所有者已核对精确 draft、签名、公证、真机证据和 checksum，在 Issue #33 留下版本化批准记录，
-   明确接受未经过外部法律复核即发布的风险，然后把 Issue #33 关闭为 completed。
+3. 仓库所有者已核对精确 draft、签名、公证、GitHub-hosted qualification 限制和 checksum，在 Issue
+   #33 留下版本化批准记录，明确接受未经过外部法律复核、且没有真机 qualification 即发布的风险，
+   然后把 Issue #33 关闭为 completed。
 4. 工作流只接受 `author_association=OWNER` 且仓库权限为 `admin`、角色为 `admin` 的 GitHub `User`；
    collaborator、Bot 或其他身份不能批准发布，也不使用 `LEGAL_REVIEWER_LOGINS` allowlist。
 5. `stable-release` environment 只允许 `main`。单人仓库允许所有者批准自己触发的 deployment，并保留
@@ -37,8 +38,9 @@ Issue #33 的全部评论中必须恰好存在一条 `snaploom-owner-release-app
     "githubLogin": "<repository-owner-login>"
   },
   "approvalDate": "YYYY-MM-DD",
-  "riskAcknowledgement": "<说明已核对候选并接受无外部法律复核发布的风险>",
+  "riskAcknowledgement": "<说明已核对候选，并接受无外部法律复核及无真机 qualification 发布的风险>",
   "acknowledgedWithoutExternalLegalReview": true,
+  "acknowledgedWithoutRealMachineQualification": true,
   "conclusion": "accepted",
   "requiredChanges": [],
   "approvedPublicRiskLanguage": "The Apache Capture SDK communicates with a separately distributed GPL-3.0-or-later Capture Host; IPC does not automatically eliminate GPL compliance obligations.",

@@ -137,6 +137,11 @@ export function verifyStablePublish({
   if (approval?.acknowledgedWithoutExternalLegalReview !== true) {
     throw new Error("repository owner must acknowledge publishing without external legal review");
   }
+  if (approval.acknowledgedWithoutRealMachineQualification !== true) {
+    throw new Error(
+      "repository owner must acknowledge publishing without real-machine qualification",
+    );
+  }
   if (
     approval?.schemaVersion !== 1 ||
     approval.kind !== "snaploom-owner-release-approval" ||

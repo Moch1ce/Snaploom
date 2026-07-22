@@ -52,10 +52,9 @@ function runEvidence() {
     databaseId: 12,
     url: "https://example.test/qualification/12",
     jobs: [
-      "True machine (windows-10-x64)",
-      "True machine (windows-11-x64)",
-      "True machine (macos-14-arm64)",
-      "Complete true-machine and PERF-01 gate",
+      "Hosted platform (windows-x64)",
+      "Hosted platform (macos-arm64)",
+      "Complete hosted platform gate",
     ].map((name) => ({ name, conclusion: "success" })),
   };
   const legalRcRun = {
@@ -137,15 +136,23 @@ function fixture() {
     html_url: "https://example.test/draft/42",
     assets,
   };
-  for (const platform of ["macos-14-arm64", "windows-10-x64", "windows-11-x64"]) {
+  for (const [platform, runnerImage, architecture, distributionContract] of [
+    ["macos-arm64", "macos-15", "arm64", "DIST-03"],
+    ["windows-x64", "windows-2025", "x86_64", "DIST-02"],
+  ]) {
     writeFileSync(
       join(qualificationDirectory, `${platform}.json`),
       `${JSON.stringify({
+        schemaVersion: 1,
+        executionEnvironment: "github-hosted",
         platform,
+        runnerImage,
+        architecture,
         version,
         commit,
         passed: true,
-        contracts: ["PERF-01", "QA-03"],
+        contracts: ["QA-02", distributionContract],
+        limitations: ["no-interactive-desktop", "no-real-machine-performance"],
       })}\n`,
     );
   }
@@ -154,7 +161,7 @@ function fixture() {
   const ciRunLogPath = join(root, "ci-run.log");
   const qualificationRunLogPath = join(root, "qualification-run.log");
   writeFileSync(ciRunLogPath, "reuse lint\ncargo deny\nverify-cyclonedx.mjs\n");
-  writeFileSync(qualificationRunLogPath, "True machine\nPERF-01\n");
+  writeFileSync(qualificationRunLogPath, "GitHub-hosted qualification\nQA-02\n");
   const platformEvidenceDirectory = join(root, "platform");
   mkdirSync(join(platformEvidenceDirectory, "apple-signing-evidence"), { recursive: true });
   writeFileSync(
@@ -263,13 +270,21 @@ test("creates an immutable owner approval subject without granting stable publis
       "approvalDate",
       "riskAcknowledgement",
       "acknowledgedWithoutExternalLegalReview",
+      "acknowledgedWithoutRealMachineQualification",
       "conclusion",
       "requiredChanges",
       "approvedPublicRiskLanguage",
       "decisionRecordSha256AndControlledLocation",
       "signature",
     ]);
-    assert.equal(subject.evidence.qualificationPlatforms.length, 3);
+    assert.deepEqual(subject.evidence.qualificationPlatforms, [
+      "macos-arm64",
+      "windows-x64",
+    ]);
+    assert.deepEqual(subject.evidence.qualificationLimitations, [
+      "no-interactive-desktop",
+      "no-real-machine-performance",
+    ]);
     assert.equal(subject.evidence.signedConsumerJobs.length, 7);
     const readme = readFileSync(join(paths.outputDirectory, "README.md"), "utf8");
     assert.match(readme, /仓库所有者/);
@@ -288,7 +303,7 @@ test("rejects incomplete CI, qualification, or signed consumer evidence", () => 
   );
   assert.throws(
     () => verifyRunEvidence(ciRun, { ...qualificationRun, jobs: [] }, commit),
-    /complete true-machine/,
+    /complete hosted platform/,
   );
   assert.throws(
     () => verifyLegalRcRunEvidence({ ...legalRcRun, jobs: [] }),
@@ -296,6 +311,6 @@ test("rejects incomplete CI, qualification, or signed consumer evidence", () => 
   );
   assert.throws(
     () => verifyRunEvidence(ciRun, { ...qualificationRun, headSha: "4".repeat(40) }, commit),
-    /complete true-machine/,
+    /complete hosted platform/,
   );
 });

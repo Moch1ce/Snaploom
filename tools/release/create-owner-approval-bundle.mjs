@@ -48,18 +48,18 @@ export function verifyRunEvidence(ciRun, qualificationRun, commit) {
   ) {
     throw new Error("CI run does not prove the complete release contract for this commit");
   }
-  const machineJobs =
+  const hostedPlatformJobs =
     qualificationRun.jobs?.filter(
-      (job) => job.name.startsWith("True machine (") && job.conclusion === "success",
+      (job) => job.name.startsWith("Hosted platform (") && job.conclusion === "success",
     ) ?? [];
   if (
     qualificationRun.workflowName !== "Release qualification" ||
     qualificationRun.conclusion !== "success" ||
     qualificationRun.headSha !== commit ||
-    !successfulJob(qualificationRun, "Complete true-machine and PERF-01 gate") ||
-    machineJobs.length !== 3
+    !successfulJob(qualificationRun, "Complete hosted platform gate") ||
+    hostedPlatformJobs.length !== 2
   ) {
-    throw new Error("qualification run does not prove the complete true-machine gate");
+    throw new Error("qualification run does not prove the complete hosted platform gate");
   }
 }
 
@@ -126,10 +126,10 @@ export function createOwnerApprovalBundle({
     !["reuse lint", "cargo deny", "verify-cyclonedx.mjs"].every((text) =>
       ciRunLog.includes(text),
     ) ||
-    !qualificationRunLog.includes("PERF-01") ||
-    !qualificationRunLog.includes("True machine")
+    !qualificationRunLog.includes("QA-02") ||
+    !qualificationRunLog.includes("GitHub-hosted qualification")
   ) {
-    throw new Error("CI or true-machine raw logs do not contain the required compliance evidence");
+    throw new Error("CI or hosted qualification logs do not contain the required evidence");
   }
   const signing = createSigningEvidence(
     JSON.parse(readFileSync(windowsMetadataPath, "utf8")),
@@ -277,6 +277,10 @@ export function createOwnerApprovalBundle({
       qualificationRun: { id: qualificationRun.databaseId, url: qualificationRun.url },
       legalRcRun: { id: legalRcRun.databaseId, url: legalRcRun.url },
       qualificationPlatforms: qualification.map(({ platform }) => platform),
+      qualificationLimitations: [
+        "no-interactive-desktop",
+        "no-real-machine-performance",
+      ],
       signedConsumerJobs,
     },
     requiredHumanFields: [
@@ -285,6 +289,7 @@ export function createOwnerApprovalBundle({
       "approvalDate",
       "riskAcknowledgement",
       "acknowledgedWithoutExternalLegalReview",
+      "acknowledgedWithoutRealMachineQualification",
       "conclusion",
       "requiredChanges",
       "approvedPublicRiskLanguage",
@@ -305,7 +310,8 @@ export function createOwnerApprovalBundle({
       `本复核包精确对应未公开 draft：${release.html_url}`,
       `tag/commit：${manifest.tag} / ${commit}`,
       "",
-      "该包不是法律意见。仓库所有者必须核对 review-subject.json、全部 payload checksum、签名/公证记录、真机资格证据和实际 draft，并明确接受未经过外部法律复核即发布的风险。",
+      "该包不是法律意见。仓库所有者必须核对 review-subject.json、全部 payload checksum、签名/公证记录、GitHub-hosted 自动资格证据和实际 draft，并明确接受未经过外部法律复核即发布的风险。",
+      "hosted 资格证据不包含交互桌面或真机性能证明；这些人工验证属于非阻塞建议，不是签名 RC 或 stable publish 的前置条件。",
       "platform-evidence/ 保存 builder identity、原始 notarization JSON、签名/二进制检查日志及最终 C/C++/C#/Swift consumer 输出；legal-rc-run.json 指向完整 Actions 日志。",
       "在所有者审批记录完整且精确覆盖本 draft 前，stable publish 保持禁止；不得重建、替换或覆盖已审批资产。",
       "",

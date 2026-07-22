@@ -271,8 +271,8 @@ jobs:
 
       # GitHub's Windows image is Windows Server rather than a supported
       # interactive Windows 10/11 desktop. Link every product test here, then
-      # execute the same test suite on macOS and reserve WGC execution for the
-      # documented Windows 10/11 true-machine matrix.
+      # execute the same test suite on macOS. WGC and interactive desktop checks
+      # remain optional manual validation and are not a release gate.
       - name: Compile Windows product Rust tests
         if: runner.os == 'Windows'
         shell: bash

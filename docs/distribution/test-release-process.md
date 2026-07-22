@@ -29,25 +29,25 @@ Windows CI 使用 Inno Setup 6.7.1 构建普通用户安装包，并真实执行
 与 standalone Host 文件树完全相同、全部 Mach-O 为 arm64/minOS 14、权限文案、签名、启动和卸载。
 两个应用安装包都硬限制为 `50,000,000` bytes。
 
-## 真机与性能门禁
+## GitHub-hosted 自动平台门禁
 
-`.github/workflows/release-qualification.yml` 只调度带交互桌面的专用 self-hosted runner：
+`.github/workflows/release-qualification.yml` 只使用 GitHub-hosted `windows-2025` 与 `macos-15`。
+两个 job 从精确 release commit 构建并验证候选包、平台 Rust 测试和 release contract tooling，随后生成
+绑定 version/commit、runner image 与 architecture 的两份 qualification JSON。集合校验器只接受
+`windows-x64` 和 `macos-arm64`，并明确记录 `no-interactive-desktop` 与
+`no-real-machine-performance`；hosted 结果不得冒充 Windows 10/11 或 macOS 14 真机兼容性证明。
 
-- Windows 10 22H2 x64；
-- Windows 11 x64；
-- macOS 14+ Apple Silicon。
-
-每台 runner 提供 `SNAPLOOM_MACHINE_EVIDENCE_PATH` 指向本机原始 JSON。校验器要求证据精确匹配
-version/commit，并覆盖普通用户安装/升级/卸载、复制/保存、单双屏、4K、混合 DPI/Retina、热插拔、
-睡眠唤醒及失败恢复。PERF-01 必须来自独占的真实 3840×2160 Desktop、真实捕获 backend 和真实
-WebView compositor；synthetic/headless 数据不能通过。原始样本要求至少 30 次快捷键/编辑和 20 次
-PNG/成功资源循环，按 nearest-rank P95 与尾段两个 5 次窗口中位数重新计算。
+Windows 10/11 普通用户安装、真实 WGC/WebView2、macOS TCC/SCK/WKWebView、单双屏、混合
+DPI/Retina、热插拔、睡眠唤醒以及 PERF-01 的真实桌面采样仍保留为人工验证建议。项目不配置 Windows
+或 macOS self-hosted runner，这些人工项不再阻止签名 RC 或 stable publish；未完成状态必须继续在
+#44/#45 和审批包中如实披露。
 
 ## 稳定版不可降级规则
 
 稳定资产必须使用 Authenticode SHA-256 + RFC3161、Developer ID + hardened runtime + notarization +
-stapling，并通过 Gatekeeper/签名复验。缺少任一签名、公证、真机、PERF-01、合规、SDK consumer、
-源码或 exact manifest 证据时只能保留 draft，不能发布 unsigned/ad hoc 或部分 Release。
+stapling，并通过 Gatekeeper/签名复验。缺少任一签名、公证、GitHub-hosted 自动平台门禁、合规、SDK
+consumer、源码或 exact manifest 证据时只能保留 draft，不能发布 unsigned/ad hoc 或部分 Release。
+缺少真机与真实桌面 PERF-01 证据不会阻止发布，但所有者批准记录必须明确接受这一限制。
 
 Issue #33 的所有者风险接受记录只阻止 stable publish，不阻止构建和 draft；CI 不生成、补写或代签
 该记录。稳定发布还必须使用同一 tag/commit 的已批准 draft 实物，不重建、不替换、不移动 tag。

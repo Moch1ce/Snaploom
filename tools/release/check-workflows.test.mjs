@@ -37,6 +37,12 @@ const legalRcWorkflow = readFileSync(
   ),
   "utf8",
 );
+const qualificationWorkflow = readFileSync(
+  fileURLToPath(
+    new URL("../../.github/workflows/release-qualification.yml", import.meta.url),
+  ),
+  "utf8",
+);
 const verifierClosure = Object.fromEntries(
   [
     "verify-stable-publish.mjs",
@@ -81,6 +87,19 @@ test("stable publish workflow authenticates owner approval without external revi
     publicationEvidenceStep,
     /OWNER_APPROVAL_COMMENT_ID: \$\{\{ inputs\.owner_approval_comment_id \}\}/,
   );
+});
+
+test("release qualification uses GitHub-hosted platform gates without custom runners", () => {
+  assert.match(qualificationWorkflow, /os: windows-2025/);
+  assert.match(qualificationWorkflow, /os: macos-15/);
+  assert.match(qualificationWorkflow, /Hosted platform \(\$\{\{ matrix\.platform \}\}\)/);
+  assert.match(qualificationWorkflow, /Complete hosted platform gate/);
+  assert.doesNotMatch(
+    qualificationWorkflow,
+    /self-hosted|snaploom-(?:windows|macos)|SNAPLOOM_MACHINE_EVIDENCE_PATH|true-machine/i,
+  );
+  assert.match(legalRcWorkflow, /Download GitHub-hosted qualification evidence/);
+  assert.doesNotMatch(legalRcWorkflow, /true-machine/i);
 });
 
 test("stable publish mutation policy accepts an equivalent CRLF checkout", () => {

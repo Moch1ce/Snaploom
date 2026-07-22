@@ -1,4 +1,4 @@
-# T03 Windows 最小截图链路真机验收
+# T03 Windows 最小截图链路非阻塞人工验收建议
 
 适用范围：Windows 10 22H2 x64 与 Windows 11 x64，普通用户权限。
 
@@ -18,6 +18,7 @@ pnpm run tauri:host
 ```
 
 GitHub Actions 的 `Windows x64` job 只验证无交互环境可执行的编译、合同测试、manifest、bindings、供应链和打包入口；不得把 hosted runner 冒充为真实 WGC、overlay、剪贴板或原生对话框证据。每次真机执行把 OS build、GPU/驱动、显示器/DPI/HDR、应用 commit、原始样本和结果写入 `docs/testing/evidence/<date>-windows-<machine>/`。
+没有这些人工记录不会阻止签名 RC 或 stable publish；它们只用于支持目标系统兼容性与真实性能声明。
 
 ## 快捷键与捕获
 

@@ -3,13 +3,28 @@
 
 import { readFileSync, readdirSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 function argument(name) {
   const index = process.argv.indexOf(`--${name}`);
   return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
-const expected = ["macos-14-arm64", "windows-10-x64", "windows-11-x64"];
+const expected = [
+  {
+    platform: "macos-arm64",
+    runnerImage: "macos-15",
+    architecture: "arm64",
+    contracts: ["QA-02", "DIST-03"],
+  },
+  {
+    platform: "windows-x64",
+    runnerImage: "windows-2025",
+    architecture: "x86_64",
+    contracts: ["QA-02", "DIST-02"],
+  },
+];
+const hostedLimitations = ["no-interactive-desktop", "no-real-machine-performance"];
 
 export function verifyQualificationSet(directory, { version, commit }) {
   const documents = readdirSync(directory, { recursive: true })
@@ -17,21 +32,27 @@ export function verifyQualificationSet(directory, { version, commit }) {
     .map((name) => JSON.parse(readFileSync(join(directory, name), "utf8")));
   const byPlatform = new Map(documents.map((document) => [document.platform, document]));
   if (byPlatform.size !== expected.length || documents.length !== expected.length) {
-    throw new Error("qualification set must contain exactly three unique platform evaluations");
+    throw new Error("qualification set must contain exactly two unique hosted platform evaluations");
   }
-  for (const platform of expected) {
-    const document = byPlatform.get(platform);
+  for (const identity of expected) {
+    const document = byPlatform.get(identity.platform);
     if (
+      document?.schemaVersion !== 1 ||
+      document.executionEnvironment !== "github-hosted" ||
       document?.passed !== true ||
       document.version !== version ||
       document.commit !== commit ||
-      !document.contracts?.includes("PERF-01") ||
-      !document.contracts?.includes("QA-03")
+      document.runnerImage !== identity.runnerImage ||
+      document.architecture !== identity.architecture ||
+      !isDeepStrictEqual(document.contracts, identity.contracts) ||
+      !isDeepStrictEqual(document.limitations, hostedLimitations)
     ) {
-      throw new Error(`qualification set does not approve ${platform} for ${commit}`);
+      throw new Error(
+        `hosted qualification set does not approve ${identity.platform} for ${commit}`,
+      );
     }
   }
-  return expected.map((platform) => byPlatform.get(platform));
+  return expected.map(({ platform }) => byPlatform.get(platform));
 }
 
 if (process.argv[1] && basename(process.argv[1]) === "verify-qualification-set.mjs") {
@@ -39,5 +60,7 @@ if (process.argv[1] && basename(process.argv[1]) === "verify-qualification-set.m
   const version = argument("version");
   const commit = argument("commit");
   verifyQualificationSet(directory, { version, commit });
-  process.stdout.write(`qualified ${expected.join(", ")} for ${commit}\n`);
+  process.stdout.write(
+    `qualified ${expected.map(({ platform }) => platform).join(", ")} on GitHub-hosted runners for ${commit}\n`,
+  );
 }

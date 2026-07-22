@@ -1,4 +1,4 @@
-# macOS arm64 Adapter 验收矩阵
+# macOS arm64 Adapter 非阻塞人工验收建议
 
 适用范围：macOS 14 及更高版本、Apple Silicon。实现入口为
 `product/platform/macos`，只使用 Rust 与 `objc2` framework bindings；发布物不得包含
@@ -71,12 +71,12 @@ Capture Host 触发，并记录应用版本、签名身份和系统版本。
   `NSScreenCaptureUsageDescription` 存在。
 - Capture Host 与 Desktop 均为 arm64 Mach-O；不存在项目自有 Swift dylib、旧 bridge 符号、
   `CGWindowListCreateImage`、`CGDisplayCreateImage`、透明 WebView 或 `macOSPrivateApi=true`。
-- 真实 TCC、Retina/多屏、Spaces、pasteboard 和 `SMAppService` 结果记录到 RC 验收证据，
-  hosted runner 的编译与单元测试不能替代这些真机结论。
+- 如执行人工验证，将真实 TCC、Retina/多屏、Spaces、pasteboard 和 `SMAppService` 结果记录到
+  Issue #45；hosted runner 的编译与单元测试不能冒充这些真机结论，缺少记录不阻止 RC 或发布。
 
-## PERF-01 真机记录
+## PERF-01 建议真机记录
 
-以下结果必须由同一个已安装、稳定签名的 RC 采集；#45 的源码/hosted CI 结果不能代填：
+如采集以下结果，应使用同一个已安装、稳定签名的 RC；#45 的源码/hosted CI 结果不能代填：
 
 | 场景 | 样本/门限 | RC 证据 |
 | --- | --- | --- |

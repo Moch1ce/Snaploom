@@ -53,7 +53,7 @@ const approvedStablePublishJobSha256 =
 const approvedStableSdkPromotionJobSha256 =
   "c05a4ce09af0a2f26ff63ffb5947a127017257e49b1137d373b8a1d3ba18bbcf";
 const approvedStablePublishVerifierSha256 = {
-  "verify-stable-publish.mjs": "9bda8572e9382102fa48fa9c763cb22f9dc04e1d8370d62c40ecb905b7c4efba",
+  "verify-stable-publish.mjs": "73d19160e39ed04dbc93e0c03704457f5bf0704a5803a8c18902fb5b3dc82fdb",
   "verify-draft-release.mjs": "3216d1180f5e05a58e7771a428438c7d7ba35db765386708a40c90456fc2a3de",
   "release-contract.mjs": "d1a224cfa4c6d95f9b844634c7f4f34ebed8f13618c9f5e3762a6496f56f9aec",
   "verify-release.mjs": "4f4ae402d5eb2b8b4b0b39c0cb7911b3d8cde59c29e224ab605296d0b90d4a68",

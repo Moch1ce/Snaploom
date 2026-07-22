@@ -57,7 +57,8 @@ Snaploom 使用一个版本、一个不可变 tag、一个 GitHub Release，原�
 - 批准记录包含 tag、commit、draft URL、manifest digest、产物 checksums、所有者身份、日期、结论、决策记录 hash/受控存档位置；
 - 结论为接受、修改项为空，且明确确认未经过外部法律复核；
 - GitHub `stable-release` environment 允许单人仓库所有者自批并保留管理员 bypass；
-- Windows/macOS 真机、性能、包装、SDK consumer、合规与合同映射 required checks 全部成功。
+- Windows/macOS GitHub-hosted 自动平台门禁、包装、SDK consumer、合规与合同映射 required checks
+  全部成功；批准记录明确接受缺少交互桌面与真机性能资格证明。
 
 CI 只校验记录存在、所有者身份、字段和 digest 匹配，不能生成、补写或代签批准记录。任一条件不满足时 draft 保留或删除，但不能公开。
 
@@ -361,7 +362,8 @@ Swift Package Index 等目录收录是发布后的可选元数据操作，不是
 - Issue #33 所有者风险接受记录已完成且精确覆盖当前 tag/commit/draft/checksum；
 - `stable-release` 环境由仓库所有者批准，可与触发人为同一人；
 - release notes 明确 GPL App/Host 与 Apache SDK 独立、Host 安装/发现、未承诺“IPC 自动消除 GPL 风险”；
-- Windows/macOS 真机、4K 性能、20+ 循环资源稳定与安装矩阵有当前版本证据。
+- Windows/macOS GitHub-hosted 自动门禁有当前版本证据；所有者明确接受没有真机 4K 性能、20+
+  循环资源稳定与安装矩阵证明即发布。人工矩阵继续作为非阻塞建议跟踪。
 
 ## 14. 对现有 release workflow 与脚本的迁移要求
 
@@ -379,7 +381,8 @@ Tauri 迁移时必须替换/加强：
 2. 将旧的四资产 prerelease 扩展为本文 exact asset matrix，不再只验证 installer/DMG。
 3. 将 `actions/*@vN` 改为 full commit SHA。
 4. 拆分 build、sign、attest、draft、stable publish、NuGet promotion，避免同一 job 同时持有源码执行、签名 secret 和 Release write。
-5. 旧 Issue #18 门禁迁移为当前合同映射/真机/性能门禁；#33 作为稳定 SDK 的所有者风险接受门禁。
+5. 旧 Issue #18 的自动合同迁移到 GitHub-hosted qualification；真机/性能矩阵降级为非阻塞人工建议，
+   并由 #33 所有者记录明确接受缺少这些证明的发布风险。
 6. Windows installer 从 unsigned candidate 增加 stable Authenticode 模式，并在 installer 内安装/登记独立 Host。
 7. macOS 脚本删除旧 Swift dylib/.NET entitlement，分别构建/签名 Host 与 Desktop，稳定模式强制 Developer ID + notarization。
 8. metadata schema 升级并并入 `release-manifest.json`，记录 commit、builder、signing/notary、license/SBOM/source。

@@ -28,4 +28,4 @@ verifyRunEvidence(
 if (legalRcPath) {
   verifyLegalRcRunEvidence(JSON.parse(readFileSync(resolve(legalRcPath), "utf8")));
 }
-process.stdout.write(`verified CI and true-machine runs for ${commit}\n`);
+process.stdout.write(`verified CI and GitHub-hosted qualification runs for ${commit}\n`);

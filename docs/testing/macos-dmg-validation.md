@@ -24,8 +24,9 @@ Developer ID 签名，提交 Host 公证并 staple，再把同一个 Host bundle
 与 DMG、提交 DMG 公证、staple，并执行 `codesign --verify --deep --strict`、`stapler validate` 和
 `spctl`。任何凭据、签名、公证或 Gatekeeper 步骤失败都停止，不能降级为 ad hoc。
 
-## 真机证据
+## 非阻塞人工真机建议
 
-macOS 14+ Apple Silicon 的 `Release qualification` 必须覆盖屏幕录制权限缺失/恢复、Gatekeeper、
-单双屏、4K/5K Retina、混合 DPI、热插拔、睡眠唤醒、复制/保存与失败恢复。Hosted runner 的包验证
-不能替代带真实交互 Desktop、SCK 和 WebView compositor 的 PERF-01/QA-03 证据。
+如自愿执行 macOS 14+ Apple Silicon 人工验证，建议覆盖屏幕录制权限缺失/恢复、Gatekeeper、单双屏、
+4K/5K Retina、混合 DPI、热插拔、睡眠唤醒、复制/保存与失败恢复。Hosted runner 的包验证不能冒充
+带真实交互 Desktop、SCK 和 WebView compositor 的 PERF-01/QA-03 证据；缺少这些人工证据不阻止
+签名 RC 或 stable publish。
