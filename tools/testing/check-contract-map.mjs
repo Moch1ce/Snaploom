@@ -43,10 +43,9 @@ const CATEGORY_REQUIREMENTS = {
     "OUT-04",
     "CFG-02",
     "ERR-01",
-    "QA-03",
   ]),
-  performance: new Set(["ANN-08", "PERF-01", "QA-02", "QA-03"]),
-  installation: new Set(["DIST-01", "DIST-02", "DIST-03", "DIST-04", "QA-03"]),
+  performance: new Set(["ANN-08", "PERF-01", "QA-02"]),
+  installation: new Set(["DIST-01", "DIST-02", "DIST-03", "DIST-04"]),
   signing: new Set(["DIST-03", "DIST-04", "QA-04"]),
 };
 

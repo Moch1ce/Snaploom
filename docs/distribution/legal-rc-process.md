@@ -63,8 +63,7 @@ draft 不得补传或覆盖；在尚未提交所有者批准记录时可删除�
 一旦所有者批准记录已覆盖该候选，任何 byte 变化都必须使用新的 patch、manifest 和批准记录。
 
 Issue #33 由仓库所有者本人填写日期、风险接受、结论、修改项、公开风险文案、决策记录
-SHA-256/受控位置与签名，并明确设置 `acknowledgedWithoutExternalLegalReview=true` 和
-`acknowledgedWithoutRealMachineQualification=true`。CI 和 Agent 不能代填，
+SHA-256/受控位置与签名，并明确设置 `acknowledgedWithoutExternalLegalReview=true`。CI 和 Agent 不能代填，
 本工作流成功也不能自动把 draft 改为 stable。stable publish 是后续独立事项，必须只消费同一已批准
 draft，不能重建、重签或替换资产。记录格式、`stable-release` 环境与唯一公开入口见
 [所有者批准后的稳定 Release 公开流程](./stable-release-process.md)。

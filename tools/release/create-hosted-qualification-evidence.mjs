@@ -3,25 +3,10 @@
 
 import { writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
-
-const identities = new Map([
-  [
-    "windows-x64",
-    {
-      runnerImage: "windows-2025",
-      architecture: "x86_64",
-      contracts: ["QA-02", "DIST-02"],
-    },
-  ],
-  [
-    "macos-arm64",
-    {
-      runnerImage: "macos-15",
-      architecture: "arm64",
-      contracts: ["QA-02", "DIST-03"],
-    },
-  ],
-]);
+import {
+  hostedQualificationIdentity,
+  hostedQualificationLimitations,
+} from "./hosted-qualification-policy.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(`--${name}`);
@@ -35,7 +20,7 @@ export function createHostedQualificationEvidence({
   version,
   commit,
 }) {
-  const identity = identities.get(platform);
+  const identity = hostedQualificationIdentity(platform);
   if (
     !identity ||
     identity.runnerImage !== runnerImage ||
@@ -55,8 +40,8 @@ export function createHostedQualificationEvidence({
     version,
     commit,
     passed: true,
-    contracts: identity.contracts,
-    limitations: ["no-interactive-desktop", "no-real-machine-performance"],
+    contracts: [...identity.contracts],
+    limitations: [...hostedQualificationLimitations],
   };
 }
 

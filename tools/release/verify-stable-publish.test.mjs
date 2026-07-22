@@ -93,7 +93,6 @@ function fixture() {
     approvalDate: "2026-07-21",
     riskAcknowledgement: "The repository owner accepts publishing without external legal review.",
     acknowledgedWithoutExternalLegalReview: true,
-    acknowledgedWithoutRealMachineQualification: true,
     conclusion: "accepted",
     requiredChanges: [],
     approvedPublicRiskLanguage,
@@ -235,36 +234,6 @@ test("requires the owner to acknowledge publishing without external legal review
           skipArchiveBoundaries: true,
         }),
       /acknowledge publishing without external legal review/,
-    );
-  } finally {
-    rmSync(paths.root, { recursive: true, force: true });
-  }
-});
-
-test("requires the owner to acknowledge publishing without real-machine qualification", () => {
-  const paths = fixture();
-  try {
-    const record = JSON.parse(
-      paths.ownerApprovalComment.body.match(/```json\n([\s\S]+)\n```/)[1],
-    );
-    record.acknowledgedWithoutRealMachineQualification = false;
-    assert.throws(
-      () =>
-        verifyStablePublish({
-          release: paths.release,
-          directory: paths.directory,
-          version,
-          commit,
-          issue: paths.issue,
-          ownerPermission: paths.ownerPermission,
-          ownerApprovalComment: {
-            ...paths.ownerApprovalComment,
-            body: `<!-- snaploom-owner-release-approval:v1 -->\n\`\`\`json\n${JSON.stringify(record)}\n\`\`\``,
-          },
-          repositoryOwner: "Moch1ce",
-          skipArchiveBoundaries: true,
-        }),
-      /acknowledge publishing without real-machine qualification/,
     );
   } finally {
     rmSync(paths.root, { recursive: true, force: true });

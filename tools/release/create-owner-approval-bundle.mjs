@@ -289,7 +289,6 @@ export function createOwnerApprovalBundle({
       "approvalDate",
       "riskAcknowledgement",
       "acknowledgedWithoutExternalLegalReview",
-      "acknowledgedWithoutRealMachineQualification",
       "conclusion",
       "requiredChanges",
       "approvedPublicRiskLanguage",

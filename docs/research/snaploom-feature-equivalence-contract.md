@@ -392,8 +392,8 @@
 基准必须独占运行，不能与构建/测试并行争抢 CPU。取消或直接关闭不计成功循环；每次采样前应等待 Capture Session 资源释放，并按实现语言使用可解释的回收/稳定化流程。
 
 上述真机与真实交互桌面指标是产品质量目标，不是签名 RC 或 stable publish 的硬前置条件。发布只硬门禁
-GitHub-hosted 可诚实复现的自动平台合同；缺少真机样本时不得把 PERF-01 标记为已完成，所有者必须在 #33
-明确接受没有真机 qualification 即发布的风险。
+GitHub-hosted 可诚实复现的自动平台合同；缺少真机样本时不得把 PERF-01 标记为已完成，qualification
+与审批包必须披露没有真机证明。
 
 证据：`docs/testing/performance-compatibility-report.md`、Issue #18、`dotnet-final:tools/Snaploom.PerformanceHarness/`、性能测试。
 

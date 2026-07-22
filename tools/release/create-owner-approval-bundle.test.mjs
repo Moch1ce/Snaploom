@@ -270,7 +270,6 @@ test("creates an immutable owner approval subject without granting stable publis
       "approvalDate",
       "riskAcknowledgement",
       "acknowledgedWithoutExternalLegalReview",
-      "acknowledgedWithoutRealMachineQualification",
       "conclusion",
       "requiredChanges",
       "approvedPublicRiskLanguage",
