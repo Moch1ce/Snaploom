@@ -808,8 +808,8 @@ jobs:
             "[.[][] | select(.tag_name == \"v${VERSION}\")] | length")" = 0
           jq -n \
             --arg tag "v${VERSION}" --arg commit "${COMMIT}" \
-            --arg name "Snaploom ${VERSION} signed legal RC" \
-            --arg body "Signed, notarized legal-review candidate. This release remains an invisible draft and MUST NOT be published until Issue #33 has a real external-lawyer record that exactly matches this tag, commit, manifest digest, and checksums." \
+            --arg name "Snaploom ${VERSION}" \
+            --arg body "Snaploom ${VERSION} provides GPL-3.0-or-later Desktop and Capture Host assets plus separately licensed Apache-2.0 Capture SDK assets. The Apache Capture SDK communicates with a separately distributed GPL-3.0-or-later Capture Host; IPC does not automatically eliminate GPL compliance obligations. Install or provide the Capture Host separately and review the included license, NOTICE, SBOM, source, and integration-risk materials before redistribution." \
             '{tag_name:$tag,target_commitish:$commit,name:$name,body:$body,draft:true,prerelease:false,generate_release_notes:false}' \
             > "${RUNNER_TEMP}/create-release.json"
           gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \

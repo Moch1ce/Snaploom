@@ -148,7 +148,9 @@ cyclonedx validate --input-file <sbom.cdx.json>
 
 签名法律 RC 的生成、GitHub draft 重下载和复核包字段见
 [签名法律 RC draft 流程](../distribution/legal-rc-process.md)。该自动化不会填写本节，也没有 stable
-publish 入口。
+publish 权限。真实外部记录完成后，只能由
+[受保护的稳定 Release 公开入口](../distribution/stable-release-process.md) 重新验证同一 draft 并执行一次
+不可变转换。
 
 ## 9. 外部律师复核记录
 

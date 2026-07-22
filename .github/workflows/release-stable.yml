@@ -1,0 +1,267 @@
+name: Publish reviewed stable release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact X.Y.Z release version
+        required: true
+        type: string
+      commit:
+        description: Full 40-character release commit SHA
+        required: true
+        type: string
+      draft_release_id:
+        description: Existing signed legal-review draft release ID
+        required: true
+        type: string
+      review_comment_id:
+        description: Issue 33 comment containing the external legal-review record
+        required: true
+        type: string
+
+concurrency:
+  group: stable-release-${{ inputs.version }}-${{ inputs.commit }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  validate:
+    name: Validate immutable draft and external legal approval
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Validate trusted dispatch identity
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+          DRAFT_RELEASE_ID: ${{ inputs.draft_release_id }}
+          REVIEW_COMMENT_ID: ${{ inputs.review_comment_id }}
+          LEGAL_REVIEWER_LOGINS: ${{ vars.LEGAL_REVIEWER_LOGINS }}
+        run: |
+          test "${GITHUB_REF}" = refs/heads/main
+          [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "${COMMIT}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${DRAFT_RELEASE_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${REVIEW_COMMENT_ID}" =~ ^[1-9][0-9]*$ ]]
+          test -n "${LEGAL_REVIEWER_LOGINS}"
+
+      - name: Checkout the reviewed release implementation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve immutable tag and main ancestry
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          test "$(git rev-parse HEAD)" = "${COMMIT}"
+          git fetch --no-tags origin "refs/heads/main:refs/remotes/origin/main"
+          git fetch --no-tags origin "refs/tags/v${VERSION}:refs/snaploom-stable/v${VERSION}"
+          test "$(git rev-list -n 1 "refs/snaploom-stable/v${VERSION}")" = "${COMMIT}"
+          git merge-base --is-ancestor "${COMMIT}" refs/remotes/origin/main
+
+      - name: Redownload and verify the exact reviewed draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+          DRAFT_RELEASE_ID: ${{ inputs.draft_release_id }}
+          REVIEW_COMMENT_ID: ${{ inputs.review_comment_id }}
+          LEGAL_REVIEWER_LOGINS: ${{ vars.LEGAL_REVIEWER_LOGINS }}
+        run: |
+          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/releases/${DRAFT_RELEASE_ID}" \
+            > "${RUNNER_TEMP}/draft-release-raw.json"
+          resolved_tag_commit="$(git rev-list -n 1 "refs/snaploom-stable/v${VERSION}")"
+          jq --arg commit "${resolved_tag_commit}" '. + {resolved_tag_commit:$commit}' \
+            "${RUNNER_TEMP}/draft-release-raw.json" \
+            > "${RUNNER_TEMP}/draft-release.json"
+          mkdir "${RUNNER_TEMP}/release-download"
+          jq -r '.assets[] | [.id, .name] | @tsv' "${RUNNER_TEMP}/draft-release.json" |
+            while IFS=$'\t' read -r asset_id name; do
+              test "${name}" = "$(basename "${name}")"
+              [[ "${name}" =~ ^[A-Za-z0-9._+-]+$ ]]
+              gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+                "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" \
+                -H "Accept: application/octet-stream" \
+                > "${RUNNER_TEMP}/release-download/${name}"
+            done
+          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/issues/33" \
+            > "${RUNNER_TEMP}/issue-33.json"
+          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/issues/comments/${REVIEW_COMMENT_ID}" \
+            > "${RUNNER_TEMP}/review-comment.json"
+          reviewer_login="$(jq -er '.user.login | select(test("^[A-Za-z0-9-]+$"))' \
+            "${RUNNER_TEMP}/review-comment.json")"
+          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/collaborators/${reviewer_login}/permission" \
+            > "${RUNNER_TEMP}/reviewer-permission.json"
+          node tools/release/verify-stable-publish.mjs \
+            --release-json "${RUNNER_TEMP}/draft-release.json" \
+            --directory "${RUNNER_TEMP}/release-download" \
+            --issue-json "${RUNNER_TEMP}/issue-33.json" \
+            --review-comment-json "${RUNNER_TEMP}/review-comment.json" \
+            --reviewer-permission-json "${RUNNER_TEMP}/reviewer-permission.json" \
+            --version "${VERSION}" --commit "${COMMIT}" \
+            --repository-owner "${GITHUB_REPOSITORY_OWNER}" \
+            --allowed-reviewers "${LEGAL_REVIEWER_LOGINS}"
+
+  publish:
+    name: Publish the unchanged reviewed draft exactly once
+    needs: validate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: stable-release
+    permissions:
+      contents: write
+      issues: read
+    outputs:
+      publication_evidence: ${{ steps.publication-evidence.outputs.json }}
+
+    steps:
+      - name: Checkout the reviewed release implementation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Reverify and publish the unchanged draft after environment gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+          DRAFT_RELEASE_ID: ${{ inputs.draft_release_id }}
+          REVIEW_COMMENT_ID: ${{ inputs.review_comment_id }}
+          LEGAL_REVIEWER_LOGINS: ${{ vars.LEGAL_REVIEWER_LOGINS }}
+        run: |
+          test "${GITHUB_REF}" = refs/heads/main
+          [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "${COMMIT}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${DRAFT_RELEASE_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${REVIEW_COMMENT_ID}" =~ ^[1-9][0-9]*$ ]]
+          test -n "${LEGAL_REVIEWER_LOGINS}"
+          test "$(git rev-parse HEAD)" = "${COMMIT}"
+          git fetch --no-tags origin "refs/heads/main:refs/remotes/origin/main"
+          git fetch --no-tags origin "refs/tags/v${VERSION}:refs/snaploom-stable/v${VERSION}"
+          resolved_tag_commit="$(git rev-list -n 1 "refs/snaploom-stable/v${VERSION}")"
+          test "${resolved_tag_commit}" = "${COMMIT}"
+          git merge-base --is-ancestor "${COMMIT}" refs/remotes/origin/main
+          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/releases/${DRAFT_RELEASE_ID}" \
+            > "${RUNNER_TEMP}/draft-release-raw.json"
+          jq --arg commit "${resolved_tag_commit}" '. + {resolved_tag_commit:$commit}' \
+            "${RUNNER_TEMP}/draft-release-raw.json" \
+            > "${RUNNER_TEMP}/draft-release.json"
+          mkdir "${RUNNER_TEMP}/release-download"
+          jq -r '.assets[] | [.id, .name] | @tsv' "${RUNNER_TEMP}/draft-release.json" |
+            while IFS=$'\t' read -r asset_id name; do
+              test "${name}" = "$(basename "${name}")"
+              [[ "${name}" =~ ^[A-Za-z0-9._+-]+$ ]]
+              gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+                "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" \
+                -H "Accept: application/octet-stream" \
+                > "${RUNNER_TEMP}/release-download/${name}"
+            done
+          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/issues/33" \
+            > "${RUNNER_TEMP}/issue-33.json"
+          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/issues/comments/${REVIEW_COMMENT_ID}" \
+            > "${RUNNER_TEMP}/review-comment.json"
+          reviewer_login="$(jq -er '.user.login | select(test("^[A-Za-z0-9-]+$"))' \
+            "${RUNNER_TEMP}/review-comment.json")"
+          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/collaborators/${reviewer_login}/permission" \
+            > "${RUNNER_TEMP}/reviewer-permission.json"
+          node tools/release/verify-stable-publish.mjs \
+            --release-json "${RUNNER_TEMP}/draft-release.json" \
+            --directory "${RUNNER_TEMP}/release-download" \
+            --issue-json "${RUNNER_TEMP}/issue-33.json" \
+            --review-comment-json "${RUNNER_TEMP}/review-comment.json" \
+            --reviewer-permission-json "${RUNNER_TEMP}/reviewer-permission.json" \
+            --version "${VERSION}" --commit "${COMMIT}" \
+            --repository-owner "${GITHUB_REPOSITORY_OWNER}" \
+            --allowed-reviewers "${LEGAL_REVIEWER_LOGINS}"
+          gh api --method PATCH -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/releases/${DRAFT_RELEASE_ID}" \
+            -F draft=false -F prerelease=false -f make_latest=true \
+            > "${RUNNER_TEMP}/transition-response.json"
+          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/releases/${DRAFT_RELEASE_ID}" \
+            > "${RUNNER_TEMP}/published-release.json"
+
+      - name: Prove immutable publication and unchanged assets
+        id: publication-evidence
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+          LEGAL_REVIEWER_LOGINS: ${{ vars.LEGAL_REVIEWER_LOGINS }}
+        run: |
+          jq -e '.draft == false and .prerelease == false and .published_at != null and .immutable == true' \
+            "${RUNNER_TEMP}/published-release.json"
+          node tools/release/verify-stable-publish.mjs \
+            --release-json "${RUNNER_TEMP}/draft-release.json" \
+            --published-release-json "${RUNNER_TEMP}/published-release.json" \
+            --directory "${RUNNER_TEMP}/release-download" \
+            --issue-json "${RUNNER_TEMP}/issue-33.json" \
+            --review-comment-json "${RUNNER_TEMP}/review-comment.json" \
+            --reviewer-permission-json "${RUNNER_TEMP}/reviewer-permission.json" \
+            --version "${VERSION}" --commit "${COMMIT}" \
+            --repository-owner "${GITHUB_REPOSITORY_OWNER}" \
+            --allowed-reviewers "${LEGAL_REVIEWER_LOGINS}"
+          evidence_json="$(jq -c \
+            --arg workflowRun "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            '{schemaVersion:1,release:{id,html_url,tag_name,target_commitish,name,draft,prerelease,published_at,immutable},workflowRun:$workflowRun}' \
+            "${RUNNER_TEMP}/published-release.json")"
+          echo "json=${evidence_json}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "### Stable publication evidence"
+            echo
+            echo '```json'
+            printf '%s\n' "${evidence_json}"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  record-evidence:
+    name: Record post-publication evidence
+    needs: publish
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Materialize verified publication evidence
+        shell: bash
+        env:
+          EVIDENCE_JSON: ${{ needs.publish.outputs.publication_evidence }}
+        run: |
+          printf '%s\n' "${EVIDENCE_JSON}" |
+            jq -e 'select(.schemaVersion == 1 and .release.draft == false and .release.immutable == true)' \
+              > "${RUNNER_TEMP}/stable-publication-evidence.json"
+
+      - name: Upload post-publication evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: snaploom-v${{ inputs.version }}-stable-publication
+          path: ${{ runner.temp }}/stable-publication-evidence.json
+          if-no-files-found: error
+          retention-days: 90

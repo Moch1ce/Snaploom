@@ -408,10 +408,11 @@
       "id": "DIST-04",
       "title": "Release 原子性与门禁",
       "status": "required",
-      "implementation": ["tools/release/release-contract.mjs", ".github/workflows/release-legal-rc.yml"],
+      "implementation": ["tools/release/release-contract.mjs", ".github/workflows/release-legal-rc.yml", ".github/workflows/release-stable.yml"],
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "tools/release/release-contract.test.mjs", "contains": "assembles and verifies the exact candidate asset set"},
         {"category": "release", "status": "verified", "path": "tools/release/verify-draft-release.test.mjs", "contains": "rejects public, partial, extra, or digest-mismatched releases"},
+        {"category": "release", "status": "verified", "path": "tools/release/verify-stable-publish.test.mjs", "contains": "accepts only an immutable publication that preserves the reviewed draft identity and assets"},
         {"category": "installation", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "完整 CI、最终签名"},
         {"category": "signing", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "当前已有的公开 `v0.1.0` prerelease"}
       ]
@@ -460,9 +461,11 @@
       "id": "QA-04",
       "title": "完成判定",
       "status": "required",
-      "implementation": ["tools/testing/check-contract-map.mjs", "testing/contract-map/contracts.yml"],
+      "implementation": ["tools/testing/check-contract-map.mjs", "testing/contract-map/contracts.yml", "tools/release/verify-stable-publish.mjs"],
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "tools/testing/check-contract-map.test.mjs", "contains": "rejects missing, extra, duplicate, and renamed evidence anchors"},
+        {"category": "automatic", "status": "verified", "path": "tools/release/check-workflows.test.mjs", "contains": "stable publish mutation policy rejects extra REST mutations and implicit POST fields"},
+        {"category": "automatic", "status": "verified", "path": "tools/release/verify-stable-publish.test.mjs", "contains": "rejects owner, non-allowlisted, non-collaborator, maintainer, and bot authors"},
         {"category": "signing", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "签名法律 RC draft 流程"}
       ]
     }

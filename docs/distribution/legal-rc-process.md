@@ -64,3 +64,5 @@ draft 不得补传、覆盖或交给律师；在尚未开始外部复核时可�
 Issue #33 只能由真实外部律师填写姓名/执业身份、日期、司法辖区、结论、修改项、公开风险文案、
 意见文件 SHA-256/受控位置与签名。CI、Agent、维护者批准和本工作流成功均不能代签，也不能把 draft
 改为 stable。stable publish 是后续独立事项，必须只消费同一已复核 draft，不能重建、重签或替换资产。
+外部记录格式、allowlist、`stable-release` 环境与唯一公开入口见
+[外部法律复核后的稳定 Release 公开流程](./stable-release-process.md)。

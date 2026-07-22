@@ -53,4 +53,5 @@ Issue #33 的真实外部律师签署只阻止 stable publish，不阻止构建�
 法律结论。稳定发布还必须使用同一 tag/commit 的已审核 draft 实物，不重建、不替换、不移动 tag。
 
 最终签名候选的环境、Secrets、原子 draft、重下载复验与外部复核包操作见
-[签名法律 RC draft 流程](./legal-rc-process.md)。
+[签名法律 RC draft 流程](./legal-rc-process.md)；外部记录通过后的唯一公开动作见
+[稳定 Release 公开流程](./stable-release-process.md)。
