@@ -9,7 +9,10 @@ import { join } from "node:path";
 import test from "node:test";
 import { assembleRelease } from "./assemble-release.mjs";
 import { assetsForVersion, expectedReleaseFiles } from "./release-contract.mjs";
-import { verifyPublishedTransition, verifyStablePublish } from "./verify-stable-publish.mjs";
+import {
+  verifyPublishedTransition,
+  verifyStablePublish as verifyStablePublishContract,
+} from "./verify-stable-publish.mjs";
 
 const version = "1.2.3";
 const commit = "3".repeat(40);
@@ -81,23 +84,23 @@ function fixture() {
   };
   const review = {
     schemaVersion: 1,
-    kind: "snaploom-external-legal-review",
-    legalReviewIssue: 33,
-    reviewer: {
-      name: "External Counsel",
-      organizationOrLicenseIdentity: "Example Bar 12345",
-      githubLogin: "external-counsel",
+    kind: "snaploom-owner-release-approval",
+    approvalIssue: 33,
+    owner: {
+      name: "Repository Owner",
+      githubLogin: "Moch1ce",
     },
-    reviewDate: "2026-07-21",
-    jurisdictionAndLimitations: "Example jurisdiction; limited to the attached release subject.",
+    approvalDate: "2026-07-21",
+    riskAcknowledgement: "The repository owner accepts publishing without external legal review.",
+    acknowledgedWithoutExternalLegalReview: true,
     conclusion: "accepted",
     requiredChanges: [],
     approvedPublicRiskLanguage,
-    opinionDocument: {
+    decisionRecord: {
       sha256: "b".repeat(64),
-      controlledLocation: "counsel://matter/snaploom/1.2.3",
+      controlledLocation: "owner://decision/snaploom/1.2.3",
     },
-    signature: "External Counsel / 2026-07-21",
+    signature: "Repository Owner / 2026-07-21",
     release: {
       id: release.id,
       url: release.html_url,
@@ -112,14 +115,14 @@ function fixture() {
       ),
     },
   };
-  const reviewComment = {
+  const ownerApprovalComment = {
     id: 9001,
     issue_url: "https://api.github.com/repos/Moch1ce/Snaploom/issues/33",
     created_at: "2026-07-21T10:00:00Z",
     updated_at: "2026-07-21T10:00:00Z",
-    author_association: "COLLABORATOR",
-    user: { login: "external-counsel", type: "User" },
-    body: `<!-- snaploom-legal-review:v1 -->\n\`\`\`json\n${JSON.stringify(review)}\n\`\`\``,
+    author_association: "OWNER",
+    user: { login: "Moch1ce", type: "User" },
+    body: `<!-- snaploom-owner-release-approval:v1 -->\n\`\`\`json\n${JSON.stringify(review)}\n\`\`\``,
   };
   const issue = {
     number: 33,
@@ -128,37 +131,198 @@ function fixture() {
     closed_at: "2026-07-21T11:00:00Z",
     pull_request: undefined,
   };
-  const reviewerPermission = {
-    permission: "write",
-    role_name: "write",
-    user: { login: "external-counsel", type: "User" },
+  const ownerPermission = {
+    permission: "admin",
+    role_name: "admin",
+    user: { login: "Moch1ce", type: "User" },
   };
-  return { root, directory, release, reviewComment, reviewerPermission, issue };
+  return { root, directory, release, ownerApprovalComment, ownerPermission, issue };
 }
 
-test("accepts one external legal record that exactly matches the immutable draft subject", () => {
+function verifyStablePublish({ ownerApprovalComment, ownerPermission, ...options }) {
+  return verifyStablePublishContract({
+    ...options,
+    issueComments: [ownerApprovalComment],
+    ownerApprovalCommentId: ownerApprovalComment.id,
+    ownerPermission,
+  });
+}
+
+test("rejects approval from anyone other than the repository owner", () => {
   const paths = fixture();
   try {
-    const result = verifyStablePublish({
-      release: paths.release,
-      directory: paths.directory,
-      version,
-      commit,
-      issue: paths.issue,
-      reviewerPermission: paths.reviewerPermission,
-      reviewComment: paths.reviewComment,
-      repositoryOwner: "Moch1ce",
-      allowedReviewerLogins: ["external-counsel"],
-      skipArchiveBoundaries: true,
-    });
-    assert.equal(result.release.id, 42);
-    assert.equal(result.review.reviewer.githubLogin, "external-counsel");
+    const externalComment = {
+      ...paths.ownerApprovalComment,
+      author_association: "COLLABORATOR",
+      user: { login: "external-counsel", type: "User" },
+      body: paths.ownerApprovalComment.body.replaceAll("Moch1ce", "external-counsel"),
+    };
+    assert.throws(
+      () =>
+        verifyStablePublish({
+          release: paths.release,
+          directory: paths.directory,
+          version,
+          commit,
+          issue: paths.issue,
+          ownerPermission: {
+            permission: "write",
+            role_name: "write",
+            user: { login: "external-counsel", type: "User" },
+          },
+          ownerApprovalComment: externalComment,
+          repositoryOwner: "Moch1ce",
+          skipArchiveBoundaries: true,
+        }),
+      /repository owner with admin permission/,
+    );
   } finally {
     rmSync(paths.root, { recursive: true, force: true });
   }
 });
 
-test("rejects owner, non-allowlisted, non-collaborator, maintainer, and bot authors", () => {
+test("accepts the repository owner's approval for the immutable draft subject", () => {
+  const paths = fixture();
+  try {
+    const ownerComment = {
+      ...paths.ownerApprovalComment,
+      author_association: "OWNER",
+      user: { login: "Moch1ce", type: "User" },
+      body: paths.ownerApprovalComment.body.replaceAll("external-counsel", "Moch1ce"),
+    };
+    assert.doesNotThrow(() =>
+      verifyStablePublish({
+        release: paths.release,
+        directory: paths.directory,
+        version,
+        commit,
+        issue: paths.issue,
+        ownerPermission: {
+          permission: "admin",
+          role_name: "admin",
+          user: { login: "Moch1ce", type: "User" },
+        },
+        ownerApprovalComment: ownerComment,
+        repositoryOwner: "MOCH1CE",
+        skipArchiveBoundaries: true,
+      }),
+    );
+  } finally {
+    rmSync(paths.root, { recursive: true, force: true });
+  }
+});
+
+test("requires the owner to acknowledge publishing without external legal review", () => {
+  const paths = fixture();
+  try {
+    const record = JSON.parse(paths.ownerApprovalComment.body.match(/```json\n([\s\S]+)\n```/)[1]);
+    record.acknowledgedWithoutExternalLegalReview = false;
+    assert.throws(
+      () =>
+        verifyStablePublish({
+          release: paths.release,
+          directory: paths.directory,
+          version,
+          commit,
+          issue: paths.issue,
+          ownerPermission: paths.ownerPermission,
+          ownerApprovalComment: {
+            ...paths.ownerApprovalComment,
+            body: `<!-- snaploom-owner-release-approval:v1 -->\n\`\`\`json\n${JSON.stringify(record)}\n\`\`\``,
+          },
+          repositoryOwner: "Moch1ce",
+          skipArchiveBoundaries: true,
+        }),
+      /acknowledge publishing without external legal review/,
+    );
+  } finally {
+    rmSync(paths.root, { recursive: true, force: true });
+  }
+});
+
+test("rejects the legacy external legal-review marker", () => {
+  const paths = fixture();
+  try {
+    assert.throws(
+      () =>
+        verifyStablePublish({
+          release: paths.release,
+          directory: paths.directory,
+          version,
+          commit,
+          issue: paths.issue,
+          ownerPermission: paths.ownerPermission,
+          ownerApprovalComment: {
+            ...paths.ownerApprovalComment,
+            body: paths.ownerApprovalComment.body.replace(
+              "snaploom-owner-release-approval:v1",
+              "snaploom-legal-review:v1",
+            ),
+          },
+          repositoryOwner: "Moch1ce",
+          skipArchiveBoundaries: true,
+        }),
+      /exactly one owner approval record/,
+    );
+  } finally {
+    rmSync(paths.root, { recursive: true, force: true });
+  }
+});
+
+test("rejects duplicate or conflicting owner approval records across Issue 33 comments", () => {
+  const paths = fixture();
+  try {
+    const duplicate = {
+      ...paths.ownerApprovalComment,
+      id: 9002,
+      body: paths.ownerApprovalComment.body.replace('"conclusion":"accepted"', '"conclusion":"rejected"'),
+    };
+    assert.throws(
+      () =>
+        verifyStablePublishContract({
+          release: paths.release,
+          directory: paths.directory,
+          version,
+          commit,
+          issue: paths.issue,
+          issueComments: [paths.ownerApprovalComment, duplicate],
+          ownerApprovalCommentId: paths.ownerApprovalComment.id,
+          ownerPermission: paths.ownerPermission,
+          repositoryOwner: "Moch1ce",
+          skipArchiveBoundaries: true,
+        }),
+      /exactly one owner approval record/,
+    );
+  } finally {
+    rmSync(paths.root, { recursive: true, force: true });
+  }
+});
+
+test("requires the requested owner approval comment ID to match the unique record", () => {
+  const paths = fixture();
+  try {
+    assert.throws(
+      () =>
+        verifyStablePublishContract({
+          release: paths.release,
+          directory: paths.directory,
+          version,
+          commit,
+          issue: paths.issue,
+          issueComments: [paths.ownerApprovalComment],
+          ownerApprovalCommentId: 9002,
+          ownerPermission: paths.ownerPermission,
+          repositoryOwner: "Moch1ce",
+          skipArchiveBoundaries: true,
+        }),
+      /matching the requested comment ID/,
+    );
+  } finally {
+    rmSync(paths.root, { recursive: true, force: true });
+  }
+});
+
+test("rejects incomplete owner permission, association, and user identities", () => {
   const paths = fixture();
   try {
     const options = {
@@ -167,88 +331,82 @@ test("rejects owner, non-allowlisted, non-collaborator, maintainer, and bot auth
       version,
       commit,
       issue: paths.issue,
-      reviewerPermission: paths.reviewerPermission,
-      reviewComment: paths.reviewComment,
+      ownerPermission: paths.ownerPermission,
+      ownerApprovalComment: paths.ownerApprovalComment,
       repositoryOwner: "Moch1ce",
-      allowedReviewerLogins: ["external-counsel"],
       skipArchiveBoundaries: true,
     };
     assert.throws(
       () =>
         verifyStablePublish({
           ...options,
-          reviewComment: {
-            ...paths.reviewComment,
+          ownerApprovalComment: {
+            ...paths.ownerApprovalComment,
             user: { login: "Moch1ce", type: "User" },
-            body: paths.reviewComment.body.replaceAll("external-counsel", "Moch1ce"),
+            body: paths.ownerApprovalComment.body.replaceAll("external-counsel", "Moch1ce"),
           },
-          reviewerPermission: { permission: "admin", user: { login: "Moch1ce", type: "User" } },
-          allowedReviewerLogins: ["Moch1ce"],
+          ownerPermission: { permission: "admin", user: { login: "Moch1ce", type: "User" } },
         }),
-      /allowlisted external non-maintainer user/,
+      /repository owner with admin permission/,
     );
     assert.throws(
       () =>
         verifyStablePublish({
           ...options,
-          reviewerPermission: {
-            ...paths.reviewerPermission,
+          ownerPermission: {
+            ...paths.ownerPermission,
             role_name: "legal-reviewer-custom-role",
           },
         }),
-      /allowlisted external non-maintainer user/,
-    );
-    assert.throws(
-      () => verifyStablePublish({ ...options, allowedReviewerLogins: [], reviewComment: paths.reviewComment }),
-      /allowlisted external non-maintainer user/,
+      /repository owner with admin permission/,
     );
     assert.throws(
       () =>
         verifyStablePublish({
           ...options,
-          reviewComment: { ...paths.reviewComment, author_association: "NONE" },
-          reviewerPermission: { ...paths.reviewerPermission, permission: "none" },
+          ownerApprovalComment: { ...paths.ownerApprovalComment, author_association: "NONE" },
+          ownerPermission: { ...paths.ownerPermission, permission: "none" },
         }),
-      /allowlisted external non-maintainer user/,
+      /repository owner with admin permission/,
     );
     assert.throws(
       () =>
         verifyStablePublish({
           ...options,
-          reviewerPermission: {
-            ...paths.reviewerPermission,
+          ownerPermission: {
+            ...paths.ownerPermission,
             permission: "write",
             role_name: "maintain",
           },
         }),
-      /allowlisted external non-maintainer user/,
+      /repository owner with admin permission/,
     );
     assert.throws(
       () =>
         verifyStablePublish({
           ...options,
-          reviewComment: {
-            ...paths.reviewComment,
-            user: { ...paths.reviewComment.user, type: "Bot" },
+          ownerApprovalComment: {
+            ...paths.ownerApprovalComment,
+            user: { ...paths.ownerApprovalComment.user, type: "Bot" },
           },
-          reviewerPermission: {
-            ...paths.reviewerPermission,
-            user: { ...paths.reviewerPermission.user, type: "Bot" },
+          ownerPermission: {
+            ...paths.ownerPermission,
+            user: { ...paths.ownerPermission.user, type: "Bot" },
           },
         }),
-      /allowlisted external non-maintainer user/,
+      /repository owner with admin permission/,
     );
   } finally {
     rmSync(paths.root, { recursive: true, force: true });
   }
 });
 
-test("rejects a legal record dated after its authenticated GitHub comment", () => {
+test("rejects an owner approval dated after its authenticated GitHub comment", () => {
   const paths = fixture();
   try {
-    const reviewComment = {
-      ...paths.reviewComment,
-      body: paths.reviewComment.body.replace('"reviewDate":"2026-07-21"', '"reviewDate":"2026-07-22"'),
+    const ownerApprovalComment = {
+      ...paths.ownerApprovalComment,
+      body: paths.ownerApprovalComment.body.replace('"approvalDate":"2026-07-21"', '"approvalDate":"2026-07-22"'),
     };
     assert.throws(
       () =>
@@ -258,20 +416,19 @@ test("rejects a legal record dated after its authenticated GitHub comment", () =
           version,
           commit,
           issue: paths.issue,
-          reviewerPermission: paths.reviewerPermission,
-          reviewComment,
+          ownerPermission: paths.ownerPermission,
+          ownerApprovalComment,
           repositoryOwner: "Moch1ce",
-          allowedReviewerLogins: ["external-counsel"],
           skipArchiveBoundaries: true,
         }),
-      /review date cannot be later than its GitHub comment/,
+      /owner approval date cannot be later than its GitHub comment/,
     );
   } finally {
     rmSync(paths.root, { recursive: true, force: true });
   }
 });
 
-test("rejects ambiguous comments with duplicate legal-review markers", () => {
+test("rejects ambiguous comments with duplicate owner-approval markers", () => {
   const paths = fixture();
   try {
     assert.throws(
@@ -282,13 +439,12 @@ test("rejects ambiguous comments with duplicate legal-review markers", () => {
           version,
           commit,
           issue: paths.issue,
-          reviewerPermission: paths.reviewerPermission,
-          reviewComment: {
-            ...paths.reviewComment,
-            body: `<!-- snaploom-legal-review:v1 -->\n${paths.reviewComment.body}`,
+          ownerPermission: paths.ownerPermission,
+          ownerApprovalComment: {
+            ...paths.ownerApprovalComment,
+            body: `<!-- snaploom-owner-release-approval:v1 -->\n${paths.ownerApprovalComment.body}`,
           },
           repositoryOwner: "Moch1ce",
-          allowedReviewerLogins: ["external-counsel"],
           skipArchiveBoundaries: true,
         }),
       /exactly one versioned record marker/,
@@ -298,7 +454,7 @@ test("rejects ambiguous comments with duplicate legal-review markers", () => {
   }
 });
 
-test("rejects legal-review comments with prose outside the authenticated JSON record", () => {
+test("rejects owner-approval comments with prose outside the authenticated JSON record", () => {
   const paths = fixture();
   try {
     assert.throws(
@@ -309,13 +465,12 @@ test("rejects legal-review comments with prose outside the authenticated JSON re
           version,
           commit,
           issue: paths.issue,
-          reviewComment: {
-            ...paths.reviewComment,
-            body: `${paths.reviewComment.body}\nConflicting legal qualification.`,
+          ownerApprovalComment: {
+            ...paths.ownerApprovalComment,
+            body: `${paths.ownerApprovalComment.body}\nConflicting legal qualification.`,
           },
-          reviewerPermission: paths.reviewerPermission,
+          ownerPermission: paths.ownerPermission,
           repositoryOwner: "Moch1ce",
-          allowedReviewerLogins: ["external-counsel"],
           skipArchiveBoundaries: true,
         }),
       /only the versioned marker and one JSON record/,
@@ -328,13 +483,13 @@ test("rejects legal-review comments with prose outside the authenticated JSON re
 test("accepts a semantically identical checksum map regardless of JSON key order", () => {
   const paths = fixture();
   try {
-    const record = JSON.parse(paths.reviewComment.body.match(/```json\n([\s\S]+)\n```/)[1]);
+    const record = JSON.parse(paths.ownerApprovalComment.body.match(/```json\n([\s\S]+)\n```/)[1]);
     record.release.payloadChecksums = Object.fromEntries(
       Object.entries(record.release.payloadChecksums).reverse(),
     );
-    const reviewComment = {
-      ...paths.reviewComment,
-      body: `<!-- snaploom-legal-review:v1 -->\n\`\`\`json\n${JSON.stringify(record)}\n\`\`\``,
+    const ownerApprovalComment = {
+      ...paths.ownerApprovalComment,
+      body: `<!-- snaploom-owner-release-approval:v1 -->\n\`\`\`json\n${JSON.stringify(record)}\n\`\`\``,
     };
     assert.doesNotThrow(() =>
       verifyStablePublish({
@@ -343,10 +498,9 @@ test("accepts a semantically identical checksum map regardless of JSON key order
         version,
         commit,
         issue: paths.issue,
-        reviewerPermission: paths.reviewerPermission,
-        reviewComment,
+        ownerPermission: paths.ownerPermission,
+        ownerApprovalComment,
         repositoryOwner: "Moch1ce",
-        allowedReviewerLogins: ["external-counsel"],
         skipArchiveBoundaries: true,
       }),
     );
@@ -394,7 +548,7 @@ test("accepts only an immutable publication that preserves the reviewed draft id
   }
 });
 
-test("matches GitHub reviewer logins case-insensitively", () => {
+test("matches the GitHub repository owner login case-insensitively", () => {
   const paths = fixture();
   try {
     assert.doesNotThrow(() =>
@@ -404,10 +558,9 @@ test("matches GitHub reviewer logins case-insensitively", () => {
         version,
         commit,
         issue: paths.issue,
-        reviewerPermission: paths.reviewerPermission,
-        reviewComment: paths.reviewComment,
-        repositoryOwner: "Moch1ce",
-        allowedReviewerLogins: ["EXTERNAL-COUNSEL"],
+        ownerPermission: paths.ownerPermission,
+        ownerApprovalComment: paths.ownerApprovalComment,
+        repositoryOwner: "MOCH1CE",
         skipArchiveBoundaries: true,
       }),
     );
@@ -427,10 +580,9 @@ test("rejects Issue 33 when it was closed as not planned", () => {
           version,
           commit,
           issue: { ...paths.issue, state_reason: "not_planned" },
-          reviewerPermission: paths.reviewerPermission,
-          reviewComment: paths.reviewComment,
+          ownerPermission: paths.ownerPermission,
+          ownerApprovalComment: paths.ownerApprovalComment,
           repositoryOwner: "Moch1ce",
-          allowedReviewerLogins: ["external-counsel"],
           skipArchiveBoundaries: true,
         }),
       /closed as completed/,
@@ -440,12 +592,12 @@ test("rejects Issue 33 when it was closed as not planned", () => {
   }
 });
 
-test("rejects a legal record dated before the final draft subject", () => {
+test("rejects an owner approval dated before the final draft subject", () => {
   const paths = fixture();
   try {
-    const reviewComment = {
-      ...paths.reviewComment,
-      body: paths.reviewComment.body.replace('"reviewDate":"2026-07-21"', '"reviewDate":"2026-07-19"'),
+    const ownerApprovalComment = {
+      ...paths.ownerApprovalComment,
+      body: paths.ownerApprovalComment.body.replace('"approvalDate":"2026-07-21"', '"approvalDate":"2026-07-19"'),
     };
     assert.throws(
       () =>
@@ -455,27 +607,26 @@ test("rejects a legal record dated before the final draft subject", () => {
           version,
           commit,
           issue: paths.issue,
-          reviewerPermission: paths.reviewerPermission,
-          reviewComment,
+          ownerPermission: paths.ownerPermission,
+          ownerApprovalComment,
           repositoryOwner: "Moch1ce",
-          allowedReviewerLogins: ["external-counsel"],
           skipArchiveBoundaries: true,
         }),
-      /review date cannot precede the final draft subject/,
+      /owner approval date cannot precede the final draft subject/,
     );
   } finally {
     rmSync(paths.root, { recursive: true, force: true });
   }
 });
 
-test("rejects a draft whose public notes omit the lawyer-approved risk language", () => {
+test("rejects a draft whose public notes omit the owner-approved risk language", () => {
   const paths = fixture();
   try {
-    const record = JSON.parse(paths.reviewComment.body.match(/```json\n([\s\S]+)\n```/)[1]);
+    const record = JSON.parse(paths.ownerApprovalComment.body.match(/```json\n([\s\S]+)\n```/)[1]);
     record.approvedPublicRiskLanguage = "Different language that is absent from the reviewed draft.";
-    const reviewComment = {
-      ...paths.reviewComment,
-      body: `<!-- snaploom-legal-review:v1 -->\n\`\`\`json\n${JSON.stringify(record)}\n\`\`\``,
+    const ownerApprovalComment = {
+      ...paths.ownerApprovalComment,
+      body: `<!-- snaploom-owner-release-approval:v1 -->\n\`\`\`json\n${JSON.stringify(record)}\n\`\`\``,
     };
     assert.throws(
       () =>
@@ -485,10 +636,9 @@ test("rejects a draft whose public notes omit the lawyer-approved risk language"
           version,
           commit,
           issue: paths.issue,
-          reviewerPermission: paths.reviewerPermission,
-          reviewComment,
+          ownerPermission: paths.ownerPermission,
+          ownerApprovalComment,
           repositoryOwner: "Moch1ce",
-          allowedReviewerLogins: ["external-counsel"],
           skipArchiveBoundaries: true,
         }),
       /approved public risk language/,
@@ -498,7 +648,7 @@ test("rejects a draft whose public notes omit the lawyer-approved risk language"
   }
 });
 
-test("rejects a legal record edited after Issue 33 was closed", () => {
+test("rejects an owner approval edited after Issue 33 was closed", () => {
   const paths = fixture();
   try {
     assert.throws(
@@ -509,16 +659,15 @@ test("rejects a legal record edited after Issue 33 was closed", () => {
           version,
           commit,
           issue: paths.issue,
-          reviewComment: {
-            ...paths.reviewComment,
+          ownerApprovalComment: {
+            ...paths.ownerApprovalComment,
             updated_at: "2026-07-21T12:00:00Z",
           },
-          reviewerPermission: paths.reviewerPermission,
+          ownerPermission: paths.ownerPermission,
           repositoryOwner: "Moch1ce",
-          allowedReviewerLogins: ["external-counsel"],
           skipArchiveBoundaries: true,
         }),
-      /closure must occur after the final legal-review edit/,
+      /closure must occur after the final owner-approval edit/,
     );
   } finally {
     rmSync(paths.root, { recursive: true, force: true });
@@ -534,10 +683,9 @@ test("rejects malformed GitHub timestamps instead of bypassing chronology checks
       version,
       commit,
       issue: paths.issue,
-      reviewComment: paths.reviewComment,
-      reviewerPermission: paths.reviewerPermission,
+      ownerApprovalComment: paths.ownerApprovalComment,
+      ownerPermission: paths.ownerPermission,
       repositoryOwner: "Moch1ce",
-      allowedReviewerLogins: ["external-counsel"],
       skipArchiveBoundaries: true,
     };
     assert.throws(
@@ -548,7 +696,7 @@ test("rejects malformed GitHub timestamps instead of bypassing chronology checks
       () =>
         verifyStablePublish({
           ...options,
-          reviewComment: { ...paths.reviewComment, updated_at: "not-a-date" },
+          ownerApprovalComment: { ...paths.ownerApprovalComment, updated_at: "not-a-date" },
         }),
       /valid GitHub timestamps/,
     );

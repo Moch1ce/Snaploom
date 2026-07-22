@@ -863,13 +863,13 @@ jobs:
             --directory "${RUNNER_TEMP}/release-redownload" \
             --version "${VERSION}" --commit "${COMMIT}"
 
-      - name: Generate the immutable Issue 33 external review bundle
+      - name: Generate the immutable Issue 33 owner approval bundle
         shell: bash
         env:
           VERSION: ${{ inputs.version }}
           COMMIT: ${{ inputs.commit }}
         run: |
-          node tools/release/create-legal-review-bundle.mjs \
+          node tools/release/create-owner-approval-bundle.mjs \
             --release-directory "${RUNNER_TEMP}/release-redownload" \
             --release-json "${RUNNER_TEMP}/uploaded-release.json" \
             --qualification-directory "${RUNNER_TEMP}/legal-rc-stage/identity/qualification" \
@@ -881,15 +881,15 @@ jobs:
             --windows-metadata "${RUNNER_TEMP}/legal-rc-stage/platform/windows-package-metadata.json" \
             --macos-metadata "${RUNNER_TEMP}/legal-rc-stage/platform/macos-package-metadata.json" \
             --platform-evidence-directory "${RUNNER_TEMP}/legal-rc-stage/platform" \
-            --output "${RUNNER_TEMP}/issue-33-review" \
+            --output "${RUNNER_TEMP}/issue-33-owner-approval" \
             --version "${VERSION}" --commit "${COMMIT}"
-          cp "${RUNNER_TEMP}/uploaded-release.json" "${RUNNER_TEMP}/issue-33-review/github-draft.json"
+          cp "${RUNNER_TEMP}/uploaded-release.json" "${RUNNER_TEMP}/issue-33-owner-approval/github-draft.json"
 
-      - name: Upload Issue 33 review bundle without publishing the draft
+      - name: Upload Issue 33 owner approval bundle without publishing the draft
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: snaploom-v${{ inputs.version }}-issue-33-review
-          path: ${{ runner.temp }}/issue-33-review
+          name: snaploom-v${{ inputs.version }}-issue-33-owner-approval
+          path: ${{ runner.temp }}/issue-33-owner-approval
           if-no-files-found: error
           retention-days: 90
           compression-level: 9

@@ -4,7 +4,7 @@
 - 对应 Issue：[#29](https://github.com/liuchuana/Snaploom/issues/29)
 - 适用目标：Windows x64、macOS arm64、Tauri 2 桌面应用、独立 Capture Host 与官方 Capture SDK
 
-> 本文是面向工程设计与开源合规流程的研究结论，不是针对任何主体、司法辖区或具体分发行为的法律意见。GPL 中“一个作品”与“独立作品”的判断取决于事实，发布前仍需由熟悉开源软件的律师复核最终 IPC、安装包和商店/签名条款。
+> 本文是面向工程设计与开源合规流程的研究结论，不是针对任何主体、司法辖区或具体分发行为的法律意见。GPL 中“一个作品”与“独立作品”的判断取决于事实；研究仍建议咨询熟悉开源软件的律师，但当前发布流程由仓库所有者明确接受未经过外部法律复核的风险。
 
 ## 结论
 
@@ -205,7 +205,7 @@ App、Host 和 SDK 可以共享版本号与 Release 页面，但必须有独立�
 2. 完成秘密与历史资产审计后再把 GitHub 仓库从 private 改为 public。当前仓库仍为 private 且 `licenseInfo` 为空，不能对外宣称已经开源。
 3. Tauri 初始化时建立 GPL 与 Apache 两个清晰 workspace/目录层，并立即启用 `reuse lint`、Cargo/pnpm 许可门禁，避免迁移后补标。
 4. 平台 Adapter、C ABI/IPC 和语言 SDK 的后续票必须把“实际依赖许可证与包内容”列为验收项。
-5. Capture SDK/IPC 定稿后，按 [#33](https://github.com/liuchuana/Snaploom/issues/33) 由开源软件律师复核一次实际调用、安装、自动更新和再分发流程；这是发布门禁，不是让律师代替工程上的许可隔离。
+5. Capture SDK/IPC 定稿后，研究建议由开源软件律师复核一次实际调用、安装、自动更新和再分发流程；当前 [#33](https://github.com/liuchuana/Snaploom/issues/33) 改为记录仓库所有者放弃该外部门禁并接受相应风险，不改变工程上的许可隔离要求。
 6. 首个 public Release 以实际二进制反向校验 source、NOTICE 和 SBOM；缺一项就不发布。
 
 ## 一手资料

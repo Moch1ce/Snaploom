@@ -49,9 +49,9 @@ PNG/成功资源循环，按 nearest-rank P95 与尾段两个 5 次窗口中位�
 stapling，并通过 Gatekeeper/签名复验。缺少任一签名、公证、真机、PERF-01、合规、SDK consumer、
 源码或 exact manifest 证据时只能保留 draft，不能发布 unsigned/ad hoc 或部分 Release。
 
-Issue #33 的真实外部律师签署只阻止 stable publish，不阻止构建和 draft；CI 不生成、补写或代签
-法律结论。稳定发布还必须使用同一 tag/commit 的已审核 draft 实物，不重建、不替换、不移动 tag。
+Issue #33 的所有者风险接受记录只阻止 stable publish，不阻止构建和 draft；CI 不生成、补写或代签
+该记录。稳定发布还必须使用同一 tag/commit 的已批准 draft 实物，不重建、不替换、不移动 tag。
 
-最终签名候选的环境、Secrets、原子 draft、重下载复验与外部复核包操作见
-[签名法律 RC draft 流程](./legal-rc-process.md)；外部记录通过后的唯一公开动作见
+最终签名候选的环境、Secrets、原子 draft、重下载复验与所有者审批包操作见
+[签名法律 RC draft 流程](./legal-rc-process.md)；所有者记录通过后的唯一公开动作见
 [稳定 Release 公开流程](./stable-release-process.md)。

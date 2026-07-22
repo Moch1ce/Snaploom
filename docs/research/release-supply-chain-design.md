@@ -4,7 +4,7 @@
 适用范围：Windows 10 22H2 / Windows 11 x64、macOS 14+ arm64、Snaploom 与 Capture SDK 1.x  
 上位约束：[许可证审计](./tauri-open-source-license-audit.md)、[SDK 封装与分发](./capture-sdk-wrappers-distribution.md)、[Rust workspace 与测试体系](./rust-workspace-module-testing-design.md)、[法律复核事实包](../legal/capture-sdk-legal-review-packet.md)、ADR 0001～0004
 
-> 本文是工程与发布流程决策，不是法律意见。Issue #33 的真实外部律师签字仍是首个稳定 SDK 发布的不可绕过门禁；CI、维护者批准、候选构建成功或本文本身都不能替代该签字。
+> 本文是工程与发布流程决策，不是法律意见。Issue #33 现作为仓库所有者对精确发布候选的风险接受门禁；所有者必须明确记录该发布未经过外部法律复核。
 
 ## 1. 最终结论
 
@@ -15,8 +15,8 @@ Snaploom 使用一个版本、一个不可变 tag、一个 GitHub Release，原�
 3. Windows Desktop installer、macOS Desktop DMG、Windows/macOS standalone Capture Host 是 GPL-3.0-or-later 产品资产；C SDK、NuGet、Swift wrapper/XCFramework 是 Apache-2.0 SDK 资产。它们使用相同 `X.Y.Z`，但保持不同文件、包内许可证、SBOM 与安装发现边界。
 4. Desktop installer/DMG 可以携带同版本独立 Host，方便 Snaploom 自用；standalone Host 仍作为单独下载资产提供。SDK 包永远不携带、下载或链接 Host。
 5. 稳定 Windows 产品二进制与 installer 使用 Authenticode SHA-256 签名和 RFC 3161 时间戳；稳定 macOS App、Host 与 DMG 使用 Developer ID、hardened runtime、公证和 stapling。签名或公证失败不得降级为 unsigned/ad hoc。
-6. 普通候选构建可以 unsigned/ad hoc，并可产生 prerelease 或 CI artifact；它不需要 #33 签字。供 #33 审查的“法律 RC”必须是最终签名、最终打包、最终 checksum 的 draft Release 实物。
-7. #33 签字只阻止 stable publish，不阻止 build、test、签名候选、创建 draft、生成 SBOM/NOTICE 或执行消费测试。没有签字时流程必须停在 draft。
+6. 普通候选构建可以 unsigned/ad hoc，并可产生 prerelease 或 CI artifact；它不需要 #33 批准。供 #33 核对的“法律 RC”必须是最终签名、最终打包、最终 checksum 的 draft Release 实物。
+7. #33 所有者批准只阻止 stable publish，不阻止 build、test、签名候选、创建 draft、生成 SBOM/NOTICE 或执行消费测试。没有批准时流程必须停在 draft。
 8. GitHub Release 是公共资产的首个不可逆发布点。NuGet.org 发布在 GitHub stable Release 成功后执行；SwiftPM 直接消费同一 Git tag 与 Release XCFramework，不在首版引入第二个 Swift registry。
 9. 所有 payload 都有独立 `.sha256`，另发布权威 `SHA256SUMS` 与 `release-manifest.json`；稳定公开资产生成 GitHub artifact attestation。校验和、签名、notarization 和 attestation 是互补证据，不能互相替代。
 10. 对未签名中间产物争取 bit-for-bit 可复现；对含 Authenticode 时间戳、Developer ID、公证 ticket 的最终产物只承诺“相同源码与锁定输入可重建、最终 bytes 有可验证来源”，不伪称签名产物逐字节可复现。
@@ -37,7 +37,7 @@ Snaploom 使用一个版本、一个不可变 tag、一个 GitHub Release，原�
 
 ### 2.2 稳定 draft
 
-推送 `vX.Y.Z` 后，tag workflow 可以在没有 #33 签字时完成：
+推送 `vX.Y.Z` 后，tag workflow 可以在没有 #33 所有者批准时完成：
 
 1. 校验 tag、版本、默认分支可达性、Release 唯一性和 package manifest。
 2. 从 tag 全新构建，不复用开发机 `artifacts/`、缓存中的未验证二进制或另一个 commit 的产物。
@@ -52,14 +52,14 @@ Snaploom 使用一个版本、一个不可变 tag、一个 GitHub Release，原�
 
 独立 `publish-stable` job 只能接受既有 draft release ID，不重建、不重签、不替换资产。它必须同时证明：
 
-- draft 的 tag、commit、资产集合和 checksum 与律师复核对象完全相同；
-- Issue #33 已 `closed/completed`，且存在真实外部复核记录；
-- 复核记录包含 tag、commit、draft URL、manifest digest、产物 checksums、复核人身份、日期、结论、意见文件 hash/受控存档位置；
-- 签字结论为接受或所有条件已被新候选满足；
-- GitHub `stable-release` environment 禁止 self-approval 和管理员 bypass；
+- draft 的 tag、commit、资产集合和 checksum 与所有者批准对象完全相同；
+- Issue #33 已 `closed/completed`，且存在仓库所有者的风险接受记录；
+- 批准记录包含 tag、commit、draft URL、manifest digest、产物 checksums、所有者身份、日期、结论、决策记录 hash/受控存档位置；
+- 结论为接受、修改项为空，且明确确认未经过外部法律复核；
+- GitHub `stable-release` environment 允许单人仓库所有者自批并保留管理员 bypass；
 - Windows/macOS 真机、性能、包装、SDK consumer、合规与合同映射 required checks 全部成功。
 
-CI 只校验记录存在、身份 allowlist、字段和 digest 匹配，不能生成、补写或代签法律结论。任一条件不满足时 draft 保留或删除，但不能公开。
+CI 只校验记录存在、所有者身份、字段和 digest 匹配，不能生成、补写或代签批准记录。任一条件不满足时 draft 保留或删除，但不能公开。
 
 GitHub 官方对 immutable releases 的建议也是“先 draft、附加全部资产、再公开”；公开后 tag 与资产不可修改。项目启用 immutable releases；若仓库计划暂不支持该能力，仍以 tag ruleset 禁止更新/删除并执行同样的不可变策略，不能以缺少平台功能为理由覆盖资产。[GitHub Immutable releases](https://docs.github.com/en/enterprise-cloud@latest/code-security/concepts/supply-chain-security/immutable-releases)
 
@@ -231,7 +231,7 @@ permissions:
 | assemble-draft | `contents: write` | 只创建/上传 draft；无签名、Apple、NuGet secrets |
 | windows-sign | protected `release-signing` | 只取得 Windows provider 所需最小短期凭据；不拥有 Release write |
 | macos-sign-notary | protected `release-signing` | ephemeral keychain 与 App Store Connect API key；不拥有 Release write |
-| publish-stable | `contents: write`, `issues: read` + `stable-release` | 只把已复验 draft 公开；禁止 self/admin bypass |
+| publish-stable | `contents: write`, `issues: read` + `stable-release` | 只把所有者已批准并复验的 draft 公开；允许单人所有者自批 |
 | publish-nuget | `id-token: write`, `contents: read` + `nuget-org` | GitHub stable 成功后以 NuGet Trusted Publishing 换短期 key |
 
 安全规则：
@@ -309,7 +309,7 @@ Swift Package Index 等目录收录是发布后的可选元数据操作，不是
 - build/sign/notary/package/legal 任一失败：保持或删除 draft，不公开、不 push NuGet。
 - 已存在错误 tag：不移动、不删除后复用；修复 commit 使用新版本/tag。
 - 已公开 RC 错误：发布新的 `-rc.N+1`，不替换旧 RC URL/asset。
-- draft asset 若重建导致 digest 改变，必须生成新 manifest 和新的 #33 审查对象；旧签字自动失效。
+- draft asset 若重建导致 digest 改变，必须生成新 manifest 和新的 #33 审批对象；旧批准自动失效。
 
 ### 12.2 公开后
 
@@ -358,8 +358,8 @@ Swift Package Index 等目录收录是发布后的可选元数据操作，不是
 
 ### 13.5 稳定发布人工门禁
 
-- Issue #33 外部律师记录已完成且精确覆盖当前 tag/commit/draft/checksum；
-- `stable-release` 环境 required reviewer 通过，触发人不能自批，管理员不能 bypass；
+- Issue #33 所有者风险接受记录已完成且精确覆盖当前 tag/commit/draft/checksum；
+- `stable-release` 环境由仓库所有者批准，可与触发人为同一人；
 - release notes 明确 GPL App/Host 与 Apache SDK 独立、Host 安装/发现、未承诺“IPC 自动消除 GPL 风险”；
 - Windows/macOS 真机、4K 性能、20+ 循环资源稳定与安装矩阵有当前版本证据。
 
@@ -379,7 +379,7 @@ Tauri 迁移时必须替换/加强：
 2. 将旧的四资产 prerelease 扩展为本文 exact asset matrix，不再只验证 installer/DMG。
 3. 将 `actions/*@vN` 改为 full commit SHA。
 4. 拆分 build、sign、attest、draft、stable publish、NuGet promotion，避免同一 job 同时持有源码执行、签名 secret 和 Release write。
-5. 旧 Issue #18 门禁迁移为当前合同映射/真机/性能门禁；#33 作为稳定 SDK 不可 bypass 的额外人工门禁。
+5. 旧 Issue #18 门禁迁移为当前合同映射/真机/性能门禁；#33 作为稳定 SDK 的所有者风险接受门禁。
 6. Windows installer 从 unsigned candidate 增加 stable Authenticode 模式，并在 installer 内安装/登记独立 Host。
 7. macOS 脚本删除旧 Swift dylib/.NET entitlement，分别构建/签名 Host 与 Desktop，稳定模式强制 Developer ID + notarization。
 8. metadata schema 升级并并入 `release-manifest.json`，记录 commit、builder、signing/notary、license/SBOM/source。
@@ -393,7 +393,7 @@ Tauri 迁移时必须替换/加强：
 | 任一 Host/SDK/source/SBOM/NOTICE 缺失 | draft 不公开 |
 | Windows 签名或 timestamp 失败 | stable 停止；不降级 unsigned |
 | Apple signing/notary/staple 失败 | stable 停止；不降级 ad hoc |
-| #33 未签字或记录与 checksum 不同 | 保留候选/draft；stable publish 禁止 |
+| #33 未批准、未确认无外部复核，或记录与 checksum 不同 | 保留候选/draft；stable publish 禁止 |
 | immutable Release 不可用 | 强制 tag ruleset与不覆盖政策；不能用 overwrite 模拟修复 |
 | NuGet.org/OIDC 暂时失败 | GitHub stable 保持；重试相同 nupkg，不创建新 bytes |
 | Swift checksum 与 ZIP 不同 | stable 停止；修正 prep commit并使用新 tag |
@@ -409,8 +409,8 @@ Tauri 迁移时必须替换/加强：
 5. 建立 C archive、NuGet、Swift Package checksum 的双构建与解包边界扫描。
 6. 将 workflow 拆成 candidate、tag-build/draft、stable-publish、NuGet-promotion 四个不可混权阶段。
 7. 配置 tag ruleset、immutable releases、full-SHA actions、`release-signing`/`stable-release`/`nuget-org` environments 与 OIDC policies。
-8. 生成最终法律 RC draft 与 review bundle，交 #33 外部律师复核；签字前只停留在 draft。
-9. 签字与全验收通过后，一次公开 GitHub stable，再把同一 nupkg promotion 到 NuGet.org并验证 SwiftPM消费。
+8. 生成最终法律 RC draft 与审批包，由仓库所有者在 #33 核对并记录风险接受；批准前只停留在 draft。
+9. 所有者批准与全验收通过后，一次公开 GitHub stable，再把同一 nupkg promotion 到 NuGet.org并验证 SwiftPM消费。
 
 任何后续增加应用商店、自动更新、Windows ARM64、Intel/Universal Mac、静态 SDK、Node/Java/Python binding、Host-in-SDK packaging 或新的第三方 registry，都必须新开票重新审查许可、签名、资产原子性与 rollback，不能作为本工作流的隐藏分支。
 

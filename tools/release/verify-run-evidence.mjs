@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import {
   verifyLegalRcRunEvidence,
   verifyRunEvidence,
-} from "./create-legal-review-bundle.mjs";
+} from "./create-owner-approval-bundle.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(`--${name}`);

@@ -16,10 +16,10 @@ import { join } from "node:path";
 import test from "node:test";
 import { assembleRelease } from "./assemble-release.mjs";
 import {
-  createLegalReviewBundle,
+  createOwnerApprovalBundle,
   verifyLegalRcRunEvidence,
   verifyRunEvidence,
-} from "./create-legal-review-bundle.mjs";
+} from "./create-owner-approval-bundle.mjs";
 import { assetsForVersion, expectedReleaseFiles } from "./release-contract.mjs";
 
 const version = "1.2.3";
@@ -241,11 +241,11 @@ function fixture() {
   };
 }
 
-test("creates an immutable legal review subject without granting stable publish", () => {
+test("creates an immutable owner approval subject without granting stable publish", () => {
   const paths = fixture();
   const { ciRun, qualificationRun, legalRcRun } = runEvidence();
   try {
-    const subject = createLegalReviewBundle({
+    const subject = createOwnerApprovalBundle({
       ...paths,
       ciRun,
       qualificationRun,
@@ -255,10 +255,26 @@ test("creates an immutable legal review subject without granting stable publish"
       skipArchiveBoundaries: true,
     });
     assert.equal(subject.stablePublishAllowed, false);
-    assert.equal(subject.legalStatus, "external-review-required");
+    assert.equal(subject.approvalIssue, 33);
+    assert.equal(subject.legalStatus, "owner-risk-acceptance-required");
+    assert.deepEqual(subject.requiredHumanFields, [
+      "ownerName",
+      "ownerGithubLogin",
+      "approvalDate",
+      "riskAcknowledgement",
+      "acknowledgedWithoutExternalLegalReview",
+      "conclusion",
+      "requiredChanges",
+      "approvedPublicRiskLanguage",
+      "decisionRecordSha256AndControlledLocation",
+      "signature",
+    ]);
     assert.equal(subject.evidence.qualificationPlatforms.length, 3);
     assert.equal(subject.evidence.signedConsumerJobs.length, 7);
-    assert.match(readFileSync(join(paths.outputDirectory, "README.md"), "utf8"), /stable publish/);
+    const readme = readFileSync(join(paths.outputDirectory, "README.md"), "utf8");
+    assert.match(readme, /仓库所有者/);
+    assert.match(readme, /未经过外部法律复核/);
+    assert.match(readme, /stable publish/);
   } finally {
     rmSync(paths.root, { recursive: true, force: true });
   }

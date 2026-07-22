@@ -9,15 +9,15 @@
 在首次调度前，仓库管理员和 NuGet.org package owner 必须完成以下真实配置；不得提交占位用户名、长期
 API key 或个人访问令牌：
 
-1. GitHub environment `nuget-org` 只允许 `main`，required reviewer 不能是 workflow 触发人，并关闭
-   self/admin bypass。environment secret `NUGET_ORG_USER` 保存 NuGet.org profile 的真实用户名；它不是
+1. GitHub environment `nuget-org` 只允许 `main`。单人仓库允许所有者批准自己触发的 deployment，并保留
+   admin bypass。environment secret `NUGET_ORG_USER` 保存 NuGet.org profile 的真实用户名；它不是
    API key。
 2. 在该 NuGet.org 用户的 Trusted Publishing 页面创建 GitHub Actions policy，字段必须是：
    repository owner `Moch1ce`、repository `Snaploom`、workflow file `release-promote-sdk.yml`、
    environment `nuget-org`。首次发布可以使用 pending policy，但成功后必须确认它已绑定
    `Snaploom.Capture`。
-3. NuGet.org package owner、GitHub environment reviewer 和实际发布人应按组织职责分离；OIDC policy 或
-   username 变化时先更新受控配置，再调度工作流。
+3. 当前由仓库所有者同时承担 NuGet.org package owner、GitHub environment reviewer 和实际发布人；
+   OIDC policy 或 username 变化时先更新受控配置，再调度工作流。
 
 工作流只给 `publish-nuget` job `id-token: write`。固定到完整 commit 的 `NuGet/login` action 使用 GitHub
 OIDC 换取短期 API key；仓库及 environment 都不保存长期 NuGet API key。参考

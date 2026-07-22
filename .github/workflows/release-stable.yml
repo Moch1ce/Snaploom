@@ -1,4 +1,4 @@
-name: Publish reviewed stable release
+name: Publish owner-approved stable release
 
 on:
   workflow_dispatch:
@@ -12,11 +12,11 @@ on:
         required: true
         type: string
       draft_release_id:
-        description: Existing signed legal-review draft release ID
+        description: Existing signed owner-approved draft release ID
         required: true
         type: string
-      review_comment_id:
-        description: Issue 33 comment containing the external legal-review record
+      owner_approval_comment_id:
+        description: Issue 33 comment containing the repository owner's approval record
         required: true
         type: string
 
@@ -30,7 +30,7 @@ permissions:
 
 jobs:
   validate:
-    name: Validate immutable draft and external legal approval
+    name: Validate immutable draft and owner approval
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -42,15 +42,13 @@ jobs:
           VERSION: ${{ inputs.version }}
           COMMIT: ${{ inputs.commit }}
           DRAFT_RELEASE_ID: ${{ inputs.draft_release_id }}
-          REVIEW_COMMENT_ID: ${{ inputs.review_comment_id }}
-          LEGAL_REVIEWER_LOGINS: ${{ vars.LEGAL_REVIEWER_LOGINS }}
+          OWNER_APPROVAL_COMMENT_ID: ${{ inputs.owner_approval_comment_id }}
         run: |
           test "${GITHUB_REF}" = refs/heads/main
           [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           [[ "${COMMIT}" =~ ^[0-9a-f]{40}$ ]]
           [[ "${DRAFT_RELEASE_ID}" =~ ^[1-9][0-9]*$ ]]
-          [[ "${REVIEW_COMMENT_ID}" =~ ^[1-9][0-9]*$ ]]
-          test -n "${LEGAL_REVIEWER_LOGINS}"
+          [[ "${OWNER_APPROVAL_COMMENT_ID}" =~ ^[1-9][0-9]*$ ]]
 
       - name: Checkout the reviewed release implementation
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -78,8 +76,7 @@ jobs:
           VERSION: ${{ inputs.version }}
           COMMIT: ${{ inputs.commit }}
           DRAFT_RELEASE_ID: ${{ inputs.draft_release_id }}
-          REVIEW_COMMENT_ID: ${{ inputs.review_comment_id }}
-          LEGAL_REVIEWER_LOGINS: ${{ vars.LEGAL_REVIEWER_LOGINS }}
+          OWNER_APPROVAL_COMMENT_ID: ${{ inputs.owner_approval_comment_id }}
         run: |
           gh api -H "X-GitHub-Api-Version: 2026-03-10" \
             "repos/${GITHUB_REPOSITORY}/releases/${DRAFT_RELEASE_ID}" \
@@ -101,23 +98,21 @@ jobs:
           gh api -H "X-GitHub-Api-Version: 2026-03-10" \
             "repos/${GITHUB_REPOSITORY}/issues/33" \
             > "${RUNNER_TEMP}/issue-33.json"
+          gh api --paginate --slurp -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/issues/33/comments?per_page=100" |
+            jq 'flatten' > "${RUNNER_TEMP}/issue-33-comments.json"
           gh api -H "X-GitHub-Api-Version: 2026-03-10" \
-            "repos/${GITHUB_REPOSITORY}/issues/comments/${REVIEW_COMMENT_ID}" \
-            > "${RUNNER_TEMP}/review-comment.json"
-          reviewer_login="$(jq -er '.user.login | select(test("^[A-Za-z0-9-]+$"))' \
-            "${RUNNER_TEMP}/review-comment.json")"
-          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
-            "repos/${GITHUB_REPOSITORY}/collaborators/${reviewer_login}/permission" \
-            > "${RUNNER_TEMP}/reviewer-permission.json"
+            "repos/${GITHUB_REPOSITORY}/collaborators/${GITHUB_REPOSITORY_OWNER}/permission" \
+            > "${RUNNER_TEMP}/owner-permission.json"
           node tools/release/verify-stable-publish.mjs \
             --release-json "${RUNNER_TEMP}/draft-release.json" \
             --directory "${RUNNER_TEMP}/release-download" \
             --issue-json "${RUNNER_TEMP}/issue-33.json" \
-            --review-comment-json "${RUNNER_TEMP}/review-comment.json" \
-            --reviewer-permission-json "${RUNNER_TEMP}/reviewer-permission.json" \
+            --issue-comments-json "${RUNNER_TEMP}/issue-33-comments.json" \
+            --owner-approval-comment-id "${OWNER_APPROVAL_COMMENT_ID}" \
+            --owner-permission-json "${RUNNER_TEMP}/owner-permission.json" \
             --version "${VERSION}" --commit "${COMMIT}" \
-            --repository-owner "${GITHUB_REPOSITORY_OWNER}" \
-            --allowed-reviewers "${LEGAL_REVIEWER_LOGINS}"
+            --repository-owner "${GITHUB_REPOSITORY_OWNER}"
 
   publish:
     name: Publish the unchanged reviewed draft exactly once
@@ -147,15 +142,13 @@ jobs:
           VERSION: ${{ inputs.version }}
           COMMIT: ${{ inputs.commit }}
           DRAFT_RELEASE_ID: ${{ inputs.draft_release_id }}
-          REVIEW_COMMENT_ID: ${{ inputs.review_comment_id }}
-          LEGAL_REVIEWER_LOGINS: ${{ vars.LEGAL_REVIEWER_LOGINS }}
+          OWNER_APPROVAL_COMMENT_ID: ${{ inputs.owner_approval_comment_id }}
         run: |
           test "${GITHUB_REF}" = refs/heads/main
           [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           [[ "${COMMIT}" =~ ^[0-9a-f]{40}$ ]]
           [[ "${DRAFT_RELEASE_ID}" =~ ^[1-9][0-9]*$ ]]
-          [[ "${REVIEW_COMMENT_ID}" =~ ^[1-9][0-9]*$ ]]
-          test -n "${LEGAL_REVIEWER_LOGINS}"
+          [[ "${OWNER_APPROVAL_COMMENT_ID}" =~ ^[1-9][0-9]*$ ]]
           test "$(git rev-parse HEAD)" = "${COMMIT}"
           git fetch --no-tags origin "refs/heads/main:refs/remotes/origin/main"
           git fetch --no-tags origin "refs/tags/v${VERSION}:refs/snaploom-stable/v${VERSION}"
@@ -181,23 +174,21 @@ jobs:
           gh api -H "X-GitHub-Api-Version: 2026-03-10" \
             "repos/${GITHUB_REPOSITORY}/issues/33" \
             > "${RUNNER_TEMP}/issue-33.json"
+          gh api --paginate --slurp -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/issues/33/comments?per_page=100" |
+            jq 'flatten' > "${RUNNER_TEMP}/issue-33-comments.json"
           gh api -H "X-GitHub-Api-Version: 2026-03-10" \
-            "repos/${GITHUB_REPOSITORY}/issues/comments/${REVIEW_COMMENT_ID}" \
-            > "${RUNNER_TEMP}/review-comment.json"
-          reviewer_login="$(jq -er '.user.login | select(test("^[A-Za-z0-9-]+$"))' \
-            "${RUNNER_TEMP}/review-comment.json")"
-          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
-            "repos/${GITHUB_REPOSITORY}/collaborators/${reviewer_login}/permission" \
-            > "${RUNNER_TEMP}/reviewer-permission.json"
+            "repos/${GITHUB_REPOSITORY}/collaborators/${GITHUB_REPOSITORY_OWNER}/permission" \
+            > "${RUNNER_TEMP}/owner-permission.json"
           node tools/release/verify-stable-publish.mjs \
             --release-json "${RUNNER_TEMP}/draft-release.json" \
             --directory "${RUNNER_TEMP}/release-download" \
             --issue-json "${RUNNER_TEMP}/issue-33.json" \
-            --review-comment-json "${RUNNER_TEMP}/review-comment.json" \
-            --reviewer-permission-json "${RUNNER_TEMP}/reviewer-permission.json" \
+            --issue-comments-json "${RUNNER_TEMP}/issue-33-comments.json" \
+            --owner-approval-comment-id "${OWNER_APPROVAL_COMMENT_ID}" \
+            --owner-permission-json "${RUNNER_TEMP}/owner-permission.json" \
             --version "${VERSION}" --commit "${COMMIT}" \
-            --repository-owner "${GITHUB_REPOSITORY_OWNER}" \
-            --allowed-reviewers "${LEGAL_REVIEWER_LOGINS}"
+            --repository-owner "${GITHUB_REPOSITORY_OWNER}"
           gh api --method PATCH -H "X-GitHub-Api-Version: 2026-03-10" \
             "repos/${GITHUB_REPOSITORY}/releases/${DRAFT_RELEASE_ID}" \
             -F draft=false -F prerelease=false -f make_latest=true \
@@ -212,7 +203,7 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
           COMMIT: ${{ inputs.commit }}
-          LEGAL_REVIEWER_LOGINS: ${{ vars.LEGAL_REVIEWER_LOGINS }}
+          OWNER_APPROVAL_COMMENT_ID: ${{ inputs.owner_approval_comment_id }}
         run: |
           jq -e '.draft == false and .prerelease == false and .published_at != null and .immutable == true' \
             "${RUNNER_TEMP}/published-release.json"
@@ -221,11 +212,11 @@ jobs:
             --published-release-json "${RUNNER_TEMP}/published-release.json" \
             --directory "${RUNNER_TEMP}/release-download" \
             --issue-json "${RUNNER_TEMP}/issue-33.json" \
-            --review-comment-json "${RUNNER_TEMP}/review-comment.json" \
-            --reviewer-permission-json "${RUNNER_TEMP}/reviewer-permission.json" \
+            --issue-comments-json "${RUNNER_TEMP}/issue-33-comments.json" \
+            --owner-approval-comment-id "${OWNER_APPROVAL_COMMENT_ID}" \
+            --owner-permission-json "${RUNNER_TEMP}/owner-permission.json" \
             --version "${VERSION}" --commit "${COMMIT}" \
-            --repository-owner "${GITHUB_REPOSITORY_OWNER}" \
-            --allowed-reviewers "${LEGAL_REVIEWER_LOGINS}"
+            --repository-owner "${GITHUB_REPOSITORY_OWNER}"
           evidence_json="$(jq -c \
             --arg workflowRun "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
             '{schemaVersion:1,release:{id,html_url,tag_name,target_commitish,name,draft,prerelease,published_at,immutable},workflowRun:$workflowRun}' \

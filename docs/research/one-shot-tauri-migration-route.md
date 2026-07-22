@@ -34,11 +34,11 @@ M02 -> M10 macOS real adapter -------+-> M12 desktop lifecycle
 M03 -> M11 SDK wrappers -------------/       |
 M08 + M09 + M10 + M11 + M12 -> M13 compliance/package/performance
                                  -> M14 signed legal RC draft
-                                    -> #33 external counsel
+                                    -> #33 owner risk acceptance
                                        -> M15 stable publish
 ```
 
-`M09/M10/M11` 可在共享合同固定后并行；同一工作树内仍必须保持一个任务一个 commit/push。`M15` 是唯一被 #33 阻塞的阶段；没有外部签字不阻止完成 M00～M14。
+`M09/M10/M11` 可在共享合同固定后并行；同一工作树内仍必须保持一个任务一个 commit/push。`M15` 是唯一被 #33 阻塞的阶段；没有所有者风险接受记录不阻止完成 M00～M14。
 
 ## 3. M00：旧实现授权与基线
 
@@ -252,7 +252,7 @@ M14 创建签名的不可见 draft：
 3. 上传后重新下载，复验 manifest、checksum、架构、包边界、SBOM/NOTICE/source 和 consumer tests；
 4. 生成 #33 review bundle：draft URL、tag/commit、manifest digest、payload checksums、签名/公证记录。
 
-M15 只在 #33 真实外部签字精确覆盖该 RC 后执行：publish job 不重建、不重签、不替换资产，只复验后一次把 draft 改为 stable，再 promotion 同一 `.nupkg` 到 NuGet.org；SwiftPM 直接消费同 tag/Release。
+M15 只在 #33 所有者批准记录精确覆盖该 RC 且明确确认未经过外部法律复核后执行：publish job 不重建、不重签、不替换资产，只复验后一次把 draft 改为 stable，再 promotion 同一 `.nupkg` 到 NuGet.org；SwiftPM 直接消费同 tag/Release。
 
 ## 15. 每个 slice 的提交合同
 
@@ -294,4 +294,3 @@ Issue #32 可以关闭的条件是路线已经足以直接生成 Spec 和 tracer
 - 把 #33 作为 stable publish 一条终态阻塞边，不再阻塞 RC 产物的实施。
 
 新 Spec 发布后，旧 Issue #1 和 #19 应以“已被 Tauri 迁移 Spec/发布 tickets 取代”关闭，不再继续接收 .NET 实施。
-

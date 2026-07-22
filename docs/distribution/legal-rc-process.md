@@ -11,7 +11,7 @@ GitHub draft，不包含把 draft 改为 stable、公开 prerelease 或推送 Nu
 3. 同一 commit 的完整 `CI` 已成功，包含 Windows/macOS、四组 .NET consumer 与 `Atomic release contract`。
 4. 同一 version/commit 的 `Release qualification` 已在 Windows 10、Windows 11 与 macOS 14+ 真机完成。
 5. `release-qualification`、`release-signing` 与 `release-draft` environment 都只允许 `main`
-   deployment、禁止 self/admin bypass，并配置非自批 required reviewers；签名 secrets 只存在于
+   deployment。单人仓库允许所有者批准自己触发的 deployment，并保留 admin bypass；签名 secrets 只存在于
    `release-signing`：
 
    - `WINDOWS_SIGNING_CERTIFICATE_BASE64`
@@ -51,18 +51,18 @@ dispatch，所有构建仍显式 checkout 已验证 tag commit。
 7. 创建 `draft=true, prerelease=false` 的 Release，每个文件只上传一次；工作流没有 `--clobber`。
 8. 再次从远端 tag ref 解析真实 commit，通过 Release asset API 重新下载全部 26 个权威文件，复验名称、size、GitHub `sha256:` digest、
    manifest、签名/公证证据、许可证边界和 Swift checksum。
-9. 上传 `snaploom-vX.Y.Z-issue-33-review` Actions artifact，其中含 draft URL、tag/commit、manifest
+9. 上传 `snaploom-vX.Y.Z-issue-33-owner-approval` Actions artifact，其中含 draft URL、tag/commit、manifest
    digest、全部 payload checksums、签名/公证原始结果与日志、builder identity、完整 CI、最终签名
    consumer 与真机资格证据。
 
-## 失败与外部法律门禁
+## 失败与所有者风险接受门禁
 
 签名、公证、上传、重下载或消费校验任一步失败都不会公开 Release。若上传中途失败，保留的 partial
-draft 不得补传、覆盖或交给律师；在尚未开始外部复核时可删除该 draft 后重新运行同一不可变输入。
-一旦律师已收到复核对象，任何 byte 变化都必须使用新的 patch、manifest 和复核记录。
+draft 不得补传或覆盖；在尚未提交所有者批准记录时可删除该 draft 后重新运行同一不可变输入。
+一旦所有者批准记录已覆盖该候选，任何 byte 变化都必须使用新的 patch、manifest 和批准记录。
 
-Issue #33 只能由真实外部律师填写姓名/执业身份、日期、司法辖区、结论、修改项、公开风险文案、
-意见文件 SHA-256/受控位置与签名。CI、Agent、维护者批准和本工作流成功均不能代签，也不能把 draft
-改为 stable。stable publish 是后续独立事项，必须只消费同一已复核 draft，不能重建、重签或替换资产。
-外部记录格式、allowlist、`stable-release` 环境与唯一公开入口见
-[外部法律复核后的稳定 Release 公开流程](./stable-release-process.md)。
+Issue #33 由仓库所有者本人填写日期、风险接受、结论、修改项、公开风险文案、决策记录
+SHA-256/受控位置与签名，并明确设置 `acknowledgedWithoutExternalLegalReview=true`。CI 和 Agent 不能代填，
+本工作流成功也不能自动把 draft 改为 stable。stable publish 是后续独立事项，必须只消费同一已批准
+draft，不能重建、重签或替换资产。记录格式、`stable-release` 环境与唯一公开入口见
+[所有者批准后的稳定 Release 公开流程](./stable-release-process.md)。

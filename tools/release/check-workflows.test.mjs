@@ -64,6 +64,25 @@ test("stable publish mutation policy accepts the reviewed one-PATCH workflow", (
   assert.doesNotThrow(() => checkStablePublishMutationPolicy(workflow));
 });
 
+test("stable publish workflow authenticates owner approval without external reviewer configuration", () => {
+  const publicationEvidenceStep = workflow.slice(
+    workflow.indexOf("- name: Prove immutable publication and unchanged assets"),
+    workflow.indexOf("evidence_json=", workflow.indexOf("- name: Prove immutable publication and unchanged assets")),
+  );
+  assert.match(workflow, /owner_approval_comment_id/);
+  assert.match(workflow, /gh api --paginate --slurp/);
+  assert.match(workflow, /--issue-comments-json/);
+  assert.match(workflow, /--owner-approval-comment-id/);
+  assert.match(workflow, /--owner-permission-json/);
+  assert.doesNotMatch(workflow, /LEGAL_REVIEWER_LOGINS|--allowed-reviewers/);
+  assert.doesNotMatch(workflow, /--review-comment-json|--reviewer-permission-json/);
+  assert.doesNotMatch(workflow, /external legal approval/);
+  assert.match(
+    publicationEvidenceStep,
+    /OWNER_APPROVAL_COMMENT_ID: \$\{\{ inputs\.owner_approval_comment_id \}\}/,
+  );
+});
+
 test("stable publish mutation policy accepts an equivalent CRLF checkout", () => {
   assert.doesNotThrow(() => checkStablePublishMutationPolicy(asCrlf(workflow)));
 });

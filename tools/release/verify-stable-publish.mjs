@@ -7,7 +7,7 @@ import { basename, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { verifyDraftRelease } from "./verify-draft-release.mjs";
 
-const reviewMarker = "<!-- snaploom-legal-review:v1 -->";
+const reviewMarker = "<!-- snaploom-owner-release-approval:v1 -->";
 
 function argument(name) {
   const index = process.argv.indexOf(`--${name}`);
@@ -31,23 +31,23 @@ function validInstant(value) {
   return nonEmpty(value) && Number.isFinite(Date.parse(value));
 }
 
-export function extractLegalReviewRecord(body) {
+export function extractOwnerReleaseApprovalRecord(body) {
   if (typeof body !== "string" || !body.includes(reviewMarker)) {
-    throw new Error("legal review comment is missing the versioned record marker");
+    throw new Error("owner approval comment is missing the versioned record marker");
   }
   if (body.split(reviewMarker).length !== 2) {
-    throw new Error("legal review comment must contain exactly one versioned record marker");
+    throw new Error("owner approval comment must contain exactly one versioned record marker");
   }
   const match = body
     .trim()
-    .match(/^<!-- snaploom-legal-review:v1 -->\r?\n```json\r?\n([\s\S]*?)\r?\n```$/);
+    .match(/^<!-- snaploom-owner-release-approval:v1 -->\r?\n```json\r?\n([\s\S]*?)\r?\n```$/);
   if (!match) {
-    throw new Error("legal review comment must contain only the versioned marker and one JSON record");
+    throw new Error("owner approval comment must contain only the versioned marker and one JSON record");
   }
   try {
     return JSON.parse(match[1]);
   } catch {
-    throw new Error("legal review comment contains invalid JSON");
+    throw new Error("owner approval comment contains invalid JSON");
   }
 }
 
@@ -57,10 +57,10 @@ export function verifyStablePublish({
   version,
   commit,
   issue,
-  reviewComment,
-  reviewerPermission,
+  issueComments,
+  ownerApprovalCommentId,
+  ownerPermission,
   repositoryOwner,
-  allowedReviewerLogins,
   skipArchiveBoundaries = false,
 }) {
   const { manifest } = verifyDraftRelease({
@@ -70,20 +70,39 @@ export function verifyStablePublish({
     commit,
     skipArchiveBoundaries,
   });
-  const review = extractLegalReviewRecord(reviewComment?.body);
-  const reviewerLogin = reviewComment?.user?.login;
-  const permissionLogin = reviewerPermission?.user?.login;
-  const allowed = new Set(
-    (allowedReviewerLogins ?? []).map((login) => login.toLowerCase()),
+  if (!Array.isArray(issueComments)) {
+    throw new Error("Issue #33 comments must be provided for owner approval uniqueness checks");
+  }
+  const ownerApprovalComments = issueComments.filter((comment) =>
+    comment?.body?.includes(reviewMarker),
   );
+  if (
+    ownerApprovalComments.length !== 1 ||
+    ownerApprovalComments[0]?.id !== ownerApprovalCommentId
+  ) {
+    throw new Error(
+      "Issue #33 must contain exactly one owner approval record matching the requested comment ID",
+    );
+  }
+  const ownerApprovalComment = ownerApprovalComments[0];
+  const approval = extractOwnerReleaseApprovalRecord(ownerApprovalComment.body);
+  const approvalLogin = ownerApprovalComment?.user?.login;
+  const permissionLogin = ownerPermission?.user?.login;
+  const ownerLogin = repositoryOwner?.toLowerCase();
+  const isOwnerApproval =
+    nonEmpty(ownerLogin) &&
+    approvalLogin?.toLowerCase() === ownerLogin &&
+    ownerApprovalComment?.author_association === "OWNER" &&
+    ownerPermission?.permission === "admin" &&
+    ownerPermission?.role_name === "admin";
 
   if (
     !validInstant(release?.updated_at) ||
-    !validInstant(reviewComment?.created_at) ||
-    !validInstant(reviewComment?.updated_at) ||
+    !validInstant(ownerApprovalComment?.created_at) ||
+    !validInstant(ownerApprovalComment?.updated_at) ||
     !validInstant(issue?.closed_at)
   ) {
-    throw new Error("release, legal-review comment, and Issue #33 must have valid GitHub timestamps");
+    throw new Error("release, owner-approval comment, and Issue #33 must have valid GitHub timestamps");
   }
 
   if (
@@ -93,63 +112,61 @@ export function verifyStablePublish({
     issue.pull_request !== undefined ||
     !nonEmpty(issue.closed_at)
   ) {
-    throw new Error("Issue #33 must be closed as completed after legal review");
+    throw new Error("Issue #33 must be closed as completed after owner approval");
   }
   if (
-    !Number.isInteger(reviewComment?.id) ||
-    !reviewComment.issue_url?.endsWith("/issues/33") ||
-    !nonEmpty(reviewerLogin) ||
-    reviewComment.user?.type !== "User" ||
-    reviewerLogin.toLowerCase() === repositoryOwner?.toLowerCase() ||
-    !allowed.has(reviewerLogin.toLowerCase()) ||
-    reviewComment.author_association !== "COLLABORATOR" ||
-    reviewerPermission?.user?.type !== "User" ||
-    permissionLogin?.toLowerCase() !== reviewerLogin.toLowerCase() ||
-    reviewerPermission?.permission !== "write" ||
-    reviewerPermission?.role_name !== "write"
+    !Number.isInteger(ownerApprovalComment?.id) ||
+    !ownerApprovalComment.issue_url?.endsWith("/issues/33") ||
+    !nonEmpty(approvalLogin) ||
+    ownerApprovalComment.user?.type !== "User" ||
+    ownerPermission?.user?.type !== "User" ||
+    permissionLogin?.toLowerCase() !== approvalLogin.toLowerCase() ||
+    !isOwnerApproval
   ) {
-    throw new Error("legal review must be authored by an allowlisted external non-maintainer user");
+    throw new Error("release approval must be authored by the repository owner with admin permission");
   }
   if (
-    Date.parse(reviewComment.created_at) < Date.parse(release.updated_at) ||
-    Date.parse(reviewComment.updated_at) < Date.parse(reviewComment.created_at)
+    Date.parse(ownerApprovalComment.created_at) < Date.parse(release.updated_at) ||
+    Date.parse(ownerApprovalComment.updated_at) < Date.parse(ownerApprovalComment.created_at)
   ) {
-    throw new Error("the final legal-review comment must occur after the final draft subject");
+    throw new Error("the final owner-approval comment must occur after the final draft subject");
   }
-  if (Date.parse(issue.closed_at) < Date.parse(reviewComment.updated_at)) {
-    throw new Error("Issue #33 closure must occur after the final legal-review edit");
+  if (Date.parse(issue.closed_at) < Date.parse(ownerApprovalComment.updated_at)) {
+    throw new Error("Issue #33 closure must occur after the final owner-approval edit");
+  }
+  if (approval?.acknowledgedWithoutExternalLegalReview !== true) {
+    throw new Error("repository owner must acknowledge publishing without external legal review");
   }
   if (
-    review?.schemaVersion !== 1 ||
-    review.kind !== "snaploom-external-legal-review" ||
-    review.legalReviewIssue !== 33 ||
-    review.reviewer?.githubLogin !== reviewerLogin ||
-    !nonEmpty(review.reviewer?.name) ||
-    !nonEmpty(review.reviewer?.organizationOrLicenseIdentity) ||
-    !validIsoDate(review.reviewDate) ||
-    !nonEmpty(review.jurisdictionAndLimitations) ||
-    review.conclusion !== "accepted" ||
-    !Array.isArray(review.requiredChanges) ||
-    review.requiredChanges.length !== 0 ||
-    !nonEmpty(review.approvedPublicRiskLanguage) ||
-    !/^[0-9a-f]{64}$/.test(review.opinionDocument?.sha256 ?? "") ||
-    !nonEmpty(review.opinionDocument?.controlledLocation) ||
-    !nonEmpty(review.signature)
+    approval?.schemaVersion !== 1 ||
+    approval.kind !== "snaploom-owner-release-approval" ||
+    approval.approvalIssue !== 33 ||
+    approval.owner?.githubLogin !== approvalLogin ||
+    !nonEmpty(approval.owner?.name) ||
+    !validIsoDate(approval.approvalDate) ||
+    !nonEmpty(approval.riskAcknowledgement) ||
+    approval.conclusion !== "accepted" ||
+    !Array.isArray(approval.requiredChanges) ||
+    approval.requiredChanges.length !== 0 ||
+    !nonEmpty(approval.approvedPublicRiskLanguage) ||
+    !/^[0-9a-f]{64}$/.test(approval.decisionRecord?.sha256 ?? "") ||
+    !nonEmpty(approval.decisionRecord?.controlledLocation) ||
+    !nonEmpty(approval.signature)
   ) {
-    throw new Error("external legal review record is incomplete or does not authorize publishing");
+    throw new Error("owner release approval record is incomplete or does not authorize publishing");
   }
-  if (review.reviewDate > reviewComment.updated_at.slice(0, 10)) {
-    throw new Error("legal review date cannot be later than its GitHub comment");
+  if (approval.approvalDate > ownerApprovalComment.updated_at.slice(0, 10)) {
+    throw new Error("owner approval date cannot be later than its GitHub comment");
   }
-  if (review.reviewDate < release.updated_at.slice(0, 10)) {
-    throw new Error("legal review date cannot precede the final draft subject");
+  if (approval.approvalDate < release.updated_at.slice(0, 10)) {
+    throw new Error("owner approval date cannot precede the final draft subject");
   }
   if (
     release.name !== `Snaploom ${version}` ||
     !nonEmpty(release.body) ||
-    !release.body.includes(review.approvedPublicRiskLanguage)
+    !release.body.includes(approval.approvedPublicRiskLanguage)
   ) {
-    throw new Error("reviewed draft must contain the lawyer-approved public risk language");
+    throw new Error("reviewed draft must contain the owner-approved public risk language");
   }
 
   const expectedRelease = {
@@ -165,10 +182,10 @@ export function verifyStablePublish({
       manifest.assets.map((asset) => [asset.name, asset.sha256]),
     ),
   };
-  if (!isDeepStrictEqual(review.release, expectedRelease)) {
-    throw new Error("external legal review record does not exactly match the draft subject");
+  if (!isDeepStrictEqual(approval.release, expectedRelease)) {
+    throw new Error("owner release approval record does not exactly match the draft subject");
   }
-  return { release, manifest, review, reviewCommentId: reviewComment.id };
+  return { release, manifest, approval, approvalCommentId: ownerApprovalComment.id };
 }
 
 export function verifyPublishedTransition({ draftRelease, publishedRelease }) {
@@ -202,28 +219,25 @@ if (process.argv[1] && basename(process.argv[1]) === "verify-stable-publish.mjs"
   const releasePath = argument("release-json");
   const publishedReleasePath = argument("published-release-json");
   const issuePath = argument("issue-json");
-  const reviewCommentPath = argument("review-comment-json");
-  const reviewerPermissionPath = argument("reviewer-permission-json");
+  const issueCommentsPath = argument("issue-comments-json");
+  const ownerApprovalCommentId = Number(argument("owner-approval-comment-id"));
+  const ownerPermissionPath = argument("owner-permission-json");
   const directory = resolve(argument("directory") ?? "release-download");
   const version = argument("version");
   const commit = argument("commit");
   const repositoryOwner = argument("repository-owner");
-  const allowedReviewerLogins = (argument("allowed-reviewers") ?? "")
-    .split(",")
-    .map((login) => login.trim())
-    .filter(Boolean);
   if (
     !releasePath ||
     !issuePath ||
-    !reviewCommentPath ||
-    !reviewerPermissionPath ||
+    !issueCommentsPath ||
+    !Number.isInteger(ownerApprovalCommentId) ||
+    !ownerPermissionPath ||
     !version ||
     !commit ||
-    !repositoryOwner ||
-    allowedReviewerLogins.length === 0
+    !repositoryOwner
   ) {
     throw new Error(
-      "--release-json, --issue-json, --review-comment-json, --reviewer-permission-json, --directory, --version, --commit, --repository-owner, and --allowed-reviewers are required",
+      "--release-json, --issue-json, --issue-comments-json, --owner-approval-comment-id, --owner-permission-json, --directory, --version, --commit, and --repository-owner are required",
     );
   }
   const result = verifyStablePublish({
@@ -232,10 +246,10 @@ if (process.argv[1] && basename(process.argv[1]) === "verify-stable-publish.mjs"
     version,
     commit,
     issue: JSON.parse(readFileSync(resolve(issuePath), "utf8")),
-    reviewComment: JSON.parse(readFileSync(resolve(reviewCommentPath), "utf8")),
-    reviewerPermission: JSON.parse(readFileSync(resolve(reviewerPermissionPath), "utf8")),
+    issueComments: JSON.parse(readFileSync(resolve(issueCommentsPath), "utf8")),
+    ownerApprovalCommentId,
+    ownerPermission: JSON.parse(readFileSync(resolve(ownerPermissionPath), "utf8")),
     repositoryOwner,
-    allowedReviewerLogins,
   });
   if (publishedReleasePath) {
     verifyPublishedTransition({
@@ -244,6 +258,6 @@ if (process.argv[1] && basename(process.argv[1]) === "verify-stable-publish.mjs"
     });
   }
   process.stdout.write(
-    `verified external legal approval by ${result.review.reviewer.githubLogin} for release ${result.release.id}\n`,
+    `verified owner release approval by ${result.approval.owner.githubLogin} for release ${result.release.id}\n`,
   );
 }

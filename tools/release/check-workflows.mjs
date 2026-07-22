@@ -49,11 +49,11 @@ const publishJobStart = stablePublish.indexOf("\n  publish:");
 const evidenceJobStart = stablePublish.indexOf("\n  record-evidence:");
 const pullRequestCi = readFileSync(join(workflowDirectory, "ci.yml"), "utf8");
 const approvedStablePublishJobSha256 =
-  "7547b9b1ab73aaa15b7ed1ef99d06fa8e902f445a3f2e663c1f560aff2417307";
+  "1462876c00c07d44f1df56f341f7828040b55a962efaec250013dda9c45aa5fb";
 const approvedStableSdkPromotionJobSha256 =
   "c05a4ce09af0a2f26ff63ffb5947a127017257e49b1137d373b8a1d3ba18bbcf";
 const approvedStablePublishVerifierSha256 = {
-  "verify-stable-publish.mjs": "b479a5473baddef54c98689fd8cd76b39a65810e3cedda4b345973ceb355d70b",
+  "verify-stable-publish.mjs": "9bda8572e9382102fa48fa9c763cb22f9dc04e1d8370d62c40ecb905b7c4efba",
   "verify-draft-release.mjs": "3216d1180f5e05a58e7771a428438c7d7ba35db765386708a40c90456fc2a3de",
   "release-contract.mjs": "d1a224cfa4c6d95f9b844634c7f4f34ebed8f13618c9f5e3762a6496f56f9aec",
   "verify-release.mjs": "4f4ae402d5eb2b8b4b0b39c0cb7911b3d8cde59c29e224ab605296d0b90d4a68",
@@ -324,6 +324,7 @@ if (
 if (
   !legalRc.includes("draft:true") ||
   !legalRc.includes("Stable publish remains blocked by Issue #33") ||
+  !legalRc.includes("issue-33-owner-approval") ||
   !legalRc.includes("environment: release-signing") ||
   !legalRc.includes("environment: release-draft") ||
   !legalRc.includes(".NET signed consumer") ||
@@ -339,7 +340,7 @@ if (
   !legalRc.includes("8.0.423") ||
   !legalRc.includes("10.0.302")
 ) {
-  throw new Error("legal RC workflow must create only a protected, externally reviewed draft");
+  throw new Error("legal RC workflow must create only a protected, owner-approved draft");
 }
 if (
   /(?:draft["']?\s*:\s*false|make_latest|gh\s+release\s+edit|--draft=false|(?:--method|--request)\s+PATCH)/.test(legalRc) ||
@@ -352,13 +353,19 @@ if (
 }
 if (
   !stablePublish.includes("environment: stable-release") ||
-  !stablePublish.includes("vars.LEGAL_REVIEWER_LOGINS") ||
+  stablePublish.includes("vars.LEGAL_REVIEWER_LOGINS") ||
+  stablePublish.includes("--allowed-reviewers") ||
+  !stablePublish.includes("owner_approval_comment_id") ||
   publishJobStart < 0 ||
   evidenceJobStart < 0 ||
   !stablePublish.includes("needs: publish") ||
   (stablePublish.match(/actions\/upload-artifact/g) ?? []).length !== 1 ||
-  (stablePublish.match(/collaborators\/\$\{reviewer_login\}\/permission/g) ?? []).length < 2 ||
-  (stablePublish.match(/--reviewer-permission-json/g) ?? []).length < 3 ||
+  (stablePublish.match(/collaborators\/\$\{GITHUB_REPOSITORY_OWNER\}\/permission/g) ?? [])
+    .length < 2 ||
+  (stablePublish.match(/--owner-permission-json/g) ?? []).length < 3 ||
+  (stablePublish.match(/--issue-comments-json/g) ?? []).length < 3 ||
+  (stablePublish.match(/--owner-approval-comment-id/g) ?? []).length < 3 ||
+  (stablePublish.match(/gh api --paginate --slurp/g) ?? []).length !== 2 ||
   (stablePublish.match(/fetch-depth: 0/g) ?? []).length !== 2 ||
   (stablePublish.match(/verify-stable-publish\.mjs/g) ?? []).length < 2 ||
   !stablePublish.includes(".immutable == true") ||
@@ -368,7 +375,9 @@ if (
   (stablePublish.match(/contents:\s+write/g) ?? []).length !== 1 ||
   (stablePublish.match(/--method PATCH/g) ?? []).length !== 1
 ) {
-  throw new Error("stable workflow must reverify one immutable signed draft before one publish transition");
+  throw new Error(
+    "stable workflow must reverify one owner-approved immutable signed draft before one publish transition",
+  );
 }
 checkStablePublishMutationPolicy(stablePublish);
 checkStablePublishVerifier(stablePublishVerifierClosure);

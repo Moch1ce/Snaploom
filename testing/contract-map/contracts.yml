@@ -465,7 +465,7 @@
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "tools/testing/check-contract-map.test.mjs", "contains": "rejects missing, extra, duplicate, and renamed evidence anchors"},
         {"category": "automatic", "status": "verified", "path": "tools/release/check-workflows.test.mjs", "contains": "stable publish mutation policy rejects extra REST mutations and implicit POST fields"},
-        {"category": "automatic", "status": "verified", "path": "tools/release/verify-stable-publish.test.mjs", "contains": "rejects owner, non-allowlisted, non-collaborator, maintainer, and bot authors"},
+        {"category": "automatic", "status": "verified", "path": "tools/release/verify-stable-publish.test.mjs", "contains": "rejects approval from anyone other than the repository owner"},
         {"category": "signing", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "签名法律 RC draft 流程"}
       ]
     }

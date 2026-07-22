@@ -90,7 +90,7 @@ export function verifyLegalRcRunEvidence(legalRcRun) {
   return requiredSignedConsumerJobs;
 }
 
-export function createLegalReviewBundle({
+export function createOwnerApprovalBundle({
   releaseDirectory,
   release,
   qualificationDirectory,
@@ -108,7 +108,7 @@ export function createLegalReviewBundle({
   skipArchiveBoundaries = false,
 }) {
   if (existsSync(outputDirectory) && readdirSync(outputDirectory).length !== 0) {
-    throw new Error("legal review bundle output must be empty");
+    throw new Error("owner approval bundle output must be empty");
   }
   const { manifest } = verifyDraftRelease({
     release,
@@ -255,8 +255,8 @@ export function createLegalReviewBundle({
 
   const subject = {
     schemaVersion: 1,
-    legalReviewIssue: 33,
-    legalStatus: "external-review-required",
+    approvalIssue: 33,
+    legalStatus: "owner-risk-acceptance-required",
     stablePublishAllowed: false,
     release: {
       id: release.id,
@@ -280,14 +280,15 @@ export function createLegalReviewBundle({
       signedConsumerJobs,
     },
     requiredHumanFields: [
-      "reviewerName",
-      "organizationOrLicenseIdentity",
-      "reviewDate",
-      "jurisdictionAndLimitations",
+      "ownerName",
+      "ownerGithubLogin",
+      "approvalDate",
+      "riskAcknowledgement",
+      "acknowledgedWithoutExternalLegalReview",
       "conclusion",
       "requiredChanges",
       "approvedPublicRiskLanguage",
-      "opinionDocumentSha256AndControlledLocation",
+      "decisionRecordSha256AndControlledLocation",
       "signature",
     ],
   };
@@ -299,14 +300,14 @@ export function createLegalReviewBundle({
   writeFileSync(
     join(outputDirectory, "README.md"),
     [
-      `# Snaploom ${version} 外部法律复核包`,
+      `# Snaploom ${version} 所有者发布审批包`,
       "",
       `本复核包精确对应未公开 draft：${release.html_url}`,
       `tag/commit：${manifest.tag} / ${commit}`,
       "",
-      "该包不是法律批准。Issue #33 的真实外部律师必须核对 review-subject.json、全部 payload checksum、签名/公证记录、真机资格证据和实际 draft 后再签署。",
+      "该包不是法律意见。仓库所有者必须核对 review-subject.json、全部 payload checksum、签名/公证记录、真机资格证据和实际 draft，并明确接受未经过外部法律复核即发布的风险。",
       "platform-evidence/ 保存 builder identity、原始 notarization JSON、签名/二进制检查日志及最终 C/C++/C#/Swift consumer 输出；legal-rc-run.json 指向完整 Actions 日志。",
-      "在外部记录完整且精确覆盖本 draft 前，stable publish 保持禁止；不得重建、替换或覆盖已复核资产。",
+      "在所有者审批记录完整且精确覆盖本 draft 前，stable publish 保持禁止；不得重建、替换或覆盖已审批资产。",
       "",
     ].join("\n"),
     "utf8",
@@ -314,7 +315,7 @@ export function createLegalReviewBundle({
   return subject;
 }
 
-if (process.argv[1] && basename(process.argv[1]) === "create-legal-review-bundle.mjs") {
+if (process.argv[1] && basename(process.argv[1]) === "create-owner-approval-bundle.mjs") {
   const required = [
     "release-directory",
     "release-json",
@@ -335,7 +336,7 @@ if (process.argv[1] && basename(process.argv[1]) === "create-legal-review-bundle
   if (required.some((name) => !args[name])) {
     throw new Error(`required arguments: ${required.map((name) => `--${name}`).join(", ")}`);
   }
-  const subject = createLegalReviewBundle({
+  const subject = createOwnerApprovalBundle({
     releaseDirectory: resolve(args["release-directory"]),
     release: JSON.parse(readFileSync(resolve(args["release-json"]), "utf8")),
     qualificationDirectory: resolve(args["qualification-directory"]),
@@ -354,6 +355,6 @@ if (process.argv[1] && basename(process.argv[1]) === "create-legal-review-bundle
     commit: args.commit,
   });
   process.stdout.write(
-    `created external legal review bundle for ${subject.release.tag} at ${subject.release.commit}\n`,
+    `created owner release approval bundle for ${subject.release.tag} at ${subject.release.commit}\n`,
   );
 }

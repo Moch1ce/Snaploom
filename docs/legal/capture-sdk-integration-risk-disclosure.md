@@ -1,6 +1,6 @@
 # Capture SDK 集成与再分发风险说明
 
-状态：发布前草案；外部律师复核完成前不得宣称为最终法务文案。
+状态：发布前风险披露；未经外部法律复核，不得宣称为法务批准或法律意见。
 
 Snaploom Capture SDK 按 `Apache-2.0` 提供，可被开源或闭源宿主使用。交互式截图、标注、平台捕获与用户界面位于独立的 Snaploom Capture Host；Host 按 `GPL-3.0-or-later` 提供，不因通过 SDK 调用而被重新授权。
 
@@ -33,4 +33,3 @@ Apache-2.0 和 GPL-3.0-or-later 都含无担保条款。本说明不构成项目
 - [GNU GPLv3 正文](https://www.gnu.org/licenses/gpl-3.0.html)
 - [GNU GPL FAQ：GPL 程序与专有系统](https://www.gnu.org/licenses/gpl-faq.html#GPLInProprietarySystem)
 - [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
-
