@@ -109,7 +109,7 @@ Generated Apache binding -> copied GPL structs/algorithms
 | pnpm | MIT；提供确定性 lockfile | 可用，提交 lockfile 并对生产依赖生成清单。[pnpm 官方仓库](https://github.com/pnpm/pnpm) |
 | Windows WebView2 | Tauri/Wry 使用系统 WebView2 | 首版优先使用系统 Evergreen Runtime；如改为捆绑 Fixed Version 或 bootstrapper，必须单独复核微软再分发条款。 |
 | macOS WKWebView | 系统框架 | 作为系统库调用，不复制 Apple SDK；构建和签名仍遵守 Xcode/Apple 条款。 |
-| Windows/macOS SDK 与签名工具 | 构建环境 | 不作为 Snaploom 开源依赖再分发；CI runner、证书和 notarization 条款由发布供应链票复核。 |
+| Windows/macOS SDK 与平台打包工具 | 构建环境 | 不作为 Snaploom 开源依赖再分发；CI runner、未认证包风险披露与 attestations 由发布供应链票复核。 |
 
 构建工具通常不会因为参与编译就把其许可证施加到输出，但它们可能携带可再分发 runtime、模板、生成代码或 NOTICE，因此不能从审计中删除。SBOM 至少要区分 runtime、build 和 development scope。
 

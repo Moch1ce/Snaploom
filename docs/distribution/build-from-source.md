@@ -26,6 +26,6 @@ Windows 10 22H2+/Windows 11 x64 候选包使用明确的 unsigned 模式（需�
 ./scripts/build-windows-packages.ps1 -Version <X.Y.Z> -SigningMode candidate-unsigned
 ```
 
-正式稳定 Windows 包使用 `stable-unsigned`，并依靠 checksum 与 GitHub attestation 验证来源；正式稳定
-macOS 包只能在受保护的发布环境使用 Developer ID 和 Apple 公证凭据构建。该平台信任策略不改变修改版
-Host 对公开协议的可用性。
+正式稳定 Windows 与 macOS 包都使用 `stable-unsigned`，并依靠 checksum 与 GitHub attestation 验证来源。
+macOS 包只有 ad hoc 结构签名，没有 Developer ID 身份或 Apple 公证，必须同时披露 Gatekeeper 风险。
+该平台信任策略不改变修改版 Host 对公开协议的可用性。

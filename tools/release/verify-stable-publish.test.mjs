@@ -20,6 +20,8 @@ const approvedPublicRiskLanguage =
   "The Apache SDK communicates with a separately distributed GPL Host; IPC does not automatically eliminate GPL compliance obligations.";
 const windowsUnsignedRiskLanguage =
   "Windows executables and DLLs are unsigned and may show Unknown publisher or Microsoft Defender SmartScreen warnings; verify SHA256SUMS and GitHub attestations before running them.";
+const macosUnsignedRiskLanguage =
+  "macOS apps and disk images are not signed with Apple Developer ID or notarized and may be blocked by Gatekeeper; verify SHA256SUMS and GitHub attestations before opening them.";
 const signingEvidence = {
   windows: {
     mode: "unsigned",
@@ -28,13 +30,13 @@ const signingEvidence = {
     unknownPublisherWarning: true,
   },
   macos: {
-    mode: "developer-id",
-    developerIdVerified: true,
-    notarizationStatus: "Accepted",
-    stapled: true,
-    gatekeeperVerified: true,
-    teamId: "ABCDE12345",
-    notarySubmissionId: "dmg-submission",
+    mode: "unsigned",
+    developerIdVerified: false,
+    notarizationStatus: "not-submitted",
+    stapled: false,
+    gatekeeperVerified: false,
+    adHocSignatureVerified: true,
+    gatekeeperWarning: true,
   },
 };
 
@@ -79,7 +81,7 @@ function fixture() {
     target_commitish: commit,
     resolved_tag_commit: commit,
     name: `Snaploom ${version}`,
-    body: `Snaploom ${version}\n\n${approvedPublicRiskLanguage} ${windowsUnsignedRiskLanguage}`,
+    body: `Snaploom ${version}\n\n${approvedPublicRiskLanguage} ${windowsUnsignedRiskLanguage} ${macosUnsignedRiskLanguage}`,
     html_url: "https://github.com/Moch1ce/Snaploom/releases/tag/untagged-test",
     assets,
   };
@@ -669,6 +671,32 @@ test("rejects a draft whose public notes omit the unsigned Windows warning", () 
           skipArchiveBoundaries: true,
         }),
       /unsigned Windows risk disclosure/,
+    );
+  } finally {
+    rmSync(paths.root, { recursive: true, force: true });
+  }
+});
+
+test("rejects a draft whose public notes omit the unsigned macOS warning", () => {
+  const paths = fixture();
+  try {
+    assert.throws(
+      () =>
+        verifyStablePublish({
+          release: {
+            ...paths.release,
+            body: paths.release.body.replace(macosUnsignedRiskLanguage, ""),
+          },
+          directory: paths.directory,
+          version,
+          commit,
+          issue: paths.issue,
+          ownerPermission: paths.ownerPermission,
+          ownerApprovalComment: paths.ownerApprovalComment,
+          repositoryOwner: "Moch1ce",
+          skipArchiveBoundaries: true,
+        }),
+      /unsigned macOS risk disclosure/,
     );
   } finally {
     rmSync(paths.root, { recursive: true, force: true });

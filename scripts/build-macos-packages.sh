@@ -5,7 +5,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: build-macos-packages.sh --version X.Y.Z [--output DIR] (--adhoc | --developer-id IDENTITY --notarize)" >&2
+  echo "Usage: build-macos-packages.sh --version X.Y.Z [--output DIR] (--adhoc | --stable-unsigned | --developer-id IDENTITY --notarize)" >&2
 }
 
 version=""
@@ -18,6 +18,7 @@ while [[ $# -gt 0 ]]; do
     --version) version="${2:-}"; shift 2 ;;
     --output) output_directory="${2:-}"; shift 2 ;;
     --adhoc) signing_mode="adhoc"; shift ;;
+    --stable-unsigned) signing_mode="stable-unsigned"; shift ;;
     --developer-id) signing_mode="developer-id"; developer_id="${2:-}"; shift 2 ;;
     --notarize) notarize=true; shift ;;
     *) usage; exit 2 ;;
@@ -32,7 +33,7 @@ if [[ "$signing_mode" == "developer-id" && "$notarize" != true ]]; then
   echo "Developer ID packages require notarization; stable packaging cannot downgrade." >&2
   exit 2
 fi
-if [[ "$signing_mode" == "adhoc" && "$notarize" == true ]]; then
+if [[ "$signing_mode" != "developer-id" && "$notarize" == true ]]; then
   echo "Ad hoc packages cannot be notarized." >&2
   exit 2
 fi
@@ -205,8 +206,13 @@ fi
 dmg_bytes="$(stat -f%z "$dmg_path")"
 [[ "$dmg_bytes" -le 50000000 ]] || { echo "DMG exceeds 50,000,000 bytes: $dmg_bytes" >&2; exit 1; }
 team_id=""
+ad_hoc_signature_verified=false
+gatekeeper_warning=false
 if [[ "$signing_mode" == "developer-id" ]]; then
   team_id="$(codesign -dv --verbose=4 "$desktop_app" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
+else
+  ad_hoc_signature_verified=true
+  gatekeeper_warning=true
 fi
 if [[ "$notarize" == true ]]; then
   signing_evidence="$output_directory/signing-evidence"
@@ -234,7 +240,9 @@ jq -n \
   --arg hostNotarySubmissionId "$host_notary_id" \
   --arg dmgNotarySubmissionId "$dmg_notary_id" \
   --argjson notarized "$notarize" \
-  '{schemaVersion:1,version:$version,platform:"macos-arm64",signingMode:$signingMode,notarized:$notarized,dmg:$dmg,dmgBytes:$dmgBytes,dmgSha256:$dmgSha256,host:$host,hostSha256:$hostSha256,hostTreeSha256:$hostTreeSha256,teamId:$teamId,hostNotarySubmissionId:$hostNotarySubmissionId,dmgNotarySubmissionId:$dmgNotarySubmissionId}' \
+  --argjson adHocSignatureVerified "$ad_hoc_signature_verified" \
+  --argjson gatekeeperWarning "$gatekeeper_warning" \
+  '{schemaVersion:1,version:$version,platform:"macos-arm64",signingMode:$signingMode,notarized:$notarized,adHocSignatureVerified:$adHocSignatureVerified,gatekeeperWarning:$gatekeeperWarning,dmg:$dmg,dmgBytes:$dmgBytes,dmgSha256:$dmgSha256,host:$host,hostSha256:$hostSha256,hostTreeSha256:$hostTreeSha256,teamId:$teamId,hostNotarySubmissionId:$hostNotarySubmissionId,dmgNotarySubmissionId:$dmgNotarySubmissionId}' \
   > "$output_directory/macos-package-metadata.json"
 
 echo "Created $dmg_name and $(basename "$host_zip") in $output_directory"

@@ -27,7 +27,7 @@
       "implementation": ["product/apps/desktop/src/lib.rs"],
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "product/apps/desktop/tests/lifecycle_contract.rs", "contains": "single_instance_is_initialized_before_other_desktop_plugins"},
-        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/macos-t02-validation.md", "contains": "真实捕获必须从已安装且稳定签名的 Snaploom"}
+        {"category": "platform", "status": "pending-external", "issue": "#34", "path": "docs/testing/macos-t02-validation.md", "contains": "真实捕获必须从已安装的稳定候选 Snaploom"}
       ]
     },
     {
@@ -399,9 +399,9 @@
       "status": "required",
       "implementation": ["scripts/build-macos-packages.sh", "tests/packaging/verify-macos-packages.sh", "packaging/macos/Snaploom.entitlements"],
       "evidence": [
-        {"category": "automatic", "status": "verified", "path": "tests/packaging/verify-macos-packages.sh", "contains": "macOS DMG, standalone Host, signing, architecture, install, launch, and boundary checks passed"},
+        {"category": "automatic", "status": "verified", "path": "tests/packaging/verify-macos-packages.sh", "contains": "macOS DMG, standalone Host, trust mode, architecture, install, launch, and boundary checks passed"},
         {"category": "installation", "status": "pending-external", "issue": "#34", "path": "docs/testing/macos-dmg-validation.md", "contains": "Hosted runner 的包验证不能冒充"},
-        {"category": "signing", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "Developer ID hardened-runtime"}
+        {"category": "signing", "status": "pending-external", "issue": "#51", "path": "docs/distribution/legal-rc-process.md", "contains": "macOS 以 `stable-unsigned`"}
       ]
     },
     {

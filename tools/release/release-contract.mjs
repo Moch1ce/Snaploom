@@ -5,6 +5,8 @@ export const RELEASE_SCHEMA_VERSION = 1;
 export const MAX_INSTALLER_BYTES = 50_000_000;
 export const WINDOWS_UNSIGNED_RISK_LANGUAGE =
   "Windows executables and DLLs are unsigned and may show Unknown publisher or Microsoft Defender SmartScreen warnings; verify SHA256SUMS and GitHub attestations before running them.";
+export const MACOS_UNSIGNED_RISK_LANGUAGE =
+  "macOS apps and disk images are not signed with Apple Developer ID or notarized and may be blocked by Gatekeeper; verify SHA256SUMS and GitHub attestations before opening them.";
 
 export function assertVersion(version) {
   if (!/^\d+\.\d+\.\d+$/.test(version)) {
@@ -162,16 +164,16 @@ export function validateSigningEvidence(mode, signing) {
     );
   }
   if (
-    signing.macos?.mode !== "developer-id" ||
-    signing.macos?.developerIdVerified !== true ||
-    signing.macos?.notarizationStatus !== "Accepted" ||
-    signing.macos?.stapled !== true ||
-    signing.macos?.gatekeeperVerified !== true ||
-    typeof signing.macos?.teamId !== "string" ||
-    signing.macos.teamId.length < 5 ||
-    typeof signing.macos?.notarySubmissionId !== "string" ||
-    signing.macos.notarySubmissionId.length < 8
+    signing.macos?.mode !== "unsigned" ||
+    signing.macos?.developerIdVerified !== false ||
+    signing.macos?.notarizationStatus !== "not-submitted" ||
+    signing.macos?.stapled !== false ||
+    signing.macos?.gatekeeperVerified !== false ||
+    signing.macos?.adHocSignatureVerified !== true ||
+    signing.macos?.gatekeeperWarning !== true
   ) {
-    throw new Error("stable macOS assets require Developer ID, notarization, stapling, and Gatekeeper evidence");
+    throw new Error(
+      "stable macOS assets require explicit unsigned risk and verified ad hoc package evidence",
+    );
   }
 }

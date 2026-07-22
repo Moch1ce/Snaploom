@@ -248,12 +248,11 @@ jobs:
           retention-days: 7
           compression-level: 0
 
-  macos-sign-notary:
-    name: Developer ID and notarized macOS products
+  macos-build:
+    name: Unsigned macOS products and SDK
     needs: validate
     runs-on: macos-15
     timeout-minutes: 60
-    environment: release-signing
     permissions:
       contents: read
 
@@ -327,49 +326,18 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/snaploom-macos-native"
           cp sdk/target/release/libsnaploom_capture.dylib "${RUNNER_TEMP}/snaploom-macos-native/"
 
-      - name: Import ephemeral Developer ID identity, package, notarize, and verify
+      - name: Build and verify explicitly unsigned macOS assets
         shell: bash
         env:
-          APPLE_DEVELOPER_ID_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
-          APPLE_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
-          APPLE_DEVELOPER_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
-          APPLE_NOTARY_KEY_BASE64: ${{ secrets.APPLE_NOTARY_KEY_BASE64 }}
-          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
-          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
           VERSION: ${{ inputs.version }}
         run: |
-          : "${APPLE_DEVELOPER_ID_P12_BASE64:?missing Developer ID certificate}"
-          : "${APPLE_DEVELOPER_ID_P12_PASSWORD:?missing Developer ID password}"
-          : "${APPLE_DEVELOPER_IDENTITY:?missing Developer ID identity}"
-          : "${APPLE_NOTARY_KEY_BASE64:?missing App Store Connect API key}"
-          : "${APPLE_NOTARY_KEY_ID:?missing App Store Connect key ID}"
-          : "${APPLE_NOTARY_ISSUER_ID:?missing App Store Connect issuer ID}"
-          keychain="${RUNNER_TEMP}/snaploom-signing.keychain-db"
-          certificate="${RUNNER_TEMP}/snaploom-developer-id.p12"
-          export APPLE_NOTARY_KEY_PATH="${RUNNER_TEMP}/AuthKey_${APPLE_NOTARY_KEY_ID}.p8"
-          python3 - "${certificate}" "${APPLE_NOTARY_KEY_PATH}" <<'PY'
-          import base64, os, sys
-          open(sys.argv[1], "wb").write(base64.b64decode(os.environ["APPLE_DEVELOPER_ID_P12_BASE64"], validate=True))
-          open(sys.argv[2], "wb").write(base64.b64decode(os.environ["APPLE_NOTARY_KEY_BASE64"], validate=True))
-          PY
-          chmod 600 "${certificate}" "${APPLE_NOTARY_KEY_PATH}"
-          keychain_password="$(openssl rand -hex 32)"
-          security create-keychain -p "${keychain_password}" "${keychain}"
-          security set-keychain-settings -lut 21600 "${keychain}"
-          security unlock-keychain -p "${keychain_password}" "${keychain}"
-          security import "${certificate}" -k "${keychain}" \
-            -P "${APPLE_DEVELOPER_ID_P12_PASSWORD}" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s \
-            -k "${keychain_password}" "${keychain}"
-          security list-keychains -d user -s "${keychain}"
           ./scripts/build-macos-packages.sh \
             --version "${VERSION}" \
-            --developer-id "${APPLE_DEVELOPER_IDENTITY}" \
-            --notarize 2>&1 | tee "${RUNNER_TEMP}/macos-signing.log"
+            --stable-unsigned 2>&1 | tee "${RUNNER_TEMP}/macos-validation.log"
           ./tests/packaging/verify-macos-packages.sh \
             --directory ./artifacts/release/macos-arm64 \
             --version "${VERSION}" \
-            --expected-signing developer-id 2>&1 | tee -a "${RUNNER_TEMP}/macos-signing.log"
+            --expected-signing stable-unsigned 2>&1 | tee -a "${RUNNER_TEMP}/macos-validation.log"
 
       - name: Record macOS builder identity
         shell: bash
@@ -388,15 +356,7 @@ jobs:
             '{imageOS:$imageOS,imageVersion:$imageVersion,runnerArchitecture:$runnerArchitecture,node:$node,pnpm:$pnpm,python:$python,rustc:$rustc,cargo:$cargo,xcode:$xcode,swift:$swift}' \
             > "${RUNNER_TEMP}/macos-builder.json"
 
-      - name: Remove ephemeral Apple signing material
-        if: always()
-        shell: bash
-        run: |
-          security list-keychains -d user -s login.keychain-db 2>/dev/null || true
-          security delete-keychain "${RUNNER_TEMP}/snaploom-signing.keychain-db" 2>/dev/null || true
-          rm -f "${RUNNER_TEMP}/snaploom-developer-id.p12" "${RUNNER_TEMP}"/AuthKey_*.p8
-
-      - name: Upload verified signed macOS and SDK assets
+      - name: Upload verified unsigned macOS and SDK assets
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: legal-rc-macos-platform
@@ -406,7 +366,7 @@ jobs:
             ${{ runner.temp }}/snaploom-swift-sdk/*
             ${{ runner.temp }}/snaploom-macos-native/libsnaploom_capture.dylib
             ${{ runner.temp }}/macos-builder.json
-            ${{ runner.temp }}/macos-signing.log
+            ${{ runner.temp }}/macos-validation.log
             ${{ runner.temp }}/macos-c-cpp-consumer.log
             ${{ runner.temp }}/macos-swift-consumer.log
             ${{ runner.temp }}/macos-binary-inspection.log
@@ -418,7 +378,7 @@ jobs:
     name: Package dual-RID NuGet
     needs:
       - windows-build
-      - macos-sign-notary
+      - macos-build
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -574,7 +534,7 @@ jobs:
     needs:
       - validate
       - windows-build
-      - macos-sign-notary
+      - macos-build
       - dotnet-package
       - dotnet-consumer
     runs-on: ubuntu-24.04
@@ -657,15 +617,12 @@ jobs:
           windows_builder="$(find "${RUNNER_TEMP}/legal-rc-input" -name windows-builder.json -type f -print -quit)"
           macos_builder="$(find "${RUNNER_TEMP}/legal-rc-input" -name macos-builder.json -type f -print -quit)"
           dotnet_builder="$(find "${RUNNER_TEMP}/legal-rc-input" -name dotnet-builder.json -type f -print -quit)"
-          apple_evidence="$(find "${RUNNER_TEMP}/legal-rc-input" -name signing-evidence -type d -print -quit)"
           test -n "${windows_builder}"
           test -n "${macos_builder}"
           test -n "${dotnet_builder}"
-          test -n "${apple_evidence}"
           cp "${windows_builder}" "${RUNNER_TEMP}/legal-rc-stage/platform/windows-builder.json"
           cp "${macos_builder}" "${RUNNER_TEMP}/legal-rc-stage/platform/macos-builder.json"
           cp "${dotnet_builder}" "${RUNNER_TEMP}/legal-rc-stage/platform/dotnet-builder.json"
-          cp -R "${apple_evidence}" "${RUNNER_TEMP}/legal-rc-stage/platform/apple-signing-evidence"
           mkdir -p "${RUNNER_TEMP}/legal-rc-stage/platform/consumer-logs"
           mapfile -t consumer_logs < <(find "${RUNNER_TEMP}/legal-rc-input" -name '*-consumer.log' -type f -print)
           test "${#consumer_logs[@]}" -eq 7
@@ -673,11 +630,11 @@ jobs:
             cp "${log}" "${RUNNER_TEMP}/legal-rc-stage/platform/consumer-logs/$(basename "${log}")"
           done
           windows_validation_log="$(find "${RUNNER_TEMP}/legal-rc-input" -name windows-validation.log -type f -print -quit)"
-          macos_signing_log="$(find "${RUNNER_TEMP}/legal-rc-input" -name macos-signing.log -type f -print -quit)"
+          macos_validation_log="$(find "${RUNNER_TEMP}/legal-rc-input" -name macos-validation.log -type f -print -quit)"
           test -n "${windows_validation_log}"
-          test -n "${macos_signing_log}"
+          test -n "${macos_validation_log}"
           cp "${windows_validation_log}" "${RUNNER_TEMP}/legal-rc-stage/platform/windows-validation.log"
-          cp "${macos_signing_log}" "${RUNNER_TEMP}/legal-rc-stage/platform/macos-signing.log"
+          cp "${macos_validation_log}" "${RUNNER_TEMP}/legal-rc-stage/platform/macos-validation.log"
           windows_inspection_log="$(find "${RUNNER_TEMP}/legal-rc-input" -name windows-binary-inspection.log -type f -print -quit)"
           macos_inspection_log="$(find "${RUNNER_TEMP}/legal-rc-input" -name macos-binary-inspection.log -type f -print -quit)"
           test -n "${windows_inspection_log}"
@@ -787,7 +744,7 @@ jobs:
           jq -n \
             --arg tag "v${VERSION}" --arg commit "${COMMIT}" \
             --arg name "Snaploom ${VERSION}" \
-                --arg body "Snaploom ${VERSION} provides GPL-3.0-or-later Desktop and Capture Host assets plus separately licensed Apache-2.0 Capture SDK assets. The Apache Capture SDK communicates with a separately distributed GPL-3.0-or-later Capture Host; IPC does not automatically eliminate GPL compliance obligations. Windows executables and DLLs are unsigned and may show Unknown publisher or Microsoft Defender SmartScreen warnings; verify SHA256SUMS and GitHub attestations before running them. Install or provide the Capture Host separately and review the included license, NOTICE, SBOM, source, and integration-risk materials before redistribution." \
+                --arg body "Snaploom ${VERSION} provides GPL-3.0-or-later Desktop and Capture Host assets plus separately licensed Apache-2.0 Capture SDK assets. The Apache Capture SDK communicates with a separately distributed GPL-3.0-or-later Capture Host; IPC does not automatically eliminate GPL compliance obligations. Windows executables and DLLs are unsigned and may show Unknown publisher or Microsoft Defender SmartScreen warnings; verify SHA256SUMS and GitHub attestations before running them. macOS apps and disk images are not signed with Apple Developer ID or notarized and may be blocked by Gatekeeper; verify SHA256SUMS and GitHub attestations before opening them. Install or provide the Capture Host separately and review the included license, NOTICE, SBOM, source, and integration-risk materials before redistribution." \
             '{tag_name:$tag,target_commitish:$commit,name:$name,body:$body,draft:true,prerelease:false,generate_release_notes:false}' \
             > "${RUNNER_TEMP}/create-release.json"
           gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \

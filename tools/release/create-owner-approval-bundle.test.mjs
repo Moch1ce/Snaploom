@@ -26,6 +26,8 @@ const version = "1.2.3";
 const commit = "3".repeat(40);
 const windowsUnsignedRiskLanguage =
   "Windows executables and DLLs are unsigned and may show Unknown publisher or Microsoft Defender SmartScreen warnings; verify SHA256SUMS and GitHub attestations before running them.";
+const macosUnsignedRiskLanguage =
+  "macOS apps and disk images are not signed with Apple Developer ID or notarized and may be blocked by Gatekeeper; verify SHA256SUMS and GitHub attestations before opening them.";
 
 function runEvidence() {
   const required = [
@@ -65,7 +67,7 @@ function runEvidence() {
     url: "https://example.test/legal-rc/13",
     jobs: [
       "Unsigned Windows products and SDK",
-      "Developer ID and notarized macOS products",
+      "Unsigned macOS products and SDK",
       "Package dual-RID NuGet",
       ".NET final consumer (windows-x64, net8.0)",
       ".NET final consumer (windows-x64, net10.0)",
@@ -97,15 +99,13 @@ function fixture() {
       unknownPublisherWarning: true,
     },
     macos: {
-      mode: "developer-id",
-      developerIdVerified: true,
-      notarizationStatus: "Accepted",
-      stapled: true,
-      gatekeeperVerified: true,
-      teamId: "ABCDE12345",
-      notarySubmissionId: "dmg-submission",
-      hostNotarySubmissionId: "host-submission",
-      dmgNotarySubmissionId: "dmg-submission",
+      mode: "unsigned",
+      developerIdVerified: false,
+      notarizationStatus: "not-submitted",
+      stapled: false,
+      gatekeeperVerified: false,
+      adHocSignatureVerified: true,
+      gatekeeperWarning: true,
     },
   };
   assembleRelease({
@@ -129,7 +129,7 @@ function fixture() {
   const release = {
     id: 42,
     name: `Snaploom ${version}`,
-    body: windowsUnsignedRiskLanguage,
+    body: `${windowsUnsignedRiskLanguage} ${macosUnsignedRiskLanguage}`,
     draft: true,
     prerelease: false,
     published_at: null,
@@ -166,7 +166,7 @@ function fixture() {
   writeFileSync(ciRunLogPath, "reuse lint\ncargo deny\nverify-cyclonedx.mjs\n");
   writeFileSync(qualificationRunLogPath, "GitHub-hosted qualification\nQA-02\n");
   const platformEvidenceDirectory = join(root, "platform");
-  mkdirSync(join(platformEvidenceDirectory, "apple-signing-evidence"), { recursive: true });
+  mkdirSync(platformEvidenceDirectory);
   writeFileSync(
     windowsMetadataPath,
     `${JSON.stringify({
@@ -179,11 +179,10 @@ function fixture() {
   writeFileSync(
     macosMetadataPath,
     `${JSON.stringify({
-      signingMode: "developer-id",
-      notarized: true,
-      teamId: "ABCDE12345",
-      hostNotarySubmissionId: "host-submission",
-      dmgNotarySubmissionId: "dmg-submission",
+      signingMode: "stable-unsigned",
+      notarized: false,
+      adHocSignatureVerified: true,
+      gatekeeperWarning: true,
     })}\n`,
   );
   writeFileSync(
@@ -197,18 +196,6 @@ function fixture() {
   writeFileSync(
     join(platformEvidenceDirectory, "dotnet-builder.json"),
     '{"imageOS":"ubuntu24","imageVersion":"1","runnerArchitecture":"X64","node":"v22","dotnet":"8.0.423"}\n',
-  );
-  writeFileSync(
-    join(platformEvidenceDirectory, "apple-signing-evidence", "host-notary.json"),
-    '{"id":"host-submission","status":"Accepted"}\n',
-  );
-  writeFileSync(
-    join(platformEvidenceDirectory, "apple-signing-evidence", "dmg-notary.json"),
-    '{"id":"dmg-submission","status":"Accepted"}\n',
-  );
-  writeFileSync(
-    join(platformEvidenceDirectory, "apple-signing-evidence", "apple-verification.log"),
-    "codesign, stapler, and Gatekeeper passed\n",
   );
   mkdirSync(join(platformEvidenceDirectory, "consumer-logs"));
   for (const name of [
@@ -226,7 +213,10 @@ function fixture() {
     join(platformEvidenceDirectory, "windows-validation.log"),
     "unsigned package verification passed\n",
   );
-  writeFileSync(join(platformEvidenceDirectory, "macos-signing.log"), "codesign passed\n");
+  writeFileSync(
+    join(platformEvidenceDirectory, "macos-validation.log"),
+    "stable-unsigned ad hoc package verification passed\n",
+  );
   writeFileSync(
     join(platformEvidenceDirectory, "windows-binary-inspection.log"),
     "dumpbin exports and dependencies\n",
@@ -292,9 +282,12 @@ test("creates an immutable owner approval subject without granting stable publis
     assert.equal(subject.evidence.releaseConsumerJobs.length, 7);
     assert.equal(subject.signing.windows.mode, "unsigned");
     assert.equal(subject.signing.windows.unknownPublisherWarning, true);
+    assert.equal(subject.signing.macos.mode, "unsigned");
+    assert.equal(subject.signing.macos.gatekeeperWarning, true);
     const readme = readFileSync(join(paths.outputDirectory, "README.md"), "utf8");
     assert.match(readme, /仓库所有者/);
     assert.match(readme, /未经过外部法律复核/);
+    assert.match(readme, /Gatekeeper/);
     assert.match(readme, /stable publish/);
   } finally {
     rmSync(paths.root, { recursive: true, force: true });
@@ -338,6 +331,32 @@ test("rejects an approval bundle whose draft omits the unsigned Windows warning"
           skipArchiveBoundaries: true,
         }),
       /unsigned Windows risk disclosure/,
+    );
+  } finally {
+    rmSync(paths.root, { recursive: true, force: true });
+  }
+});
+
+test("rejects an approval bundle whose draft omits the unsigned macOS warning", () => {
+  const paths = fixture();
+  const { ciRun, qualificationRun, legalRcRun } = runEvidence();
+  try {
+    assert.throws(
+      () =>
+        createOwnerApprovalBundle({
+          ...paths,
+          release: {
+            ...paths.release,
+            body: paths.release.body.replace(macosUnsignedRiskLanguage, ""),
+          },
+          ciRun,
+          qualificationRun,
+          legalRcRun,
+          version,
+          commit,
+          skipArchiveBoundaries: true,
+        }),
+      /unsigned macOS risk disclosure/,
     );
   } finally {
     rmSync(paths.root, { recursive: true, force: true });

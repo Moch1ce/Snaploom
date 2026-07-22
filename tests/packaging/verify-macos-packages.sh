@@ -16,7 +16,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || \
-      ( "$expected_signing" != "adhoc" && "$expected_signing" != "developer-id" ) ]]; then
+      ( "$expected_signing" != "adhoc" && "$expected_signing" != "stable-unsigned" && \
+        "$expected_signing" != "developer-id" ) ]]; then
   echo "--directory, --version X.Y.Z, and --expected-signing are required." >&2
   exit 2
 fi
@@ -59,6 +60,11 @@ for app in "$temporary_root/Snaploom.app" "$embedded_app" "$standalone_app"; do
   [[ "$(plutil -extract CFBundleShortVersionString raw -o - "$info")" == "$version" ]]
   [[ "$(plutil -extract LSMinimumSystemVersion raw -o - "$info")" == "14.0" ]]
   codesign --verify --deep --strict "$app"
+  if [[ "$expected_signing" == "developer-id" ]]; then
+    grep -q '^Authority=Developer ID Application:' <<< "$(codesign -dv --verbose=4 "$app" 2>&1)"
+  else
+    grep -q '^Signature=adhoc$' <<< "$(codesign -dv --verbose=4 "$app" 2>&1)"
+  fi
   while IFS= read -r -d '' file_path; do
     if file -b "$file_path" | grep -q 'Mach-O'; then
       [[ "$(lipo -archs "$file_path")" == "arm64" ]] || {
@@ -79,11 +85,17 @@ done
 [[ "$(node "$repo_root/tools/release/hash-tree.mjs" "$embedded_app")" == \
    "$(node "$repo_root/tools/release/hash-tree.mjs" "$standalone_app")" ]]
 codesign --verify "$dmg"
-if [[ "$expected_signing" == "adhoc" ]]; then
-  grep -q '^Signature=adhoc$' <<< "$(codesign -dv --verbose=4 "$temporary_root/Snaploom.app" 2>&1)"
-  jq -e '.notarized == false' "$metadata" >/dev/null
+if [[ "$expected_signing" == "developer-id" ]]; then
+  grep -q '^Authority=Developer ID Application:' <<< "$(codesign -dv --verbose=4 "$dmg" 2>&1)"
 else
-  grep -q '^Authority=Developer ID Application:' <<< "$(codesign -dv --verbose=4 "$temporary_root/Snaploom.app" 2>&1)"
+  grep -q '^Signature=adhoc$' <<< "$(codesign -dv --verbose=4 "$dmg" 2>&1)"
+fi
+if [[ "$expected_signing" != "developer-id" ]]; then
+  jq -e '.notarized == false' "$metadata" >/dev/null
+  if [[ "$expected_signing" == "stable-unsigned" ]]; then
+    jq -e '.adHocSignatureVerified == true and .gatekeeperWarning == true' "$metadata" >/dev/null
+  fi
+else
   jq -e '.notarized == true and (.teamId | length >= 5) and (.hostNotarySubmissionId | length >= 8) and (.dmgNotarySubmissionId | length >= 8)' "$metadata" >/dev/null
   xcrun stapler validate "$standalone_app"
   xcrun stapler validate "$dmg"
@@ -99,4 +111,4 @@ kill "$app_process"
 wait "$app_process" 2>/dev/null || true
 app_process=""
 
-echo "macOS DMG, standalone Host, signing, architecture, install, launch, and boundary checks passed."
+echo "macOS DMG, standalone Host, trust mode, architecture, install, launch, and boundary checks passed."

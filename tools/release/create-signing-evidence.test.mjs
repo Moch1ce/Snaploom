@@ -12,14 +12,13 @@ const windows = {
   unknownPublisherWarning: true,
 };
 const macos = {
-  signingMode: "developer-id",
-  notarized: true,
-  teamId: "ABCDE12345",
-  hostNotarySubmissionId: "host-submission",
-  dmgNotarySubmissionId: "dmg-submission",
+  signingMode: "stable-unsigned",
+  notarized: false,
+  adHocSignatureVerified: true,
+  gatekeeperWarning: true,
 };
 
-test("records explicit unsigned Windows risk beside notarized macOS evidence", () => {
+test("records explicit unsigned Windows and macOS risk", () => {
   const evidence = createSigningEvidence(windows, macos);
   assert.deepEqual(evidence.windows, {
     mode: "unsigned",
@@ -27,10 +26,18 @@ test("records explicit unsigned Windows risk beside notarized macOS evidence", (
     rfc3161TimestampVerified: false,
     unknownPublisherWarning: true,
   });
-  assert.equal(evidence.macos.notarySubmissionId, "dmg-submission");
+  assert.deepEqual(evidence.macos, {
+    mode: "unsigned",
+    developerIdVerified: false,
+    notarizationStatus: "not-submitted",
+    stapled: false,
+    gatekeeperVerified: false,
+    adHocSignatureVerified: true,
+    gatekeeperWarning: true,
+  });
 });
 
-test("rejects ambiguous Windows risk or non-notarized macOS metadata", () => {
+test("rejects ambiguous Windows or macOS unsigned risk", () => {
   assert.throws(
     () => createSigningEvidence({ ...windows, unknownPublisherWarning: false }, macos),
     /does not explicitly disclose an unsigned release/,
@@ -40,7 +47,11 @@ test("rejects ambiguous Windows risk or non-notarized macOS metadata", () => {
     /does not explicitly disclose an unsigned release/,
   );
   assert.throws(
-    () => createSigningEvidence(windows, { ...macos, notarized: false }),
-    /not Developer ID\/notarization/,
+    () => createSigningEvidence(windows, { ...macos, gatekeeperWarning: false }),
+    /does not explicitly disclose an unsigned release/,
+  );
+  assert.throws(
+    () => createSigningEvidence(windows, { ...macos, signingMode: "developer-id" }),
+    /does not explicitly disclose an unsigned release/,
   );
 });

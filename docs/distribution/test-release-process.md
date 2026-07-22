@@ -45,10 +45,10 @@ DPI/Retina、热插拔、睡眠唤醒以及 PERF-01 的真实桌面采样仍保�
 ## 稳定版平台信任规则
 
 稳定 Windows 资产必须使用 `stable-unsigned`，确认 installer、Desktop、Host 与 SDK DLL 均未签名，并在
-Release notes 与审批包披露未知发布者/SmartScreen 风险；来源和完整性依靠 GitHub attestation、逐文件
-`.sha256` 与 `SHA256SUMS`。稳定 macOS 资产仍必须使用 Developer ID + hardened runtime + notarization +
-stapling，并通过 Gatekeeper/签名复验。缺少任一 macOS 签名公证、GitHub-hosted 自动平台门禁、合规、
-SDK consumer、源码或 exact manifest 证据时只能保留 draft，不能发布 ad hoc 或部分 Release。
+Release notes 与审批包披露未知发布者/SmartScreen 风险。稳定 macOS 资产也使用 `stable-unsigned`，只保留
+无发布者身份的 ad hoc 结构签名且不提交公证，并披露 Gatekeeper 风险。双平台来源和完整性都依靠 GitHub
+attestation、逐文件 `.sha256` 与 `SHA256SUMS`。缺少任一双平台风险披露、GitHub-hosted 自动平台门禁、
+合规、SDK consumer、源码或 exact manifest 证据时只能保留 draft，不能发布部分 Release。
 缺少真机与真实桌面 PERF-01 证据不会阻止发布；hosted qualification 与审批包必须如实披露这一限制。
 
 Issue #33 的所有者风险接受记录只阻止 stable publish，不阻止构建和 draft；CI 不生成、补写或代签

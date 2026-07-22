@@ -19,12 +19,12 @@ PATH="/opt/homebrew/bin:$HOME/.rustup/toolchains/1.97.1-aarch64-apple-darwin/bin
 
 默认测试不会请求 TCC 权限，也不会写入系统通用剪贴板。仓库保留的 ignored SCK 测试只用于
 开发期诊断；`cargo test` 生成的临时测试进程不具备 `com.snaploom.app` 的固定 bundle identity，
-因此它的结果不得作为 TCC 或 RC 验收证据。真实捕获必须从已安装且稳定签名的 Snaploom
-Capture Host 触发，并记录应用版本、签名身份和系统版本。
+因此它的结果不得作为 TCC 或 RC 验收证据。真实捕获必须从已安装的稳定候选 Snaploom
+Capture Host 触发，并记录应用版本、`stable-unsigned`/ad hoc 信任模式和系统版本。
 
 ## 首次授权与撤销竞态
 
-1. 安装使用固定 bundle ID 和稳定签名身份的 Snaploom，不用每次变化的 `cargo run` 代替。
+1. 安装使用固定 bundle ID 和稳定候选包的 Snaploom，不用每次变化的 `cargo run` 代替。
 2. 启动后确认只执行 `CGPreflightScreenCaptureAccess`，没有自动弹出系统权限框。
 3. 从产品权限引导明确点击“授权”，确认此时才调用 `CGRequestScreenCaptureAccess`。
 4. 若系统要求重启，退出并重新启动；不要循环请求。
@@ -76,7 +76,7 @@ Capture Host 触发，并记录应用版本、签名身份和系统版本。
 
 ## PERF-01 建议真机记录
 
-如采集以下结果，应使用同一个已安装、稳定签名的 RC；#45 的源码/hosted CI 结果不能代填：
+如采集以下结果，应使用同一个已安装的稳定候选 RC；#45 的源码/hosted CI 结果不能代填：
 
 | 场景 | 样本/门限 | RC 证据 |
 | --- | --- | --- |

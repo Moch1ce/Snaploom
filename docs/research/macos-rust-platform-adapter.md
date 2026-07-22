@@ -219,7 +219,7 @@ single-instance plugin 必须是 Tauri 初始化的第一个 plugin；第二实�
 
 macOS 14+ 直接使用 Apple `SMAppService.mainAppService`，与当前 Swift 行为及系统 Login Items 管理一致。调用 register/unregister 后必须重新读取 status，只有读回与目标一致才更新 UI 和持久化配置。[Apple：SMAppService.register](https://developer.apple.com/documentation/servicemanagement/smappservice/register%28%29) [Apple：ServiceManagement](https://developer.apple.com/documentation/servicemanagement/)
 
-`SMAppService` 要求应用有有效 code signature：普通未打包开发二进制可能失败，ad hoc 测试 app 与 Developer ID 发布 app 都要分别验证。系统若要求用户批准，映射为 `AutoStartNeedsApproval` 并引导到 Login Items，不循环注册。macOS 不采用 LaunchAgent 型通用 autostart plugin；Windows 可继续使用其已选方案。
+`SMAppService` 要求应用有有效 code signature：普通未打包开发二进制可能失败，ad hoc 候选与 `stable-unsigned` 稳定包都要验证。系统若要求用户批准，映射为 `AutoStartNeedsApproval` 并引导到 Login Items，不循环注册。macOS 不采用 LaunchAgent 型通用 autostart plugin；Windows 可继续使用其已选方案。
 
 ## 11. 置顶截图浮层
 
@@ -251,7 +251,7 @@ Apple 提供 `NSWindow.level`、screen-saver window level 和 all-spaces collect
 
 调用顺序：隐藏 overlay → 激活 accessory app → 打开 app-modal save dialog → `None` 映射为正常取消 → 无扩展名时补 `.png` → 原子/安全写入 → 恢复会话 UI。不得把 sheet 绑定到已经隐藏的 overlay；Issue #27 必须在 `LSUIElement=true` 的签名 app 中验证对话框可见、获得焦点且取消后能恢复会话。验证失败即阻断该实现选择并回到本决策更新，不静默绕到 WebView 文件选择器。路径只在领域值中短暂存在，不进入遥测或日志。
 
-## 13. 签名、公证与发布
+## 13. 信任模式与发布
 
 ### 13.1 测试构建
 
@@ -261,14 +261,14 @@ Apple 提供 `NSWindow.level`、screen-saver window level 和 all-spaces collect
 - entitlements 默认不得包含 `com.apple.security.cs.disable-library-validation`、`com.apple.security.cs.allow-jit`、`get-task-allow`；若 Tauri/WKWebView 的签名实测要求例外，先提交新的 ADR，再加入经证明的最小 entitlement。
 - 在签名后的 packaged app 上验证 `SMAppService`；不能以裸二进制结果代替。
 
-### 13.2 正式发布
+### 13.2 稳定发布
 
-- Developer ID Application 签名、hardened runtime、secure timestamp；library validation 保持启用。
-- 使用 Apple `notarytool` 流程上传、公证并 staple；随后用 `codesign --verify --deep --strict`、`spctl --assess` 和 staple validation 检查。
-- 任一签名或公证步骤失败即发布失败，不回退 ad hoc，不上传未公证构件。
-- 确认 arm64-only 与最低系统版本；DMG 也验证签名/公证链。
+- 使用 `stable-unsigned`，对 App、Host 与 DMG 施加无发布者身份的 ad hoc 结构签名；library validation 保持启用。
+- 不读取 Developer ID 证书、不调用 `notarytool` 或 `stapler`，metadata 明确 `notarized=false`。
+- 用 `codesign --verify --deep --strict` 验证包结构，并在 Release notes 固定披露 Gatekeeper 风险、SHA256SUMS 与 GitHub attestations。
+- 确认 arm64-only 与最低系统版本；不得描述为 Apple 已认证或已公证。
 
-Apple 要求分发到 Mac App Store 外的软件使用 Developer ID 并建议 notarization；Tauri 的 macOS 分发文档也应作为流水线实现参考。[Apple：Developer ID certificates](https://developer.apple.com/help/account/certificates/create-developer-id-certificates) [Apple：notarizing macOS software](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution) [Tauri：macOS signing](https://v2.tauri.app/distribute/sign/macos/) [Tauri：DMG](https://v2.tauri.app/distribute/dmg/)
+如果未来取得 Developer ID，可以另开 Issue 重新评估 Apple 认证流程；它不属于当前稳定发布硬门禁。[Apple：安全打开 Mac 上的 App](https://support.apple.com/102445) [Tauri：DMG](https://v2.tauri.app/distribute/dmg/)
 
 删除项目 dylib 后移除 library-validation 例外是硬性验收项；若未来重新引入第三方非系统 dylib，必须另开 ADR 解释签名链，而不是恢复宽泛 entitlement。
 
@@ -311,7 +311,7 @@ Apple 要求分发到 Mac App Store 外的软件使用 Developer ID 并建议 no
 5. **TCC 集成测试**：preflight 不提示；授权/拒绝；preflight 后 capture 前撤销映射为 `PermissionRevoked`；断言日志无 NSError 原文。
 6. **Shell 测试**：快捷键替换 rollback、冲突、睡眠唤醒恢复；second-instance intent；通知失败不影响主流程。
 7. **剪贴板/对话框**：PNG exact bytes round-trip；`LSUIElement` app-modal dialog 可见且可聚焦；cancel/failure 恢复 overlay；保存扩展名与文件 bytes。
-8. **开机启动**：ad hoc packaged app 和 Developer ID app 各验证 register/unregister/read-back；未批准状态映射正确。
+8. **开机启动**：ad hoc candidate 与 `stable-unsigned` packaged app 各验证 register/unregister/read-back；未批准状态映射正确。
 9. **浮层**：level 高于 Dock、frame 等于完整 `NSScreen.frame`、菜单栏/Dock 区域可覆盖、普通 Spaces/全屏 Space、混合 Retina。
 
 click-through 必须有手工矩阵：至少透明悬浮控件、HUD、带 `ignoresMouseEvents` 的自有测试窗口和常见系统 overlay。验收结果应明确“公共 API 无法证明任意其他进程 click-through”，不能把启发式通过写成精确能力通过。
@@ -342,7 +342,7 @@ click-through 必须有手工矩阵：至少透明悬浮控件、HUD、带 `igno
 6. 接入 tray、single-instance、global shortcut、wake、notification 和 `SMAppService`。
 7. 接入 NSPasteboard、dialog 和 NSWindow overlay；按截图 UI 规范做视觉/交互验收。
 8. 删除 Swift bridge、C ABI、swiftc/framework build、dylib packaging 与旧 entitlements。
-9. 完成 ad hoc 测试包、Developer ID 签名、公证、staple 与安装后验收。
+9. 完成 ad hoc 候选包、`stable-unsigned` 稳定包、Gatekeeper 风险披露与安装后验收。
 
 迁移期间的历史回退点是 ADR 0004 规定的 `dotnet-final` tag；`main` 不恢复双实现或长期双轨。删除 bridge 应在 Rust Adapter 合同测试和最小端到端捕获通过后一次完成，后续回退通过 Git 历史完成，而不是在运行时保留旧 backend。
 
@@ -356,6 +356,6 @@ click-through 必须有手工矩阵：至少透明悬浮控件、HUD、带 `igno
 - Apple 窗口目录：[CGWindowListCopyWindowInfo](https://developer.apple.com/documentation/coregraphics/cgwindowlistcopywindowinfo%28_%3A_%3A%29)
 - Apple 已废弃捕获 API：[CGWindowListCreateImage](https://developer.apple.com/documentation/coregraphics/cgwindowlistcreateimage%28_%3A_%3A_%3A_%3A%29)
 - Apple 登录项：[ServiceManagement](https://developer.apple.com/documentation/servicemanagement/)
-- Apple 签名与公证：[Developer ID](https://developer.apple.com/help/account/certificates/create-developer-id-certificates)、[Notarization](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)
+- Apple 未认证应用打开说明：[Safely open apps on your Mac](https://support.apple.com/102445)
 - Tauri 官方插件入口：[Tauri plugins](https://v2.tauri.app/plugin/)
 - Rust framework bindings：[objc2 ScreenCaptureKit](https://docs.rs/objc2-screen-capture-kit/latest/objc2_screen_capture_kit/)、[objc2 CoreGraphics](https://docs.rs/objc2-core-graphics/latest/objc2_core_graphics/)、[objc2 AppKit](https://docs.rs/objc2-app-kit/latest/objc2_app_kit/)

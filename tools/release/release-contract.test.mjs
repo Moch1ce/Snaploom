@@ -76,7 +76,7 @@ test("rejects extra payloads and refuses to overwrite output", () => {
   }
 });
 
-test("stable release accepts explicit unsigned Windows evidence with notarized macOS assets", () => {
+test("stable release accepts explicit unsigned Windows and macOS evidence", () => {
   const paths = fixture();
   try {
     const manifest = assembleRelease({
@@ -93,13 +93,13 @@ test("stable release accepts explicit unsigned Windows evidence with notarized m
           unknownPublisherWarning: true,
         },
         macos: {
-          mode: "developer-id",
-          developerIdVerified: true,
-          notarizationStatus: "Accepted",
-          stapled: true,
-          gatekeeperVerified: true,
-          teamId: "ABCDE12345",
-          notarySubmissionId: "notary-submission",
+          mode: "unsigned",
+          developerIdVerified: false,
+          notarizationStatus: "not-submitted",
+          stapled: false,
+          gatekeeperVerified: false,
+          adHocSignatureVerified: true,
+          gatekeeperWarning: true,
         },
       },
     });
@@ -107,6 +107,8 @@ test("stable release accepts explicit unsigned Windows evidence with notarized m
     assert.equal(manifest.mode, "stable-release");
     assert.equal(manifest.signing.windows.mode, "unsigned");
     assert.equal(manifest.signing.windows.unknownPublisherWarning, true);
+    assert.equal(manifest.signing.macos.mode, "unsigned");
+    assert.equal(manifest.signing.macos.gatekeeperWarning, true);
   } finally {
     rmSync(paths.root, { recursive: true, force: true });
   }

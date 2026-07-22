@@ -53,9 +53,9 @@ const approvedStablePublishJobSha256 =
 const approvedStableSdkPromotionJobSha256 =
   "c05a4ce09af0a2f26ff63ffb5947a127017257e49b1137d373b8a1d3ba18bbcf";
 const approvedStablePublishVerifierSha256 = {
-  "verify-stable-publish.mjs": "64e50bf26cb2d5843fba724c7b7e7dd76008348b0e8ad675895c221ab13a66c1",
+  "verify-stable-publish.mjs": "39d6cc4646367d55d3d2ee30257c7eecf8b52a7c39678053173ef17bc6e6bd5e",
   "verify-draft-release.mjs": "4a3ef40958ab07527cf640126171dd4139c0a6e98b0fa17911e09aac4a6b37f7",
-  "release-contract.mjs": "2be72154dbf50c61b2a985d3106e0dbdbc3e349e45edf7bcb18c293800335994",
+  "release-contract.mjs": "f70464b7f50ee00ab7253df8541598e248e77f031454da83e574daa1f13ec767",
   "verify-release.mjs": "4f4ae402d5eb2b8b4b0b39c0cb7911b3d8cde59c29e224ab605296d0b90d4a68",
 };
 
@@ -325,11 +325,12 @@ if (
   !legalRc.includes("draft:true") ||
   !legalRc.includes("Stable publish remains blocked by Issue #33") ||
   !legalRc.includes("issue-33-owner-approval") ||
-  !legalRc.includes("environment: release-signing") ||
   !legalRc.includes("environment: release-draft") ||
+  !legalRc.includes("Unsigned Windows products and SDK") ||
+  !legalRc.includes("Unsigned macOS products and SDK") ||
+  !legalRc.includes("macos-validation.log") ||
   !legalRc.includes(".NET final consumer") ||
   !legalRc.includes("refs/snaploom-legal-rc") ||
-  !legalRc.includes("apple-signing-evidence") ||
   !legalRc.includes("legal-rc-run.json") ||
   !legalRc.includes('name "Snaploom ${VERSION}"') ||
   !legalRc.includes("IPC does not automatically eliminate GPL compliance obligations") ||
@@ -343,6 +344,10 @@ if (
   throw new Error("legal RC workflow must create only a protected, owner-approved draft");
 }
 if (
+  legalRc.includes("environment: release-signing") ||
+  /APPLE_DEVELOPER_ID_|APPLE_NOTARY_|notarytool|--developer-id|--notarize|stapler/.test(
+    legalRc,
+  ) ||
   /(?:draft["']?\s*:\s*false|make_latest|gh\s+release\s+edit|--draft=false|(?:--method|--request)\s+PATCH)/.test(legalRc) ||
   /^ {2}(?:push|pull_request|schedule|workflow_run|repository_dispatch|workflow_call):/m.test(
     legalRc,

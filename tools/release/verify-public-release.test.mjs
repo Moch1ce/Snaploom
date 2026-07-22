@@ -24,13 +24,13 @@ const signingEvidence = {
     unknownPublisherWarning: true,
   },
   macos: {
-    mode: "developer-id",
-    developerIdVerified: true,
-    notarizationStatus: "Accepted",
-    stapled: true,
-    gatekeeperVerified: true,
-    teamId: "ABCDE12345",
-    notarySubmissionId: "dmg-submission",
+    mode: "unsigned",
+    developerIdVerified: false,
+    notarizationStatus: "not-submitted",
+    stapled: false,
+    gatekeeperVerified: false,
+    adHocSignatureVerified: true,
+    gatekeeperWarning: true,
   },
 };
 

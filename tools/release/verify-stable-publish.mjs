@@ -5,7 +5,10 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { WINDOWS_UNSIGNED_RISK_LANGUAGE } from "./release-contract.mjs";
+import {
+  MACOS_UNSIGNED_RISK_LANGUAGE,
+  WINDOWS_UNSIGNED_RISK_LANGUAGE,
+} from "./release-contract.mjs";
 import { verifyDraftRelease } from "./verify-draft-release.mjs";
 
 const reviewMarker = "<!-- snaploom-owner-release-approval:v1 -->";
@@ -171,6 +174,9 @@ export function verifyStablePublish({
   }
   if (!release.body.includes(WINDOWS_UNSIGNED_RISK_LANGUAGE)) {
     throw new Error("reviewed draft must contain the unsigned Windows risk disclosure");
+  }
+  if (!release.body.includes(MACOS_UNSIGNED_RISK_LANGUAGE)) {
+    throw new Error("reviewed draft must contain the unsigned macOS risk disclosure");
   }
 
   const expectedRelease = {

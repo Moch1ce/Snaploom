@@ -9,7 +9,8 @@
 1. 稳定 RC workflow 已为同一 `vX.Y.Z`/commit 创建完整的不可见 draft，并从 GitHub 重新下载
    复验全部资产。
 2. tag 指向 `main` 可达的精确 commit；仓库已启用 Immutable Releases，`v*` ruleset 禁止更新和删除。
-3. 仓库所有者已核对精确 draft、Windows 未签名/SmartScreen 风险、macOS 签名公证、GitHub-hosted qualification 限制和 checksum，在 Issue
+3. 仓库所有者已核对精确 draft、Windows 未签名/SmartScreen 风险、macOS 无 Developer ID/未公证/
+   Gatekeeper 风险、GitHub-hosted qualification 限制和 checksum，在 Issue
    #33 留下版本化批准记录，明确接受未经过外部法律复核即发布的风险，然后把 Issue #33 关闭为 completed。
 4. 工作流只接受 `author_association=OWNER` 且仓库权限为 `admin`、角色为 `admin` 的 GitHub `User`；
    collaborator、Bot 或其他身份不能批准发布，也不使用 `LEGAL_REVIEWER_LOGINS` allowlist。
@@ -41,7 +42,7 @@ Issue #33 的全部评论中必须恰好存在一条 `snaploom-owner-release-app
   "acknowledgedWithoutExternalLegalReview": true,
   "conclusion": "accepted",
   "requiredChanges": [],
-  "approvedPublicRiskLanguage": "The Apache Capture SDK communicates with a separately distributed GPL-3.0-or-later Capture Host; IPC does not automatically eliminate GPL compliance obligations. Windows executables and DLLs are unsigned and may show Unknown publisher or Microsoft Defender SmartScreen warnings; verify SHA256SUMS and GitHub attestations before running them.",
+  "approvedPublicRiskLanguage": "The Apache Capture SDK communicates with a separately distributed GPL-3.0-or-later Capture Host; IPC does not automatically eliminate GPL compliance obligations. Windows executables and DLLs are unsigned and may show Unknown publisher or Microsoft Defender SmartScreen warnings; verify SHA256SUMS and GitHub attestations before running them. macOS apps and disk images are not signed with Apple Developer ID or notarized and may be blocked by Gatekeeper; verify SHA256SUMS and GitHub attestations before opening them.",
   "decisionRecord": {
     "sha256": "<64 位小写 SHA-256>",
     "controlledLocation": "<受控存档位置>"
@@ -74,7 +75,7 @@ ID 与调度输入 `owner_approval_comment_id` 完全一致，不能通过选择
 `draft_release_id` 和 `owner_approval_comment_id`。工作流分为两个阶段：
 
 1. 只读 job 解析 tag/main、Issue #33、评论身份、draft metadata，并重新下载 exact asset set；
-   `verify-stable-publish.mjs` 对 manifest、checksums、Windows 未签名披露、macOS 签名公证和所有者批准记录做 fail-closed 校验。仓库级
+   `verify-stable-publish.mjs` 对 manifest、checksums、Windows/macOS 未签名风险披露和所有者批准记录做 fail-closed 校验。仓库级
    Immutable Releases 设置由管理员预先配置；`GITHUB_TOKEN` 没有 Administration(read)，工作流不注入
    额外管理 token 读取该设置。
 2. `stable-release` environment 批准后，写权限 job 从 GitHub 再次获取全部状态与 bytes，重复同一校验，

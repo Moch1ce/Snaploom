@@ -13,7 +13,10 @@ import {
 } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { createSigningEvidence } from "./create-signing-evidence.mjs";
-import { WINDOWS_UNSIGNED_RISK_LANGUAGE } from "./release-contract.mjs";
+import {
+  MACOS_UNSIGNED_RISK_LANGUAGE,
+  WINDOWS_UNSIGNED_RISK_LANGUAGE,
+} from "./release-contract.mjs";
 import { verifyDraftRelease } from "./verify-draft-release.mjs";
 import { verifyQualificationSet } from "./verify-qualification-set.mjs";
 
@@ -66,7 +69,7 @@ export function verifyRunEvidence(ciRun, qualificationRun, commit) {
 
 const requiredReleaseConsumerJobs = [
   "Unsigned Windows products and SDK",
-  "Developer ID and notarized macOS products",
+  "Unsigned macOS products and SDK",
   "Package dual-RID NuGet",
   ".NET final consumer (windows-x64, net8.0)",
   ".NET final consumer (windows-x64, net10.0)",
@@ -120,6 +123,9 @@ export function createOwnerApprovalBundle({
   });
   if (!release.body?.includes(WINDOWS_UNSIGNED_RISK_LANGUAGE)) {
     throw new Error("reviewed draft must contain the unsigned Windows risk disclosure");
+  }
+  if (!release.body.includes(MACOS_UNSIGNED_RISK_LANGUAGE)) {
+    throw new Error("reviewed draft must contain the unsigned macOS risk disclosure");
   }
   verifyRunEvidence(ciRun, qualificationRun, commit);
   const releaseConsumerJobs = verifyLegalRcRunEvidence(legalRcRun);
@@ -192,19 +198,6 @@ export function createOwnerApprovalBundle({
   ) {
     throw new Error("NuGet builder identity is incomplete or not pinned");
   }
-  const appleEvidence = join(platformEvidenceDirectory, "apple-signing-evidence");
-  const hostNotary = JSON.parse(readFileSync(join(appleEvidence, "host-notary.json"), "utf8"));
-  const dmgNotary = JSON.parse(readFileSync(join(appleEvidence, "dmg-notary.json"), "utf8"));
-  const appleVerification = readFileSync(join(appleEvidence, "apple-verification.log"), "utf8");
-  if (
-    hostNotary.status !== "Accepted" ||
-    hostNotary.id !== manifest.signing.macos.hostNotarySubmissionId ||
-    dmgNotary.status !== "Accepted" ||
-    dmgNotary.id !== manifest.signing.macos.dmgNotarySubmissionId ||
-    appleVerification.trim().length === 0
-  ) {
-    throw new Error("Apple notarization results or verification log do not match the manifest");
-  }
   const consumerLogDirectory = join(platformEvidenceDirectory, "consumer-logs");
   const expectedConsumerLogs = [
     "dotnet-macos-arm64-net10.0-consumer.log",
@@ -223,7 +216,7 @@ export function createOwnerApprovalBundle({
     ) ||
     [
       "windows-validation.log",
-      "macos-signing.log",
+      "macos-validation.log",
       "windows-binary-inspection.log",
       "macos-binary-inspection.log",
       "nuget-package-listing.log",
@@ -313,10 +306,11 @@ export function createOwnerApprovalBundle({
       `本复核包精确对应未公开 draft：${release.html_url}`,
       `tag/commit：${manifest.tag} / ${commit}`,
       "",
-      "该包不是法律意见。仓库所有者必须核对 review-subject.json、全部 payload checksum、Windows 未签名风险、macOS 签名/公证记录、GitHub-hosted 自动资格证据和实际 draft，并明确接受未经过外部法律复核即发布的风险。",
+      "该包不是法律意见。仓库所有者必须核对 review-subject.json、全部 payload checksum、Windows/macOS 未签名风险、GitHub-hosted 自动资格证据和实际 draft，并明确接受未经过外部法律复核即发布的风险。",
       "Windows 安装包、Desktop、Capture Host 与 Capture SDK DLL 均不含 Authenticode；用户会看到未知发布者或 SmartScreen 提示，必须依靠 GitHub attestation、SHA256SUMS 与逐文件 checksum 验证来源和完整性。",
+      "macOS App、Capture Host 与 DMG 不含 Developer ID 身份且未公证，只保留可验证包结构的 ad hoc 签名；Gatekeeper 可能阻止打开，用户必须核对 GitHub attestation、SHA256SUMS 与逐文件 checksum。",
       "hosted 资格证据不包含交互桌面或真机性能证明；这些人工验证属于非阻塞建议，不是稳定 RC 或 stable publish 的前置条件。",
-      "platform-evidence/ 保存 builder identity、原始 notarization JSON、签名/二进制检查日志及最终 C/C++/C#/Swift consumer 输出；legal-rc-run.json 指向完整 Actions 日志。",
+      "platform-evidence/ 保存 builder identity、平台信任模式/二进制检查日志及最终 C/C++/C#/Swift consumer 输出；legal-rc-run.json 指向完整 Actions 日志。",
       "在所有者审批记录完整且精确覆盖本 draft 前，stable publish 保持禁止；不得重建、替换或覆盖已审批资产。",
       "",
     ].join("\n"),

@@ -17,12 +17,12 @@ macOS 14 minOS、本地化屏幕录制用途、图标和包内 GPL/NOTICE/SBOM�
 Desktop 内嵌的 `Snaploom Capture Host.app` 与 standalone Host ZIP 中的 bundle 必须逐文件相同；
 随后真实启动 Desktop 并在临时位置完成安装/卸载。候选包必须是 ad hoc 且未公证。
 
-## 稳定签名与公证
+## 稳定未签名验收
 
-稳定 runner 使用 `--developer-id <IDENTITY> --notarize`。脚本从 Host 开始执行 hardened runtime
-Developer ID 签名，提交 Host 公证并 staple，再把同一个 Host bundle 嵌入 Desktop；最后签署 Desktop
-与 DMG、提交 DMG 公证、staple，并执行 `codesign --verify --deep --strict`、`stapler validate` 和
-`spctl`。任何凭据、签名、公证或 Gatekeeper 步骤失败都停止，不能降级为 ad hoc。
+稳定 runner 使用 `--stable-unsigned`，对 Host、Desktop 与 DMG 施加无发布者身份的 ad hoc 结构签名，
+不读取 Developer ID 证书、不提交 Apple 公证，也不执行 stapling。验证器要求 metadata 明确记录
+`adHocSignatureVerified=true`、`notarized=false` 与 `gatekeeperWarning=true`，并继续验证架构、包边界、
+安装和启动。Release notes 必须披露 Gatekeeper 风险，并提供 SHA256SUMS 与 GitHub attestations。
 
 ## 非阻塞人工真机建议
 

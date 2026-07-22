@@ -80,7 +80,7 @@ GPL Desktop/Host -> Apache protocol <- GPL capture/session/platform/UI
 4. 官方 GitHub Release 在一个页面上同时提供 GPL App/Host 和 Apache SDK，但使用不同下载文件、包内许可证、SBOM 和源码指引。
 5. SDK 从平台安装登记发现 Host，或由宿主显式传入绝对路径；SDK 不下载 Host。
 6. 官方文档将 Host 描述为独立的 GPL 程序，而不是“SDK runtime”、“内置组件”或被 Apache 重新授权的库。
-7. 安装与签名机制允许用户运行自编译/修改的 Host；公式签名只表示发布者身份，不是协议层的排他授权。
+7. 安装与平台信任机制允许用户运行自编译/修改的 Host；当前官方资产也不把发布者证书作为协议层的排他授权。
 
 ## 5. 对应源码与通知核对
 
@@ -89,7 +89,7 @@ GPL Desktop/Host -> Apache protocol <- GPL capture/session/platform/UI
 - 不可变 `vX.Y.Z` tag 与可重建的 corresponding-source archive。
 - Cargo/pnpm/Swift/.NET 的精确锁定文件或恢复输入。
 - `.proto`、C header、Windows bindings 生成输入与生成脚本。
-- Tauri/Rust/TypeScript 构建、Windows unsigned installer、macOS DMG、签名/公证和验证脚本。
+- Tauri/Rust/TypeScript 构建、Windows unsigned installer、macOS stable-unsigned/ad hoc DMG 和验证脚本。
 - GPL-3.0-or-later 和 Apache-2.0 完整文本、文件级 SPDX/REUSE 映射、准确 NOTICE 与第三方声明。
 - 按实际产物分开的 SBOM，以及锁文件、SBOM、NOTICE 和解包内容的交叉检查。
 - 用于构建和运行修改版的说明。证书私钥不需要提供，但不得因二进制被修改而在产品协议中禁止其正常本地使用。
@@ -141,8 +141,8 @@ cyclonedx validate --input-file <sbom.cdx.json>
 | C ABI/IPC 事实 | 已决策 | 实现后对照 binary/schema 复核 |
 | SDK wrapper/package 事实 | 已决策 | 实现后解包复核 |
 | 安装/发现/更新事实 | 自动化已实现，待最终实物 | 运行稳定 RC workflow 并核对最终 installer/DMG |
-| Corresponding Source/NOTICE/SBOM | 自动化已实现，待签名实物 | 同一 RC workflow 原子汇总、重下载复验通过 |
-| 闭源宿主集成走查 | 自动化已实现，待签名实物 | 法律 RC 对最终 C/C++/C#/Swift 包逐项执行 package-only consumer |
+| Corresponding Source/NOTICE/SBOM | 自动化已实现，待最终实物 | 同一 RC workflow 原子汇总、重下载复验通过 |
+| 闭源宿主集成走查 | 自动化已实现，待最终实物 | 稳定 RC 对最终 C/C++/C#/Swift 包逐项执行 package-only consumer |
 | 所有者风险接受 | **阻塞** | 第 9 节完整填写并绑定最终 draft/checksum |
 | 稳定 SDK publish | **禁止** | 上述全部通过；没有 bypass input |
 

@@ -20,13 +20,12 @@ export function createSigningEvidence(windows, macos) {
     throw new Error("Windows metadata does not explicitly disclose an unsigned release");
   }
   if (
-    macos?.signingMode !== "developer-id" ||
-    macos.notarized !== true ||
-    typeof macos.teamId !== "string" ||
-    typeof macos.hostNotarySubmissionId !== "string" ||
-    typeof macos.dmgNotarySubmissionId !== "string"
+    macos?.signingMode !== "stable-unsigned" ||
+    macos.notarized !== false ||
+    macos.adHocSignatureVerified !== true ||
+    macos.gatekeeperWarning !== true
   ) {
-    throw new Error("macOS package metadata is not Developer ID/notarization evidence");
+    throw new Error("macOS metadata does not explicitly disclose an unsigned release");
   }
 
   const evidence = {
@@ -37,15 +36,13 @@ export function createSigningEvidence(windows, macos) {
       unknownPublisherWarning: true,
     },
     macos: {
-      mode: "developer-id",
-      developerIdVerified: true,
-      notarizationStatus: "Accepted",
-      stapled: true,
-      gatekeeperVerified: true,
-      teamId: macos.teamId,
-      notarySubmissionId: macos.dmgNotarySubmissionId,
-      hostNotarySubmissionId: macos.hostNotarySubmissionId,
-      dmgNotarySubmissionId: macos.dmgNotarySubmissionId,
+      mode: "unsigned",
+      developerIdVerified: false,
+      notarizationStatus: "not-submitted",
+      stapled: false,
+      gatekeeperVerified: false,
+      adHocSignatureVerified: true,
+      gatekeeperWarning: true,
     },
   };
   validateSigningEvidence("stable-release", evidence);
@@ -64,5 +61,5 @@ if (process.argv[1] && basename(process.argv[1]) === "create-signing-evidence.mj
     JSON.parse(readFileSync(resolve(macosPath), "utf8")),
   );
   writeFileSync(resolve(output), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
-  process.stdout.write("created stable Windows risk and macOS notarization evidence\n");
+  process.stdout.write("created stable Windows and macOS unsigned risk evidence\n");
 }

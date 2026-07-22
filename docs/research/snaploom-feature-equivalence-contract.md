@@ -427,7 +427,7 @@ GitHub-hosted 可诚实复现的自动平台合同；缺少真机样本时不得
 
 - 资产名 `snaploom-<version>-macos-arm64.dmg`，同名 `.sha256`；所有 Mach-O 仅 arm64、≤ 50,000,000 bytes，Bundle ID `com.snaploom.app`，最低 macOS 14。
 - DMG 包含 `Snaploom.app` 与 `/Applications` 快捷方式；自动验证安装、启动、卸载、本地化权限说明和图标。
-- 当前测试版必须显式 ad hoc 签名、未公证，并在发布页说明 Gatekeeper 风险与 SHA256。取得 Developer ID 后，正式模式必须同时完成 Developer ID 签名、公证、stapling 与 Gatekeeper 验证，失败不得降级为 ad hoc。
+- 稳定包必须使用 `stable-unsigned`：App、Host 与 DMG 只保留无发布者身份的 ad hoc 结构签名，明确未使用 Developer ID、未公证且未 stapling；发布页必须说明 Gatekeeper 风险，并提供 SHA256SUMS 与 GitHub attestations。Apple 认证不是当前发布硬门禁。
 - 验证：自动 DMG 脚本 + 全新 macOS 14+ Apple Silicon 真机。
 - 证据：`docs/testing/macos-dmg-validation.md`、`docs/distribution/macos-installation.md`、`dotnet-final:tests/packaging/verify-macos-dmg.sh`。
 
@@ -468,7 +468,7 @@ GitHub-hosted 可诚实复现的自动平台合同；缺少真机样本时不得
 - Windows 10 22H2 x64、Windows 11 x64；macOS 14+ Apple Silicon。
 - 单屏、双屏、1080p、4K、5K Retina、混合 DPI、显示器热插拔、睡眠唤醒。
 - 权限缺失、快捷键冲突、重复启动、取消保存、保存失败、剪贴板失败、受保护桌面。
-- Windows 用户级未签名安装/覆盖/卸载；macOS ad hoc DMG/Gatekeeper/权限/卸载；未来正式签名时补公证链。
+- Windows 用户级未签名安装/覆盖/卸载；macOS `stable-unsigned` ad hoc DMG/Gatekeeper/权限/卸载；双平台均校验 SHA256SUMS 与 GitHub attestations。
 
 历史 Issue #18 的人工完成状态不免除 Tauri 新实现重新执行与风险相匹配的迁移真机验收。
 项目不配置 Windows 或 macOS self-hosted runner；本矩阵保留为非阻塞人工建议，不接入稳定 RC 或
