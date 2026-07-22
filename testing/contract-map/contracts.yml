@@ -56,6 +56,7 @@
       "implementation": ["product/platform/contract", "product/platform/windows", "product/platform/macos"],
       "evidence": [
         {"category": "automatic", "status": "verified", "path": "product/platform/contract/tests/capture_snapshot.rs", "contains": "accepts_only_exact_bounded_premultiplied_bgra_frames"},
+        {"category": "platform", "status": "verified", "path": "docs/testing/evidence/2026-07-22-macos-m4/tauri-sck-frame.md", "contains": "真实 ScreenCaptureKit 单帧测试：通过"},
         {"category": "platform", "status": "pending-external", "issue": "#44", "path": "docs/testing/windows-t03-validation.md", "contains": "只覆盖鼠标所在显示器"}
       ]
     },
