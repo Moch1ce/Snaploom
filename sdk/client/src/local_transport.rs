@@ -301,13 +301,16 @@ fn peer_uid(stream: &UnixStream) -> Result<u32, TransportSecurityError> {
 
 #[cfg(target_os = "macos")]
 fn current_security_session() -> Result<u32, TransportSecurityError> {
+    const CALLER_SECURITY_SESSION: u32 = u32::MAX;
+
     #[link(name = "Security", kind = "framework")]
     unsafe extern "C" {
         fn SessionGetInfo(session: u32, session_id: *mut u32, attributes: *mut u32) -> i32;
     }
     let mut session_id = 0;
     let mut attributes = 0;
-    let status = unsafe { SessionGetInfo(0, &mut session_id, &mut attributes) };
+    let status =
+        unsafe { SessionGetInfo(CALLER_SECURITY_SESSION, &mut session_id, &mut attributes) };
     if status == 0 {
         Ok(session_id)
     } else {
@@ -318,4 +321,16 @@ fn current_security_session() -> Result<u32, TransportSecurityError> {
 #[cfg(not(target_os = "macos"))]
 fn current_security_session() -> Result<u32, TransportSecurityError> {
     Ok(0)
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn current_security_session_resolves_the_callers_session() {
+        let session_id = current_security_session().expect("current security session");
+
+        assert_ne!(session_id, 0);
+    }
 }
