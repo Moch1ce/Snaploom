@@ -33,14 +33,16 @@ function beforePublishPatch(command) {
   );
 }
 
+function asCrlf(contents) {
+  return contents.replace(/\r\n?/g, "\n").replaceAll("\n", "\r\n");
+}
+
 test("stable publish mutation policy accepts the reviewed one-PATCH workflow", () => {
   assert.doesNotThrow(() => checkStablePublishMutationPolicy(workflow));
 });
 
 test("stable publish mutation policy accepts an equivalent CRLF checkout", () => {
-  assert.doesNotThrow(() =>
-    checkStablePublishMutationPolicy(workflow.replaceAll("\n", "\r\n")),
-  );
+  assert.doesNotThrow(() => checkStablePublishMutationPolicy(asCrlf(workflow)));
 });
 
 test("stable publish mutation policy rejects extra REST mutations and implicit POST fields", () => {
@@ -172,7 +174,7 @@ test("stable publish verifier accepts an equivalent CRLF checkout", () => {
       Object.fromEntries(
         Object.entries(verifierClosure).map(([name, contents]) => [
           name,
-          contents.replaceAll("\n", "\r\n"),
+          asCrlf(contents),
         ]),
       ),
     ),
