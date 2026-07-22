@@ -1,0 +1,506 @@
+name: Promote stable SDK packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact X.Y.Z public release version
+        required: true
+        type: string
+      commit:
+        description: Full 40-character public release commit SHA
+        required: true
+        type: string
+      public_release_id:
+        description: Existing immutable public stable release ID
+        required: true
+        type: string
+
+concurrency:
+  group: stable-sdk-promotion-${{ inputs.version }}-${{ inputs.commit }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate immutable public release
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Validate trusted dispatch identity
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+          PUBLIC_RELEASE_ID: ${{ inputs.public_release_id }}
+        run: |
+          test "${GITHUB_REF}" = refs/heads/main
+          [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "${COMMIT}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${PUBLIC_RELEASE_ID}" =~ ^[1-9][0-9]*$ ]]
+
+      - name: Checkout the public release implementation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.12.0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13.14"
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: 8.0.423
+
+      - name: Record validation runner and toolchains
+        shell: bash
+        run: |
+          {
+            echo "runner=${ImageOS} ${ImageVersion} ${RUNNER_ARCH}"
+            node --version
+            python3 --version
+            dotnet --list-sdks
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Resolve immutable tag and main ancestry
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          test "$(git rev-parse HEAD)" = "${COMMIT}"
+          git fetch --no-tags origin "refs/heads/main:refs/remotes/origin/main"
+          git fetch --no-tags origin "refs/tags/v${VERSION}:refs/snaploom-sdk/v${VERSION}"
+          test "$(git rev-list -n 1 "refs/snaploom-sdk/v${VERSION}")" = "${COMMIT}"
+          git merge-base --is-ancestor "${COMMIT}" refs/remotes/origin/main
+
+      - name: Redownload and verify the complete immutable public release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+          PUBLIC_RELEASE_ID: ${{ inputs.public_release_id }}
+        run: |
+          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/releases/${PUBLIC_RELEASE_ID}" \
+            > "${RUNNER_TEMP}/public-release-raw.json"
+          resolved_tag_commit="$(git rev-list -n 1 "refs/snaploom-sdk/v${VERSION}")"
+          jq --arg commit "${resolved_tag_commit}" '. + {resolved_tag_commit:$commit}' \
+            "${RUNNER_TEMP}/public-release-raw.json" \
+            > "${RUNNER_TEMP}/public-release.json"
+          mkdir "${RUNNER_TEMP}/release-download"
+          jq -r '.assets[] | [.id, .name] | @tsv' "${RUNNER_TEMP}/public-release.json" |
+            while IFS=$'\t' read -r asset_id name; do
+              test "${name}" = "$(basename "${name}")"
+              [[ "${name}" =~ ^[A-Za-z0-9._+-]+$ ]]
+              gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+                "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" \
+                -H "Accept: application/octet-stream" \
+                > "${RUNNER_TEMP}/release-download/${name}"
+            done
+          node tools/release/verify-public-release.mjs \
+            --release-json "${RUNNER_TEMP}/public-release.json" \
+            --directory "${RUNNER_TEMP}/release-download" \
+            --version "${VERSION}" --commit "${COMMIT}"
+          node tools/sdk/verify-dotnet-package.mjs \
+            --package "${RUNNER_TEMP}/release-download/Snaploom.Capture.${VERSION}.nupkg" \
+            --sdk-version 8.0.423
+
+  publish-nuget:
+    name: Publish exact public packages through NuGet OIDC
+    needs: validate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: nuget-org
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13.14"
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: 8.0.423
+
+      - name: Redownload the previously verified public NuGet packages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          PUBLIC_RELEASE_ID: ${{ inputs.public_release_id }}
+        run: |
+          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/releases/${PUBLIC_RELEASE_ID}" \
+            > "${RUNNER_TEMP}/public-release.json"
+          jq -e --arg tag "v${VERSION}" --argjson id "${PUBLIC_RELEASE_ID}" \
+            '.id == $id and .tag_name == $tag and .draft == false and .prerelease == false and .immutable == true' \
+            "${RUNNER_TEMP}/public-release.json"
+          mkdir "${RUNNER_TEMP}/nuget-release"
+          asset_names="Snaploom.Capture.${VERSION}.nupkg,Snaploom.Capture.${VERSION}.nupkg.sha256,Snaploom.Capture.${VERSION}.snupkg,Snaploom.Capture.${VERSION}.snupkg.sha256"
+          IFS=',' read -ra names <<< "${asset_names}"
+          for name in "${names[@]}"; do
+            asset="$(jq -cer --arg name "${name}" \
+              '[.assets[] | select(.name == $name)] | select(length == 1) | .[0]' \
+              "${RUNNER_TEMP}/public-release.json")"
+            asset_id="$(jq -er '.id' <<< "${asset}")"
+            gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" \
+              -H "Accept: application/octet-stream" \
+              > "${RUNNER_TEMP}/nuget-release/${name}"
+            digest="sha256:$(sha256sum "${RUNNER_TEMP}/nuget-release/${name}" | cut -d ' ' -f 1)"
+            size="$(stat -c %s "${RUNNER_TEMP}/nuget-release/${name}")"
+            test "$(jq -er '.state' <<< "${asset}")" = uploaded
+            test "$(jq -er '.digest' <<< "${asset}")" = "${digest}"
+            test "$(jq -er '.size' <<< "${asset}")" = "${size}"
+          done
+          for name in "Snaploom.Capture.${VERSION}.nupkg" "Snaploom.Capture.${VERSION}.snupkg"; do
+            digest="$(sha256sum "${RUNNER_TEMP}/nuget-release/${name}" | cut -d ' ' -f 1)"
+            test "$(cat "${RUNNER_TEMP}/nuget-release/${name}.sha256")" = "${digest}  ${name}"
+          done
+          mkdir "${RUNNER_TEMP}/dotnet-cli"
+          printf '%s\n' \
+            '{"sdk":{"version":"8.0.423","rollForward":"disable","allowPrerelease":false}}' \
+            > "${RUNNER_TEMP}/dotnet-cli/global.json"
+
+      - name: Record protected runner and toolchains
+        shell: bash
+        working-directory: ${{ runner.temp }}/dotnet-cli
+        run: |
+          test "$(dotnet --version)" = 8.0.423
+          {
+            echo "runner=${ImageOS} ${ImageVersion} ${RUNNER_ARCH}"
+            python3 --version
+            dotnet --version
+            gh --version | head -n 1
+            jq --version
+            curl --version | head -n 1
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Require the protected NuGet.org identity
+        shell: bash
+        env:
+          NUGET_ORG_USER: ${{ secrets.NUGET_ORG_USER }}
+        run: test -n "${NUGET_ORG_USER}"
+
+      - name: Verify an existing NuGet version or require a first publish
+        id: registry-version
+        shell: bash
+        working-directory: ${{ runner.temp }}/dotnet-cli
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          registry_package="${RUNNER_TEMP}/Snaploom.Capture.${VERSION}.registry.nupkg"
+          status="$(curl --silent --show-error --output "${registry_package}" \
+            --write-out '%{http_code}' \
+            "https://api.nuget.org/v3-flatcontainer/snaploom.capture/${VERSION}/snaploom.capture.${VERSION}.nupkg")"
+          if test "${status}" = 200; then
+            dotnet nuget verify --all "${registry_package}" \
+              > "${RUNNER_TEMP}/nuget-signature-verification.txt"
+            grep -F "Signature type: Repository" \
+              "${RUNNER_TEMP}/nuget-signature-verification.txt"
+            python3 - \
+              "${RUNNER_TEMP}/nuget-release/Snaploom.Capture.${VERSION}.nupkg" \
+              "${registry_package}" <<'PY'
+          import hashlib
+          import sys
+          import unicodedata
+          import zipfile
+
+          def package_entries(path):
+              with zipfile.ZipFile(path) as package:
+                  names = package.namelist()
+                  normalized = [
+                      unicodedata.normalize("NFC", name.replace("\\", "/")).casefold()
+                      for name in names
+                  ]
+                  if len(set(names)) != len(names) or len(set(normalized)) != len(normalized):
+                      raise SystemExit("NuGet package contains duplicate normalized entries")
+                  return {
+                      name: hashlib.sha256(package.read(name)).hexdigest()
+                      for name in names
+                      if name != ".signature.p7s"
+                  }
+
+          if package_entries(sys.argv[1]) != package_entries(sys.argv[2]):
+              raise SystemExit("NuGet.org package content differs from the public GitHub Release")
+          PY
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            test "${status}" = 404
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Exchange GitHub OIDC for a short-lived NuGet API key
+        id: nuget-login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ secrets.NUGET_ORG_USER }}
+
+      - name: Publish the exact redownloaded package once
+        if: steps.registry-version.outputs.exists == 'false'
+        shell: bash
+        working-directory: ${{ runner.temp }}/dotnet-cli
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          test -n "${NUGET_API_KEY}"
+          dotnet nuget push \
+            "${RUNNER_TEMP}/nuget-release/Snaploom.Capture.${VERSION}.nupkg" \
+            --source "https://api.nuget.org/v3/index.json" \
+            --no-symbols \
+            --api-key "${NUGET_API_KEY}"
+
+      - name: Publish the exact redownloaded symbol package
+        shell: bash
+        working-directory: ${{ runner.temp }}/dotnet-cli
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          test -n "${NUGET_API_KEY}"
+          dotnet nuget push \
+            "${RUNNER_TEMP}/nuget-release/Snaploom.Capture.${VERSION}.snupkg" \
+            --source "https://api.nuget.org/v3/index.json" \
+            --api-key "${NUGET_API_KEY}"
+
+  dotnet-consumer:
+    name: Public NuGet consumer (${{ matrix.platform }}, ${{ matrix.framework }})
+    needs: publish-nuget
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            platform: windows-x64
+            framework: net8.0
+            dotnet_version: 8.0.423
+          - os: macos-15
+            platform: macos-arm64
+            framework: net8.0
+            dotnet_version: 8.0.423
+          - os: windows-2025
+            platform: windows-x64
+            framework: net10.0
+            dotnet_version: 10.0.302
+          - os: macos-15
+            platform: macos-arm64
+            framework: net10.0
+            dotnet_version: 10.0.302
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout the public release implementation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.12.0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13.14"
+
+      - name: Set up exact .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: ${{ matrix.dotnet_version }}
+
+      - name: Record consumer runner and toolchains
+        shell: bash
+        run: |
+          {
+            echo "runner=${ImageOS} ${ImageVersion} ${RUNNER_ARCH}"
+            echo "requested-dotnet=${{ matrix.dotnet_version }}"
+            node --version
+            python3 --version
+            dotnet --list-sdks
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Redownload and reverify the exact public NuGet packages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+          PUBLIC_RELEASE_ID: ${{ inputs.public_release_id }}
+        run: |
+          test "$(git rev-parse HEAD)" = "${COMMIT}"
+          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/releases/${PUBLIC_RELEASE_ID}" \
+            > "${RUNNER_TEMP}/public-release-raw.json"
+          jq --arg commit "${COMMIT}" '. + {resolved_tag_commit:$commit}' \
+            "${RUNNER_TEMP}/public-release-raw.json" \
+            > "${RUNNER_TEMP}/public-release.json"
+          mkdir "${RUNNER_TEMP}/nuget-release"
+          asset_names="Snaploom.Capture.${VERSION}.nupkg,Snaploom.Capture.${VERSION}.nupkg.sha256,Snaploom.Capture.${VERSION}.snupkg,Snaploom.Capture.${VERSION}.snupkg.sha256"
+          IFS=',' read -ra names <<< "${asset_names}"
+          for name in "${names[@]}"; do
+            asset_id="$(jq -er --arg name "${name}" \
+              '[.assets[] | select(.name == $name)] | select(length == 1) | .[0].id' \
+              "${RUNNER_TEMP}/public-release.json")"
+            gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" \
+              -H "Accept: application/octet-stream" \
+              > "${RUNNER_TEMP}/nuget-release/${name}"
+          done
+          node tools/release/verify-public-release.mjs \
+            --release-json "${RUNNER_TEMP}/public-release.json" \
+            --directory "${RUNNER_TEMP}/nuget-release" \
+            --asset-names "${asset_names}" \
+            --version "${VERSION}" --commit "${COMMIT}"
+
+      - name: Wait for the exact public NuGet version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          for attempt in {1..40}; do
+            if curl --fail --silent --show-error \
+              "https://api.nuget.org/v3-flatcontainer/snaploom.capture/index.json" |
+              jq -e --arg version "${VERSION}" '.versions | index($version) != null'; then
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "NuGet.org did not expose Snaploom.Capture ${VERSION} in time" >&2
+          exit 1
+
+      - name: Build and run clean trim and NativeAOT consumers
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          node tools/sdk/verify-dotnet-package.mjs \
+            --package "${RUNNER_TEMP}/nuget-release/Snaploom.Capture.${VERSION}.nupkg" \
+            --platform "${{ matrix.platform }}" \
+            --framework "${{ matrix.framework }}" \
+            --sdk-version "${{ matrix.dotnet_version }}" \
+            --consumer-source "https://api.nuget.org/v3/index.json"
+
+  swift-consumer:
+    name: Public SwiftPM tag and binary consumer
+    needs: validate
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout the public release implementation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.12.0
+
+      - name: Select exact Xcode and Swift toolchain
+        shell: bash
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_16.4.app/Contents/Developer
+          echo "runner=${ImageOS} ${ImageVersion} ${RUNNER_ARCH}" >> "${GITHUB_STEP_SUMMARY}"
+          node --version | tee -a "${GITHUB_STEP_SUMMARY}"
+          xcodebuild -version
+          swift --version
+
+      - name: Redownload and reverify the exact public XCFramework
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+          PUBLIC_RELEASE_ID: ${{ inputs.public_release_id }}
+        run: |
+          test "$(git rev-parse HEAD)" = "${COMMIT}"
+          git fetch --no-tags origin "refs/tags/v${VERSION}:refs/snaploom-sdk/v${VERSION}"
+          resolved_tag_commit="$(git rev-list -n 1 "refs/snaploom-sdk/v${VERSION}")"
+          test "${resolved_tag_commit}" = "${COMMIT}"
+          gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/releases/${PUBLIC_RELEASE_ID}" \
+            > "${RUNNER_TEMP}/public-release-raw.json"
+          jq --arg commit "${resolved_tag_commit}" '. + {resolved_tag_commit:$commit}' \
+            "${RUNNER_TEMP}/public-release-raw.json" \
+            > "${RUNNER_TEMP}/public-release.json"
+          mkdir "${RUNNER_TEMP}/swift-release"
+          archive="CSnaploomCapture-${VERSION}.xcframework.zip"
+          asset_names="${archive},${archive}.sha256"
+          IFS=',' read -ra names <<< "${asset_names}"
+          for name in "${names[@]}"; do
+            asset_id="$(jq -er --arg name "${name}" \
+              '[.assets[] | select(.name == $name)] | select(length == 1) | .[0].id' \
+              "${RUNNER_TEMP}/public-release.json")"
+            gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" \
+              -H "Accept: application/octet-stream" \
+              > "${RUNNER_TEMP}/swift-release/${name}"
+          done
+          node tools/release/verify-public-release.mjs \
+            --release-json "${RUNNER_TEMP}/public-release.json" \
+            --directory "${RUNNER_TEMP}/swift-release" \
+            --asset-names "${asset_names}" \
+            --version "${VERSION}" --commit "${COMMIT}"
+          node tools/release/verify-stable-swift-consumer.mjs \
+            --archive "${RUNNER_TEMP}/swift-release/${archive}" \
+            --version "${VERSION}" --commit "${COMMIT}"
+
+  record-evidence:
+    name: Record stable SDK promotion evidence
+    needs: [publish-nuget, dotnet-consumer, swift-consumer]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Materialize successful promotion evidence
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+          PUBLIC_RELEASE_ID: ${{ inputs.public_release_id }}
+        run: |
+          jq -n \
+            --arg version "${VERSION}" \
+            --arg commit "${COMMIT}" \
+            --argjson releaseId "${PUBLIC_RELEASE_ID}" \
+            --arg workflowRun "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            '{schemaVersion:1,version:$version,commit:$commit,publicReleaseId:$releaseId,nugetTrustedPublishing:true,dotnetConsumers:["win-x64/net8.0","osx-arm64/net8.0","win-x64/net10.0","osx-arm64/net10.0"],swiftPublicTagConsumer:true,toolchainsRecordedInJobSummaries:true,workflowRun:$workflowRun}' \
+            > "${RUNNER_TEMP}/stable-sdk-promotion-evidence.json"
+
+      - name: Upload stable SDK promotion evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: snaploom-v${{ inputs.version }}-stable-sdk-promotion
+          path: ${{ runner.temp }}/stable-sdk-promotion-evidence.json
+          if-no-files-found: error
+          retention-days: 90

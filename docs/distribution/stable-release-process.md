@@ -87,5 +87,6 @@ SHA-256 及其在 write-token 环境中执行的 verifier 完整传递模块闭�
 任何字段、身份、时间顺序、digest、资产、tag、main 可达性、Issue 状态或 immutability 不匹配都会在公开前
 失败；重复调度已公开 Release 也会因不再是 draft 而失败。
 
-NuGet.org promotion 与公开 tag 的 SwiftPM 消费验证属于后续独立 workflow；不得在本入口中混入 registry
-凭据或重新打包。
+NuGet.org promotion 与公开 tag 的 SwiftPM 消费验证由后续独立 workflow 完成；不得在本入口中混入
+registry 凭据或重新打包。配置和调度步骤见
+[稳定 SDK 的 NuGet.org promotion 与 SwiftPM 验证](./stable-sdk-promotion.md)。

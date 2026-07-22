@@ -8,7 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { assembleRelease } from "./assemble-release.mjs";
 import { assetsForVersion } from "./release-contract.mjs";
-import { verifyRelease } from "./verify-release.mjs";
+import { validateArchiveEntries, verifyRelease } from "./verify-release.mjs";
 
 const version = "1.2.3";
 const commit = "1".repeat(40);
@@ -112,4 +112,22 @@ test("checksum damage is a hard failure", () => {
   } finally {
     rmSync(paths.root, { recursive: true, force: true });
   }
+});
+
+test("archive boundaries reject raw and slash-normalized duplicate filenames", () => {
+  const contract = assetsForVersion(version).find(
+    ({ kind }) => kind === "capture-sdk-dotnet",
+  );
+  assert.throws(
+    () => validateArchiveEntries(["lib/a.dll", "lib/a.dll"], contract),
+    /duplicate archive entry/,
+  );
+  assert.throws(
+    () => validateArchiveEntries(["lib/a.dll", "lib\\a.dll"], contract),
+    /duplicate archive entry/,
+  );
+  assert.throws(
+    () => validateArchiveEntries(["lib/A.dll", "lib/a.dll"], contract),
+    /duplicate archive entry/,
+  );
 });

@@ -463,6 +463,7 @@ jobs:
           node-version: 22.12.0
 
       - name: Setup .NET 8
+        id: setup-dotnet
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: 8.0.423
@@ -493,6 +494,7 @@ jobs:
           test -f "${RUNNER_TEMP}/snaploom-nuget/Snaploom.Capture.${VERSION}.snupkg"
           node tools/sdk/verify-dotnet-package.mjs \
             --package "${package}" --platform unsupported \
+            --sdk-version "${{ steps.setup-dotnet.outputs.dotnet-version }}" \
             --windows-native "${windows_native}" --macos-native "${macos_native}"
           {
             unzip -l "${package}"
@@ -561,6 +563,7 @@ jobs:
           node-version: 22.12.0
 
       - name: Setup exact .NET SDK
+        id: setup-dotnet
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: ${{ matrix.dotnet_version }}
@@ -580,7 +583,8 @@ jobs:
           node tools/sdk/verify-dotnet-package.mjs \
             --package "${package}" \
             --platform '${{ matrix.platform }}' \
-            --framework '${{ matrix.framework }}' 2>&1 | \
+            --framework '${{ matrix.framework }}' \
+            --sdk-version '${{ steps.setup-dotnet.outputs.dotnet-version }}' 2>&1 | \
             tee "${RUNNER_TEMP}/dotnet-${{ matrix.platform }}-${{ matrix.framework }}-consumer.log"
 
       - name: Upload final signed consumer evidence

@@ -25,6 +25,14 @@ for (const name of readdirSync(workflowDirectory).filter((entry) => /\.ya?ml$/.t
 
 const legalRc = readFileSync(join(workflowDirectory, "release-legal-rc.yml"), "utf8");
 const stablePublish = readFileSync(join(workflowDirectory, "release-stable.yml"), "utf8");
+const stableSdkPromotion = readFileSync(
+  join(workflowDirectory, "release-promote-sdk.yml"),
+  "utf8",
+);
+const dotnetPackageVerifier = readFileSync(
+  join(repository, "tools", "sdk", "verify-dotnet-package.mjs"),
+  "utf8",
+);
 const stablePublishVerifierNames = [
   "verify-stable-publish.mjs",
   "verify-draft-release.mjs",
@@ -42,15 +50,161 @@ const evidenceJobStart = stablePublish.indexOf("\n  record-evidence:");
 const pullRequestCi = readFileSync(join(workflowDirectory, "ci.yml"), "utf8");
 const approvedStablePublishJobSha256 =
   "7547b9b1ab73aaa15b7ed1ef99d06fa8e902f445a3f2e663c1f560aff2417307";
+const approvedStableSdkPromotionJobSha256 =
+  "c05a4ce09af0a2f26ff63ffb5947a127017257e49b1137d373b8a1d3ba18bbcf";
 const approvedStablePublishVerifierSha256 = {
   "verify-stable-publish.mjs": "b479a5473baddef54c98689fd8cd76b39a65810e3cedda4b345973ceb355d70b",
   "verify-draft-release.mjs": "3216d1180f5e05a58e7771a428438c7d7ba35db765386708a40c90456fc2a3de",
   "release-contract.mjs": "d1a224cfa4c6d95f9b844634c7f4f34ebed8f13618c9f5e3762a6496f56f9aec",
-  "verify-release.mjs": "f71ae74c290d4cc76a9b0b04ec87617fac417e3c83812ff7aebebe028c83af8c",
+  "verify-release.mjs": "4f4ae402d5eb2b8b4b0b39c0cb7911b3d8cde59c29e224ab605296d0b90d4a68",
 };
 
 function canonicalText(contents) {
   return contents.replace(/\r\n?/g, "\n");
+}
+
+export function checkDotnetConsumerRestorePolicy(contents) {
+  if (
+    (contents.match(/\n\s*"publish",/g) ?? []).length !== 2 ||
+    (contents.match(/"--no-restore"/g) ?? []).length < 3 ||
+    (contents.match(/restoreLocked\(/g) ?? []).length < 5 ||
+    !contents.includes('rollForward: "disable"') ||
+    !contents.includes("expected .NET SDK") ||
+    !contents.includes("consumer-trimmed") ||
+    !contents.includes("consumer-aot")
+  ) {
+    throw new Error(
+      ".NET consumers must pin one SDK and locked-restore normal, trim, and NativeAOT builds",
+    );
+  }
+}
+
+export function checkDotnetVerifierCallSites(workflows) {
+  for (const contents of workflows) {
+    const calls = canonicalText(contents).split(
+      "node tools/sdk/verify-dotnet-package.mjs",
+    );
+    for (const block of calls.slice(1)) {
+      if (!block.split("\n\n", 1)[0].includes("--sdk-version")) {
+        throw new Error("every .NET package verifier call must pass its selected SDK version");
+      }
+    }
+  }
+}
+
+export function checkStableSdkPromotionPolicy(contents) {
+  const canonicalContents = canonicalText(contents);
+  const validateStart = canonicalContents.indexOf("\n  validate:");
+  const publishStart = canonicalContents.indexOf("\n  publish-nuget:");
+  const consumersStart = canonicalContents.indexOf("\n  dotnet-consumer:");
+  const validateJob = canonicalContents.slice(validateStart, publishStart);
+  const publishJob = canonicalContents.slice(publishStart, consumersStart);
+  const oidcLogin =
+    "NuGet/login@8d196754b4036150537f80ac539e15c2f1028841";
+  if (
+    validateStart < 0 ||
+    publishStart < 0 ||
+    consumersStart <= publishStart ||
+    !publishJob.includes("needs: validate") ||
+    !publishJob.includes("environment: nuget-org") ||
+    !publishJob.includes("contents: read") ||
+    !publishJob.includes("id-token: write") ||
+    (canonicalContents.match(/id-token:\s+write/g) ?? []).length !== 1 ||
+    (canonicalContents.match(new RegExp(oidcLogin.replace("/", "\\/"), "g")) ?? [])
+      .length !== 1
+  ) {
+    throw new Error("stable SDK promotion must use one protected NuGet OIDC job after validation");
+  }
+  if (
+    !validateJob.includes("node tools/release/verify-public-release.mjs") ||
+    !validateJob.includes("node tools/sdk/verify-dotnet-package.mjs") ||
+    !validateJob.includes("fetch-depth: 0") ||
+    !validateJob.includes("refs/remotes/origin/main")
+  ) {
+    throw new Error(
+      "stable SDK promotion must validate public release and package code before the OIDC job",
+    );
+  }
+  const redownloadIndex = publishJob.indexOf(
+    "Redownload the previously verified public NuGet packages",
+  );
+  const loginIndex = publishJob.indexOf(oidcLogin);
+  const pushIndex = publishJob.indexOf("dotnet nuget push");
+  if (
+    redownloadIndex < 0 ||
+    loginIndex <= redownloadIndex ||
+    pushIndex <= loginIndex ||
+    (publishJob.match(/dotnet nuget push/g) ?? []).length !== 2 ||
+    !publishJob.includes('--source "https://api.nuget.org/v3/index.json"') ||
+    !publishJob.includes('--api-key "${NUGET_API_KEY}"') ||
+    !publishJob.includes("steps.nuget-login.outputs.NUGET_API_KEY") ||
+    !publishJob.includes("Snaploom.Capture.${VERSION}.snupkg") ||
+    !publishJob.includes(".immutable == true") ||
+    !publishJob.includes("sha256sum") ||
+    !publishJob.includes("'.digest'") ||
+    !publishJob.includes("dotnet nuget verify --all") ||
+    !publishJob.includes("Signature type: Repository") ||
+    !publishJob.includes("NuGet.org package content differs") ||
+    (publishJob.match(/steps\.registry-version\.outputs\.exists == 'false'/g) ?? [])
+      .length !== 1 ||
+    (publishJob.match(/--no-symbols/g) ?? []).length !== 1
+  ) {
+    throw new Error(
+      "stable SDK promotion must reverify and publish the exact public NuGet pair once",
+    );
+  }
+  if (
+    /^ {2}(?:push|pull_request|schedule|workflow_run|repository_dispatch|workflow_call):/m.test(
+      canonicalContents,
+    ) ||
+    /contents:\s+write|--skip-duplicate|secrets\.NUGET_API_KEY|NUGET_AUTH_TOKEN/i.test(
+      canonicalContents,
+    ) ||
+    /(?:dotnet|nuget)\s+pack\b|gh\s+release\s+(?:create|edit|upload|delete)|gh\s+api[^\n]*(?:--method|-X)\s*(?:POST|PUT|PATCH|DELETE)\b/i.test(
+      canonicalContents,
+    )
+  ) {
+    throw new Error("stable SDK promotion contains a replay, rebuild, or release mutation path");
+  }
+  if (
+    publishJob.includes("actions/checkout") ||
+    /(?:^|\n)\s*node\s|dotnet\s+(?:build|restore|run|test|publish|pack)\b/i.test(
+      publishJob,
+    )
+  ) {
+    throw new Error(
+      "stable SDK promotion cannot execute repository or package code with OIDC permission",
+    );
+  }
+  const commandPlanSha256 = createHash("sha256")
+    .update(canonicalText(publishJob))
+    .digest("hex");
+  if (commandPlanSha256 !== approvedStableSdkPromotionJobSha256) {
+    throw new Error("stable SDK promotion OIDC command plan is not allowlisted");
+  }
+  if (
+    !canonicalContents.includes("Validate immutable public release") ||
+    !canonicalContents.includes("verify-public-release.mjs") ||
+    !canonicalContents.includes("--consumer-source \"https://api.nuget.org/v3/index.json\"") ||
+    !canonicalContents.includes('--sdk-version "${{ matrix.dotnet_version }}"') ||
+    !canonicalContents.includes("8.0.423") ||
+    !canonicalContents.includes("10.0.302") ||
+    (canonicalContents.match(
+      /actions\/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1/g,
+    ) ?? []).length !== 3 ||
+    !canonicalContents.includes('python-version: "3.13.14"') ||
+    (canonicalContents.match(/platform: windows-x64/g) ?? []).length !== 2 ||
+    (canonicalContents.match(/platform: macos-arm64/g) ?? []).length !== 2 ||
+    !canonicalContents.includes("verify-stable-swift-consumer.mjs") ||
+    !canonicalContents.includes("CSnaploomCapture-${VERSION}.xcframework.zip") ||
+    !canonicalContents.includes("Xcode_16.4.app") ||
+    !canonicalContents.includes("swift --version") ||
+    (canonicalContents.match(/ImageOS/g) ?? []).length < 4 ||
+    (canonicalContents.match(/ImageVersion/g) ?? []).length < 4 ||
+    !canonicalContents.includes("toolchainsRecordedInJobSummaries:true")
+  ) {
+    throw new Error("stable SDK promotion must prove all clean public package consumers");
+  }
 }
 
 export function checkStablePublishVerifier(closure) {
@@ -229,4 +383,7 @@ if (
 ) {
   throw new Error("stable workflow can only publish an existing reviewed draft from a trusted dispatch");
 }
+checkStableSdkPromotionPolicy(stableSdkPromotion);
+checkDotnetConsumerRestorePolicy(dotnetPackageVerifier);
+checkDotnetVerifierCallSites([pullRequestCi, legalRc, stableSdkPromotion]);
 process.stdout.write(`verified immutable action/release references in ${basename(workflowDirectory)}\n`);

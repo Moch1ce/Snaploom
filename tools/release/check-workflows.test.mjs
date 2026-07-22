@@ -6,6 +6,9 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  checkDotnetConsumerRestorePolicy,
+  checkDotnetVerifierCallSites,
+  checkStableSdkPromotionPolicy,
   checkStablePublishMutationPolicy,
   checkStablePublishVerifier,
 } from "./check-workflows.mjs";
@@ -14,6 +17,26 @@ const workflowPath = fileURLToPath(
   new URL("../../.github/workflows/release-stable.yml", import.meta.url),
 );
 const workflow = readFileSync(workflowPath, "utf8");
+const sdkPromotionWorkflow = readFileSync(
+  fileURLToPath(
+    new URL("../../.github/workflows/release-promote-sdk.yml", import.meta.url),
+  ),
+  "utf8",
+);
+const dotnetPackageVerifier = readFileSync(
+  fileURLToPath(new URL("../sdk/verify-dotnet-package.mjs", import.meta.url)),
+  "utf8",
+);
+const ciWorkflow = readFileSync(
+  fileURLToPath(new URL("../../.github/workflows/ci.yml", import.meta.url)),
+  "utf8",
+);
+const legalRcWorkflow = readFileSync(
+  fileURLToPath(
+    new URL("../../.github/workflows/release-legal-rc.yml", import.meta.url),
+  ),
+  "utf8",
+);
 const verifierClosure = Object.fromEntries(
   [
     "verify-stable-publish.mjs",
@@ -178,5 +201,87 @@ test("stable publish verifier accepts an equivalent CRLF checkout", () => {
         ]),
       ),
     ),
+  );
+});
+
+test("stable SDK promotion accepts only the reviewed OIDC and public-consumer workflow", () => {
+  assert.doesNotThrow(() => checkStableSdkPromotionPolicy(sdkPromotionWorkflow));
+  assert.doesNotThrow(() =>
+    checkStableSdkPromotionPolicy(asCrlf(sdkPromotionWorkflow)),
+  );
+});
+
+test("stable SDK promotion rejects weaker identity and replay policies", () => {
+  for (const changed of [
+    sdkPromotionWorkflow.replace("environment: nuget-org", "environment: release-draft"),
+    sdkPromotionWorkflow.replace("id-token: write", "id-token: read"),
+    sdkPromotionWorkflow.replace(
+      "NuGet/login@8d196754b4036150537f80ac539e15c2f1028841",
+      "NuGet/login@" + "0".repeat(40),
+    ),
+    sdkPromotionWorkflow.replace("needs: validate", "needs: []"),
+    sdkPromotionWorkflow.replace(
+      '--api-key "${NUGET_API_KEY}"',
+      '--api-key "${NUGET_API_KEY}" --skip-duplicate',
+    ),
+    sdkPromotionWorkflow.replace("dotnet nuget verify --all", "dotnet nuget list source"),
+    sdkPromotionWorkflow.replace("Signature type: Repository", "Signature type: Author"),
+  ]) {
+    assert.throws(() => checkStableSdkPromotionPolicy(changed), /stable SDK promotion/);
+  }
+});
+
+test("stable SDK promotion rejects package rebuilds and GitHub release mutation", () => {
+  for (const command of [
+    "dotnet pack -c Release",
+    "gh release upload v1.2.3 rebuilt.nupkg",
+    "gh api --method PATCH repos/example/releases/1 -F draft=false",
+    'cp rebuilt.nupkg "${RUNNER_TEMP}/nuget-release/Snaploom.Capture.${VERSION}.nupkg"',
+  ]) {
+    assert.throws(
+      () =>
+        checkStableSdkPromotionPolicy(
+          sdkPromotionWorkflow.replace(
+            "          dotnet nuget push \\",
+            `          ${command}\n          dotnet nuget push \\`,
+          ),
+        ),
+      /stable SDK promotion/,
+    );
+  }
+});
+
+test(".NET public consumers pin one SDK and never publish with an implicit restore", () => {
+  assert.doesNotThrow(() =>
+    checkDotnetConsumerRestorePolicy(dotnetPackageVerifier),
+  );
+  assert.throws(
+    () =>
+      checkDotnetConsumerRestorePolicy(
+        dotnetPackageVerifier.replaceAll('"--no-restore",', ""),
+      ),
+    /locked-restore/,
+  );
+  assert.throws(
+    () =>
+      checkDotnetConsumerRestorePolicy(
+        dotnetPackageVerifier.replace('rollForward: "disable"', 'rollForward: "latestMajor"'),
+      ),
+    /pin one SDK/,
+  );
+});
+
+test("every Actions verifier call passes the SDK selected by setup-dotnet", () => {
+  const workflows = [ciWorkflow, legalRcWorkflow, sdkPromotionWorkflow];
+  assert.doesNotThrow(() => checkDotnetVerifierCallSites(workflows));
+  assert.throws(
+    () =>
+      checkDotnetVerifierCallSites([
+        ciWorkflow.replace(
+          /\n\s*--sdk-version "\$\{\{ steps\.setup-dotnet\.outputs\.dotnet-version \}\}" \\/,
+          "",
+        ),
+      ]),
+    /must pass its selected SDK version/,
   );
 });

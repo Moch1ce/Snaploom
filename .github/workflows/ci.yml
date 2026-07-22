@@ -338,6 +338,7 @@ jobs:
           node-version: 22.12.0
 
       - name: Setup .NET 8
+        id: setup-dotnet
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: 8.0.x
@@ -371,6 +372,7 @@ jobs:
           node tools/sdk/verify-dotnet-package.mjs \
             --package "${package}" \
             --platform unsupported \
+            --sdk-version "${{ steps.setup-dotnet.outputs.dotnet-version }}" \
             --windows-native "${RUNNER_TEMP}/snaploom-native-assets/snaploom_capture.dll" \
             --macos-native "${RUNNER_TEMP}/snaploom-native-assets/libsnaploom_capture.dylib"
 
@@ -420,6 +422,7 @@ jobs:
           node-version: 22.12.0
 
       - name: Setup .NET
+        id: setup-dotnet
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: ${{ matrix.dotnet_version }}
@@ -438,7 +441,8 @@ jobs:
           node tools/sdk/verify-dotnet-package.mjs \
             --package "${package}" \
             --platform "${{ matrix.platform }}" \
-            --framework "${{ matrix.framework }}"
+            --framework "${{ matrix.framework }}" \
+            --sdk-version "${{ steps.setup-dotnet.outputs.dotnet-version }}"
 
   release-contract:
     name: Atomic release contract

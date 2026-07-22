@@ -44,10 +44,20 @@ function archiveEntries(path) {
   return [];
 }
 
-function validateArchiveBoundary(path, contract) {
-  const entries = archiveEntries(path);
-  for (const entry of entries) {
-    const normalized = entry.replaceAll("\\", "/");
+export function validateArchiveEntries(entries, contract) {
+  const normalizedEntries = entries.map((entry) => entry.replaceAll("\\", "/"));
+  const portableEntries = normalizedEntries.map((entry) =>
+    entry.normalize("NFC").toLowerCase(),
+  );
+  if (
+    new Set(entries).size !== entries.length ||
+    new Set(normalizedEntries).size !== entries.length ||
+    new Set(portableEntries).size !== entries.length
+  ) {
+    throw new Error(`duplicate archive entry in ${contract.name}`);
+  }
+  for (const [index, entry] of entries.entries()) {
+    const normalized = normalizedEntries[index];
     if (
       normalized.startsWith("/") ||
       /^[A-Za-z]:\//.test(normalized) ||
@@ -57,9 +67,9 @@ function validateArchiveBoundary(path, contract) {
     }
   }
   if (!contract.kind.startsWith("capture-sdk")) return;
-  const lowered = entries.map((entry) => entry.toLowerCase());
+  const lowered = normalizedEntries.map((entry) => entry.toLowerCase());
   const forbidden = /(?:capture[-_ ]?host|capture[-_ ]?session|(?:^|\/)product\/|tauri|gpl-3\.0)/i;
-  const violation = entries.find((entry) => forbidden.test(entry));
+  const violation = normalizedEntries.find((entry) => forbidden.test(entry));
   if (violation) {
     throw new Error(`SDK package crosses the GPL/Host boundary: ${contract.name}:${violation}`);
   }
@@ -71,6 +81,10 @@ function validateArchiveBoundary(path, contract) {
       throw new Error(`${contract.name} must contain Apache LICENSE, NOTICE, and SBOM`);
     }
   }
+}
+
+function validateArchiveBoundary(path, contract) {
+  validateArchiveEntries(archiveEntries(path), contract);
 }
 
 export function verifyRelease(directory, { version, skipArchiveBoundaries = false } = {}) {
