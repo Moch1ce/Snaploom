@@ -1,10 +1,12 @@
 #![cfg(unix)]
 
 use std::fs;
+use std::os::fd::AsRawFd;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use snaploom_capture_client::local_transport::{
     EndpointPaths, LeaderOutcome, TransportSecurityError, UnixLeader, connect_authenticated,
@@ -41,6 +43,45 @@ fn unix_endpoint_is_private_and_authenticates_both_peers() {
     let client_paths = paths.clone();
     let client = thread::spawn(move || connect_authenticated(&client_paths).unwrap());
     let server_stream = leader.accept_authenticated().unwrap();
+    let client_stream = client.join().unwrap();
+    drop((server_stream, client_stream, leader));
+    fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
+fn authenticated_stream_is_blocking_when_listener_is_nonblocking() {
+    let base = test_base();
+    let uid = unsafe { libc::geteuid() };
+    let paths = EndpointPaths::under(&base, uid, 45, 1);
+    let LeaderOutcome::Leader(mut leader) = UnixLeader::try_bind(&paths).unwrap() else {
+        panic!("first endpoint owner must become leader");
+    };
+    leader.set_nonblocking(true).unwrap();
+
+    let client_paths = paths.clone();
+    let client = thread::spawn(move || connect_authenticated(&client_paths).unwrap());
+    let accept_deadline = Instant::now() + Duration::from_secs(2);
+    let server_stream = loop {
+        match leader.accept_authenticated() {
+            Ok(stream) => break stream,
+            Err(TransportSecurityError::Io(std::io::ErrorKind::WouldBlock))
+                if Instant::now() < accept_deadline =>
+            {
+                thread::yield_now();
+            }
+            Err(TransportSecurityError::Io(std::io::ErrorKind::WouldBlock)) => {
+                if let Err(panic) = client.join() {
+                    std::panic::resume_unwind(panic);
+                }
+                panic!("timed out waiting for the authenticated connection");
+            }
+            Err(error) => panic!("accept failed: {error}"),
+        }
+    };
+    let flags = unsafe { libc::fcntl(server_stream.as_raw_fd(), libc::F_GETFL) };
+    assert_ne!(flags, -1);
+    assert_eq!(flags & libc::O_NONBLOCK, 0);
+
     let client_stream = client.join().unwrap();
     drop((server_stream, client_stream, leader));
     fs::remove_dir_all(base).unwrap();

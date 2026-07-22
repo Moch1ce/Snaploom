@@ -105,6 +105,10 @@ impl UnixLeader {
 
     pub fn accept_authenticated(&mut self) -> Result<UnixStream, TransportSecurityError> {
         let (stream, _) = self.listener.accept()?;
+        // On BSD-derived platforms (including macOS), an accepted socket inherits
+        // O_NONBLOCK from its listener. The listener is nonblocking so the host can
+        // poll for shutdown, but authenticated connections use bounded blocking I/O.
+        stream.set_nonblocking(false)?;
         authenticate_peer(&stream, self.paths.expected_uid)?;
         Ok(stream)
     }
