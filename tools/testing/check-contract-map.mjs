@@ -77,7 +77,7 @@ export function validateContractMap({ root, contractPath, mapPath }) {
   const clauses = contractMustClauses(readFileSync(contractPath, "utf8"));
   const expected = new Map(clauses.map((clause) => [clause.id, clause.title]));
   const document = loadJson(mapPath);
-  assert(document.schema_version === 1, "contract map schema_version must be 1");
+  assert(document.schema_version === 2, "contract map schema_version must be 2");
   assert(Array.isArray(document.contracts), "contract map contracts must be an array");
 
   const seen = new Set();
@@ -110,8 +110,10 @@ export function validateContractMap({ root, contractPath, mapPath }) {
       assert(ALLOWED_CATEGORIES.has(evidence.category), `${contract.id} has invalid evidence category: ${evidence.category}`);
       categories.add(evidence.category);
       assert(
-        evidence.status === "verified" || evidence.status === "pending-external",
-        `${contract.id} evidence status must be verified or pending-external`,
+        evidence.status === "verified" ||
+          evidence.status === "partial" ||
+          evidence.status === "pending-external",
+        `${contract.id} evidence status must be verified, partial, or pending-external`,
       );
       assert(typeof evidence.path === "string" && evidence.path.length > 0, `${contract.id} evidence needs a path`);
       const evidencePath = resolve(root, evidence.path);
@@ -123,6 +125,16 @@ export function validateContractMap({ root, contractPath, mapPath }) {
       );
       if (evidence.status === "verified") {
         hasCurrentImplementationEvidence = true;
+      } else if (evidence.status === "partial") {
+        assert(
+          typeof evidence.scope === "string" && evidence.scope.trim().length > 0,
+          `${contract.id} partial evidence must declare its exact scope`,
+        );
+        assert(
+          /^#[0-9]+$/.test(evidence.issue ?? ""),
+          `${contract.id} partial evidence must name its completion issue`,
+        );
+        assert(evidence.category !== "automatic", `${contract.id} automatic evidence cannot be partial`);
       } else {
         assert(/^#[0-9]+$/.test(evidence.issue ?? ""), `${contract.id} pending evidence must name a GitHub issue`);
         assert(evidence.category !== "automatic", `${contract.id} automatic evidence cannot be pending-external`);
