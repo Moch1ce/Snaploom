@@ -86,6 +86,14 @@ public readonly record struct ScreenshotTextStyle
     public int FontSize { get; }
 }
 
+public static class ScreenshotTextMetrics
+{
+    public const double LineHeightMultiplier = 1.25;
+
+    public static double GetMinimumContentWidth(ScreenshotTextStyle style) =>
+        style.FontSize / 2d;
+}
+
 public readonly record struct ScreenshotMosaicStyle
 {
     public ScreenshotMosaicStyle(int brushSize, int pixelSize)
@@ -371,12 +379,28 @@ public sealed class ScreenshotAnnotationSession
             return false;
         }
 
+        return BeginTextEdit(annotationIndex, annotation.Origin, annotation.MaxWidth);
+    }
+
+    public bool BeginTextEdit(
+        int annotationIndex,
+        LogicalPoint origin,
+        double maxWidth)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxWidth);
+        if (annotationIndex < 0 ||
+            annotationIndex >= _annotations.Count ||
+            _annotations[annotationIndex] is not ScreenshotTextAnnotation annotation)
+        {
+            return false;
+        }
+
         Preview = null;
         SelectedIndex = annotationIndex;
         TextEdit = new ScreenshotTextEdit(
-            annotation.Origin,
+            origin,
             annotation.Text,
-            annotation.MaxWidth,
+            maxWidth,
             annotation.Style,
             annotationIndex,
             IsComposing: false);
@@ -913,9 +937,11 @@ public sealed class ScreenshotAnnotationSession
         var width = Math.Min(
             text.MaxWidth,
             Math.Max(
-                text.Style.FontSize / 2d,
+                ScreenshotTextMetrics.GetMinimumContentWidth(text.Style),
                 lines.Max(line => line.Length) * text.Style.FontSize * 0.6));
-        var height = Math.Max(1, lines.Length) * text.Style.FontSize * 1.25;
+        var height = Math.Max(1, lines.Length) *
+            text.Style.FontSize *
+            ScreenshotTextMetrics.LineHeightMultiplier;
         return point.X >= text.Origin.X && point.X <= text.Origin.X + width &&
             point.Y >= text.Origin.Y && point.Y <= text.Origin.Y + height;
     }

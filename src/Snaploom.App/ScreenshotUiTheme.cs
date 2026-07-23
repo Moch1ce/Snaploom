@@ -127,11 +127,13 @@ internal static class ScreenshotUiTheme
     internal const double TextEditorMinimumWidth = 24;
     internal const double TextEditorCornerRadius = 2;
     internal const double TextEditorControlPointSize = 6;
-    internal const double TextEditorHorizontalPadding = 4;
-    internal const double TextEditorVerticalPadding = 1;
-    internal const double TextEditorLineHeightMultiplier = 1.35;
-    internal const double TextEditorMeasuredWidthPadding = 10;
-    internal const double TextEditorMeasuredHeightPadding = 4;
+    internal const double TextEditorPadding = 8;
+    internal const double TextEditorChromeInset =
+        TextEditorPadding + FloatingBorderThickness;
+    internal const double TextEditorMeasuredWidthPadding =
+        TextEditorChromeInset * 2;
+    internal const double TextEditorMeasuredHeightPadding =
+        TextEditorChromeInset * 2;
     internal const double AnnotationOptionsFlyoutVerticalOffset = 4;
     internal const double AnnotationOptionsPointerWidth = 12;
     internal const double AnnotationOptionsPointerHeight = 7;

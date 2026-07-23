@@ -475,10 +475,26 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                         return;
                     }
 
-                    var origin = ToSelectionLogicalPoint(position);
+                    var requestedOrigin = ToSelectionLogicalPoint(position);
+                    if (!TryConstrainTextEditorLayout(
+                            requestedOrigin,
+                            Math.Max(
+                                1,
+                                textSelection.Width -
+                                    requestedOrigin.X -
+                                    ScreenshotUiTheme.TextEditorChromeInset),
+                            _annotationSession.TextStyle,
+                            textSelection,
+                            out var origin,
+                            out var maxWidth))
+                    {
+                        e.Handled = true;
+                        return;
+                    }
+
                     _annotationSession.BeginText(
                         origin,
-                        Math.Max(1, textSelection.Width - origin.X));
+                        maxWidth);
                     _selectionHasBeenEdited = true;
                     _annotationBitmapDirty = true;
                     _mosaicCacheDirty = true;
@@ -615,6 +631,42 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
             TryBeginTextAnnotationEditing(textIndex);
     }
 
+    private static bool TryConstrainTextEditorLayout(
+        LogicalPoint requestedOrigin,
+        double requestedMaxWidth,
+        ScreenshotTextStyle style,
+        Rect selection,
+        out LogicalPoint origin,
+        out double maxWidth)
+    {
+        var inset = ScreenshotUiTheme.TextEditorChromeInset;
+        var minimumContentWidth = ScreenshotTextMetrics.GetMinimumContentWidth(style);
+        var lineHeight = style.FontSize *
+            ScreenshotTextMetrics.LineHeightMultiplier;
+        if (selection.Width < (inset * 2) + minimumContentWidth ||
+            selection.Height < (inset * 2) + lineHeight)
+        {
+            origin = default;
+            maxWidth = default;
+            return false;
+        }
+
+        origin = new LogicalPoint(
+            Math.Clamp(
+                requestedOrigin.X,
+                inset,
+                selection.Width - inset - minimumContentWidth),
+            Math.Clamp(
+                requestedOrigin.Y,
+                inset,
+                selection.Height - inset - lineHeight));
+        maxWidth = Math.Clamp(
+            requestedMaxWidth,
+            minimumContentWidth,
+            selection.Width - inset - origin.X);
+        return true;
+    }
+
     private int? HitTestTextAnnotation(Point position)
     {
         if (!_session.SelectionContains(ToPhysicalPoint(position)))
@@ -631,8 +683,19 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
     private bool TryBeginTextAnnotationEditing(int textIndex)
     {
-        if (!_annotationSession.Select(textIndex) ||
-            !_annotationSession.BeginTextEdit(textIndex))
+        if (LogicalSelection is not { } selection ||
+            textIndex < 0 ||
+            textIndex >= _annotationSession.Annotations.Count ||
+            _annotationSession.Annotations[textIndex] is not ScreenshotTextAnnotation text ||
+            !TryConstrainTextEditorLayout(
+                text.Origin,
+                text.MaxWidth,
+                text.Style,
+                selection,
+                out var origin,
+                out var maxWidth) ||
+            !_annotationSession.Select(textIndex) ||
+            !_annotationSession.BeginTextEdit(textIndex, origin, maxWidth))
         {
             return false;
         }

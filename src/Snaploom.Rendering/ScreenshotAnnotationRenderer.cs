@@ -124,7 +124,11 @@ public static class ScreenshotAnnotationRenderer
         return new ScreenshotTextBounds(
             annotation.Origin.X,
             annotation.Origin.Y,
-            Math.Min(annotation.MaxWidth, Math.Max(layout.Width, annotation.Style.FontSize / 2d)),
+            Math.Min(
+                annotation.MaxWidth,
+                Math.Max(
+                    layout.Width,
+                    ScreenshotTextMetrics.GetMinimumContentWidth(annotation.Style))),
             layout.Height);
     }
 
@@ -356,7 +360,7 @@ public static class ScreenshotAnnotationRenderer
     {
         var fontScale = (scaleX + scaleY) / 2;
         var fontSize = (float)(annotation.Style.FontSize * fontScale);
-        var lineHeight = fontSize * 1.25f;
+        var lineHeight = fontSize * (float)ScreenshotTextMetrics.LineHeightMultiplier;
         var maxWidth = (float)(annotation.MaxWidth * scaleX);
         var originX = (float)(annotation.Origin.X * scaleX);
         var originY = (float)(annotation.Origin.Y * scaleY);

@@ -1,7 +1,10 @@
 using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.VisualTree;
@@ -184,6 +187,78 @@ public sealed class ScreenshotAnnotationShortcutTests
     }
 
     [AvaloniaFact]
+    public void EditingTextAtTheSelectionEdgeKeepsTheEditorChromeInside()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        window.TextEditor.Text = "边缘文字";
+        var commandModifier = OperatingSystem.IsMacOS()
+            ? RawInputModifiers.Meta
+            : RawInputModifiers.Control;
+        window.KeyPress(Key.Enter, commandModifier, PhysicalKey.Enter, "\r");
+
+        Drag(window, new Point(105, 125), new Point(550, 350));
+        var text = Assert.IsType<ScreenshotTextAnnotation>(Assert.Single(window.Annotations));
+        var bounds = ScreenshotAnnotationRenderer.MeasureText(text);
+        Click(
+            window,
+            new Point(
+                50 + bounds.X + (bounds.Width / 2),
+                50 + bounds.Y + (bounds.Height / 2)));
+
+        Assert.True(window.TextEditorVisible);
+        var editorTopLeft = Assert.IsType<Point>(
+            window.TextEditor.TranslatePoint(
+                new Point(
+                    -ScreenshotUiTheme.FloatingBorderThickness,
+                    -ScreenshotUiTheme.FloatingBorderThickness),
+                window));
+        var editorBottomRight = Assert.IsType<Point>(
+            window.TextEditor.TranslatePoint(
+                new Point(
+                    window.TextEditor.Bounds.Width +
+                        ScreenshotUiTheme.FloatingBorderThickness,
+                    window.TextEditor.Bounds.Height +
+                        ScreenshotUiTheme.FloatingBorderThickness),
+                window));
+
+        Assert.InRange(editorTopLeft.X, 50, 500);
+        Assert.InRange(editorTopLeft.Y, 50, 300);
+        Assert.InRange(editorBottomRight.X, 50, 500);
+        Assert.InRange(editorBottomRight.Y, 50, 300);
+    }
+
+    [AvaloniaFact]
+    public void TextEditingDoesNotStartWhenTheSelectionCannotFitTheEditorChrome()
+    {
+        var frame = CreateFrame(width: 200, height: 160);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(80, 80));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+
+        Click(window, new Point(65, 65));
+
+        Assert.False(window.TextEditorVisible);
+        Assert.Null(window.TextEdit);
+        Assert.Empty(window.Annotations);
+    }
+
+    [AvaloniaFact]
     public void DraggingTheLastWrappedLineMovesTheWholeTextAnnotation()
     {
         var frame = CreateFrame(width: 600, height: 400);
@@ -246,7 +321,7 @@ public sealed class ScreenshotAnnotationShortcutTests
         Click(window, new Point(100, 120));
         window.TextEditor.Text = "第一段文字";
 
-        Click(window, new Point(200, 160));
+        Click(window, new Point(400, 240));
 
         Assert.False(window.TextEditorVisible);
         Assert.Null(window.TextEdit);
@@ -254,10 +329,10 @@ public sealed class ScreenshotAnnotationShortcutTests
             Assert.Single(window.Annotations));
         Assert.Equal("第一段文字", committed.Text);
 
-        Click(window, new Point(200, 160));
+        Click(window, new Point(400, 240));
 
         Assert.True(window.TextEditorVisible);
-        Assert.Equal(new LogicalPoint(150, 110), window.TextEdit?.Origin);
+        Assert.Equal(new LogicalPoint(350, 190), window.TextEdit?.Origin);
         Assert.Single(window.Annotations);
     }
 
@@ -596,6 +671,25 @@ public sealed class ScreenshotAnnotationShortcutTests
         Assert.InRange(initialWidth, 20, 48);
         Assert.Equal(4, window.TextEditorControlPointCount);
         Assert.Equal(0, Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(window.TextEditor.Background).Color.A);
+        Assert.Equal(new Thickness(8), window.TextEditor.Padding);
+        Assert.Equal(VerticalAlignment.Top, window.TextEditor.VerticalContentAlignment);
+        Assert.Equal(
+            ScreenshotTextStyle.Default.FontSize *
+            ScreenshotTextMetrics.LineHeightMultiplier,
+            window.TextEditor.LineHeight);
+        Assert.Equal(
+            ScrollBarVisibility.Disabled,
+            ScrollViewer.GetHorizontalScrollBarVisibility(window.TextEditor));
+        Assert.Equal(
+            ScrollBarVisibility.Disabled,
+            ScrollViewer.GetVerticalScrollBarVisibility(window.TextEditor));
+        Assert.Equal(
+            new Point(100, 120),
+            window.TextEditor.TranslatePoint(
+                new Point(
+                    window.TextEditor.Padding.Left,
+                    window.TextEditor.Padding.Top),
+                window));
 
         window.KeyTextInput("一段会让输入框横向增长的文字");
 
@@ -603,6 +697,79 @@ public sealed class ScreenshotAnnotationShortcutTests
             window.TextEditorVisualWidth > initialWidth,
             $"initial={initialWidth}, current={window.TextEditorVisualWidth}, text={window.TextEdit?.Text}");
         Assert.InRange(window.TextEditorVisualWidth, 20, 400);
+    }
+
+    [AvaloniaFact]
+    public void TextEditorDoesNotShowOrRespondToInternalScrolling()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        window.TextEditor.Text = string.Join(
+            '\n',
+            Enumerable.Range(1, 20).Select(index => $"第 {index} 行"));
+        window.UpdateLayout();
+
+        var scrollViewer = Assert.Single(
+            window.TextEditor.GetVisualDescendants().OfType<ScrollViewer>());
+        Assert.DoesNotContain(
+            window.TextEditor.GetVisualDescendants().OfType<ScrollBar>(),
+            scrollBar => scrollBar.IsVisible);
+        var offset = scrollViewer.Offset;
+
+        window.MouseWheel(
+            new Point(105, 125),
+            new Vector(0, -5),
+            RawInputModifiers.None);
+        window.UpdateLayout();
+
+        Assert.Equal(offset, scrollViewer.Offset);
+    }
+
+    [AvaloniaFact]
+    public void TextEditorKeepsItsFullContentWidthWhenTextReachesTheSelectionEdge()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        window.KeyTextInput(new string('W', 80));
+        window.UpdateLayout();
+
+        var edit = Assert.IsType<ScreenshotTextEdit>(window.TextEdit);
+        var contentWidth = window.TextEditor.Bounds.Width -
+            window.TextEditor.Padding.Left -
+            window.TextEditor.Padding.Right;
+        var measured = ScreenshotAnnotationRenderer.MeasureText(
+            new ScreenshotTextAnnotation(
+                edit.Origin,
+                edit.Text,
+                edit.MaxWidth,
+                edit.Style));
+
+        Assert.InRange(contentWidth, measured.Width, measured.Width + 1);
+        Assert.Equal(
+            new Point(100, 120),
+            window.TextEditor.TranslatePoint(
+                new Point(
+                    window.TextEditor.Padding.Left,
+                    window.TextEditor.Padding.Top),
+                window));
     }
 
     [AvaloniaFact]
@@ -716,7 +883,20 @@ public sealed class ScreenshotAnnotationShortcutTests
             RawInputModifiers.None);
 
         Assert.True(window.TextEditorVisible);
-        Assert.InRange(window.TextEditorVisualHeight, 1, 8);
+        Assert.Equal(
+            ScreenshotTextStyle.Default.FontSize *
+                ScreenshotTextMetrics.LineHeightMultiplier +
+                ScreenshotUiTheme.TextEditorMeasuredHeightPadding,
+            window.TextEditorVisualHeight,
+            precision: 3);
+        var editorBottom = Assert.IsType<Point>(
+            window.TextEditor.TranslatePoint(
+                new Point(
+                    0,
+                    window.TextEditor.Bounds.Height +
+                        ScreenshotUiTheme.FloatingBorderThickness),
+                window));
+        Assert.Equal(300, editorBottom.Y, precision: 3);
     }
 
     [AvaloniaFact]
