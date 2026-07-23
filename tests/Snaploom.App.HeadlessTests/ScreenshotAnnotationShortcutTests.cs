@@ -4,6 +4,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.VisualTree;
 using System.Runtime.InteropServices;
 using Snaploom.Core;
 using Snaploom.Platform.Abstractions;
@@ -150,7 +151,25 @@ public sealed class ScreenshotAnnotationShortcutTests
             : RawInputModifiers.Control;
         window.KeyPress(Key.Enter, commandModifier, PhysicalKey.Enter, "\r");
 
-        Drag(window, new Point(105, 125), new Point(205, 155));
+        var canvas = Assert.Single(
+            window.GetVisualDescendants().OfType<ScreenshotSelectionCanvas>());
+        window.MouseMove(new Point(105, 125), RawInputModifiers.None);
+        Assert.Equal(ScreenshotPointerFeedback.SelectAnnotation, canvas.PointerFeedback);
+        Assert.Same(AppCursorStyles.PointerCursor, canvas.Cursor);
+
+        window.MouseDown(
+            new Point(105, 125),
+            MouseButton.Left,
+            RawInputModifiers.LeftMouseButton);
+        Assert.Equal(ScreenshotPointerFeedback.SelectAnnotation, canvas.PointerFeedback);
+        Assert.Same(AppCursorStyles.PointerCursor, canvas.Cursor);
+
+        window.MouseMove(new Point(205, 155), RawInputModifiers.LeftMouseButton);
+        Assert.Equal(ScreenshotPointerFeedback.MoveAnnotation, canvas.PointerFeedback);
+        window.MouseUp(
+            new Point(205, 155),
+            MouseButton.Left,
+            RawInputModifiers.None);
 
         Assert.False(window.TextEditorVisible);
         Assert.Null(window.TextEdit);
@@ -229,6 +248,36 @@ public sealed class ScreenshotAnnotationShortcutTests
         Assert.True(window.TextEditorVisible);
         Assert.Equal(new LogicalPoint(150, 110), window.TextEdit?.Origin);
         Assert.Single(window.Annotations);
+    }
+
+    [AvaloniaFact]
+    public void FirstSelectionCornerClickCommitsTextWithoutResizing()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        window.TextEditor.Text = "提交后再缩放";
+        var canvas = Assert.Single(
+            window.GetVisualDescendants().OfType<ScreenshotSelectionCanvas>());
+        var selectionBeforeClick = canvas.Session.Selection;
+
+        Click(window, new Point(50, 50));
+
+        Assert.False(window.TextEditorVisible);
+        Assert.Null(window.TextEdit);
+        Assert.Equal(selectionBeforeClick, canvas.Session.Selection);
+        Assert.Equal(ScreenshotSessionState.Selected, canvas.Session.State);
+        Assert.Equal(
+            "提交后再缩放",
+            Assert.IsType<ScreenshotTextAnnotation>(Assert.Single(window.Annotations)).Text);
     }
 
     [AvaloniaFact]
