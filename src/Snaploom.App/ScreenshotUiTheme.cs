@@ -28,16 +28,14 @@ internal static class ScreenshotUiTheme
     internal static readonly IBrush SizeBadgeTextBrush = Brushes.White;
     internal static readonly IBrush AnnotationControlFillBrush = Brushes.White;
     internal static readonly IBrush MoveCursorFillBrush = Brushes.Black;
-    internal static readonly IBrush MoveCursorOutlineBrush = Brushes.White;
     internal static readonly IBrush DimBrush = new SolidColorBrush(Color.FromArgb(115, 0, 0, 0));
     internal static readonly Geometry AnnotationOptionsPointerGeometry =
         Geometry.Parse("M 0 7 L 6 0 L 12 7 Z");
     internal static readonly StreamGeometry MoveCursorGeometry = StreamGeometry.Parse(
-        "M 12,3 L 8.5,6.5 L 10.5,6.5 L 10.5,10.5 L 6.5,10.5 " +
-        "L 6.5,8.5 L 3,12 L 6.5,15.5 L 6.5,13.5 L 10.5,13.5 " +
-        "L 10.5,17.5 L 8.5,17.5 L 12,21 L 15.5,17.5 L 13.5,17.5 " +
-        "L 13.5,13.5 L 17.5,13.5 L 17.5,15.5 L 21,12 L 17.5,8.5 " +
-        "L 17.5,10.5 L 13.5,10.5 L 13.5,6.5 L 15.5,6.5 Z");
+        "M 12,3 L 8,7 L 10,7 L 10,10 L 7,10 L 7,8 L 3,12 " +
+        "L 7,16 L 7,14 L 10,14 L 10,17 L 8,17 L 12,21 " +
+        "L 16,17 L 14,17 L 14,14 L 17,14 L 17,16 L 21,12 " +
+        "L 17,8 L 17,10 L 14,10 L 14,7 L 16,7 Z");
     internal static readonly BoxShadows FloatingShadow = new(
         new BoxShadow
         {
@@ -86,7 +84,6 @@ internal static class ScreenshotUiTheme
     internal const double AnnotationControlBorderThickness = 1;
     internal const double AnnotationControlCornerRadius = 1;
     internal const int MoveCursorSize = 24;
-    internal const double MoveCursorOutlineThickness = 1;
     internal const double IconSize = 18;
     internal const double ColorSwatchRadius = 6;
     internal const double LineWidthPreviewHorizontalPadding = 2;

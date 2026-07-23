@@ -15,9 +15,7 @@ internal static class ScreenshotMoveCursor
         {
             context.DrawGeometry(
                 ScreenshotUiTheme.MoveCursorFillBrush,
-                new Pen(
-                    ScreenshotUiTheme.MoveCursorOutlineBrush,
-                    ScreenshotUiTheme.MoveCursorOutlineThickness),
+                pen: null,
                 ScreenshotUiTheme.MoveCursorGeometry);
         }
 
