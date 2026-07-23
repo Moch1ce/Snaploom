@@ -1664,7 +1664,8 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
     private void DrawSelectedAnnotationControls(DrawingContext context, Rect selection)
     {
-        if (_annotationSession.SelectedAnnotation is not { } annotation)
+        if (_annotationSession.TextEdit is not null ||
+            _annotationSession.SelectedAnnotation is not { } annotation)
         {
             return;
         }

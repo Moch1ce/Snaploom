@@ -876,6 +876,35 @@ public sealed class ScreenshotAnnotationShortcutTests
     }
 
     [AvaloniaFact]
+    public void EditingCommittedTextDoesNotRenderAGreenSelectionBorder()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        window.TextEditor.Text = "已有文字";
+        var commandModifier = OperatingSystem.IsMacOS()
+            ? RawInputModifiers.Meta
+            : RawInputModifiers.Control;
+        window.KeyPress(Key.Enter, commandModifier, PhysicalKey.Enter, "\r");
+
+        Click(window, new Point(105, 125));
+        using var renderedFrame = window.CaptureRenderedFrame();
+        Assert.NotNull(renderedFrame);
+
+        AssertNoAccentPixels(
+            renderedFrame,
+            new PixelRect(98, 118, 110, 4));
+    }
+
+    [AvaloniaFact]
     public void FocusedTextEditorCaretRendersInsideItsBorder()
     {
         var frame = CreateFrame(width: 600, height: 400);
@@ -1061,6 +1090,37 @@ public sealed class ScreenshotAnnotationShortcutTests
         }
 
         Assert.Equal(0, bluePixelCount);
+    }
+
+    private static void AssertNoAccentPixels(Bitmap bitmap, PixelRect region)
+    {
+        using var pixels = new WriteableBitmap(
+            bitmap.PixelSize,
+            bitmap.Dpi,
+            PixelFormat.Bgra8888,
+            AlphaFormat.Premul);
+        using var framebuffer = pixels.Lock();
+        bitmap.CopyPixels(framebuffer);
+        var bytes = new byte[framebuffer.RowBytes * bitmap.PixelSize.Height];
+        Marshal.Copy(framebuffer.Address, bytes, 0, bytes.Length);
+
+        var accentPixelCount = 0;
+        for (var y = region.Y; y < region.Bottom; y++)
+        {
+            for (var x = region.X; x < region.Right; x++)
+            {
+                var offset = (y * framebuffer.RowBytes) + (x * 4);
+                var blue = bytes[offset];
+                var green = bytes[offset + 1];
+                var red = bytes[offset + 2];
+                if (green > 150 && green > red + 60 && green > blue + 40)
+                {
+                    accentPixelCount++;
+                }
+            }
+        }
+
+        Assert.Equal(0, accentPixelCount);
     }
 
     private static void AssertAccentPixelsStayInside(
