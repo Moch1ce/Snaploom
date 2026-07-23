@@ -1185,37 +1185,22 @@ public sealed class ScreenshotAnnotationShortcutTests
 
     private static PixelRect GetAccentPixelBounds(Bitmap bitmap, PixelRect region)
     {
-        using var pixels = new WriteableBitmap(
-            bitmap.PixelSize,
-            bitmap.Dpi,
-            PixelFormat.Bgra8888,
-            AlphaFormat.Premul);
-        using var framebuffer = pixels.Lock();
-        bitmap.CopyPixels(framebuffer);
-        var bytes = new byte[framebuffer.RowBytes * bitmap.PixelSize.Height];
-        Marshal.Copy(framebuffer.Address, bytes, 0, bytes.Length);
-
         var minimumX = int.MaxValue;
         var minimumY = int.MaxValue;
         var maximumX = int.MinValue;
         var maximumY = int.MinValue;
-        for (var y = region.Y; y < region.Bottom; y++)
-        {
-            for (var x = region.X; x < region.Right; x++)
+        VisitMatchingPixels(
+            bitmap,
+            region,
+            static (blue, green, red) =>
+                green > 100 && green > red + 20 && green > blue + 20,
+            (x, y) =>
             {
-                var offset = (y * framebuffer.RowBytes) + (x * 4);
-                var blue = bytes[offset];
-                var green = bytes[offset + 1];
-                var red = bytes[offset + 2];
-                if (green > 100 && green > red + 20 && green > blue + 20)
-                {
-                    minimumX = Math.Min(minimumX, x);
-                    minimumY = Math.Min(minimumY, y);
-                    maximumX = Math.Max(maximumX, x);
-                    maximumY = Math.Max(maximumY, y);
-                }
-            }
-        }
+                minimumX = Math.Min(minimumX, x);
+                minimumY = Math.Min(minimumY, y);
+                maximumX = Math.Max(maximumX, x);
+                maximumY = Math.Max(maximumY, y);
+            });
 
         Assert.True(minimumX <= maximumX && minimumY <= maximumY);
         return new PixelRect(
@@ -1227,6 +1212,22 @@ public sealed class ScreenshotAnnotationShortcutTests
 
     private static int CountAccentPixels(Bitmap bitmap, PixelRect region)
     {
+        var accentPixelCount = 0;
+        VisitMatchingPixels(
+            bitmap,
+            region,
+            static (blue, green, red) =>
+                green > 150 && green > red + 60 && green > blue + 40,
+            (_, _) => accentPixelCount++);
+        return accentPixelCount;
+    }
+
+    private static void VisitMatchingPixels(
+        Bitmap bitmap,
+        PixelRect region,
+        Func<byte, byte, byte, bool> matches,
+        Action<int, int> visit)
+    {
         using var pixels = new WriteableBitmap(
             bitmap.PixelSize,
             bitmap.Dpi,
@@ -1237,7 +1238,6 @@ public sealed class ScreenshotAnnotationShortcutTests
         var bytes = new byte[framebuffer.RowBytes * bitmap.PixelSize.Height];
         Marshal.Copy(framebuffer.Address, bytes, 0, bytes.Length);
 
-        var accentPixelCount = 0;
         for (var y = region.Y; y < region.Bottom; y++)
         {
             for (var x = region.X; x < region.Right; x++)
@@ -1246,14 +1246,12 @@ public sealed class ScreenshotAnnotationShortcutTests
                 var blue = bytes[offset];
                 var green = bytes[offset + 1];
                 var red = bytes[offset + 2];
-                if (green > 150 && green > red + 60 && green > blue + 40)
+                if (matches(blue, green, red))
                 {
-                    accentPixelCount++;
+                    visit(x, y);
                 }
             }
         }
-
-        return accentPixelCount;
     }
 
     private static void AssertAccentPixelsStayInside(
