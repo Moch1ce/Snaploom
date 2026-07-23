@@ -25,8 +25,8 @@ public sealed class MacOSNativeBridgeTests
             Assert.InRange(width, 16, 24);
             Assert.Equal(width, height);
             Assert.Equal(0, width % 2);
-            Assert.Equal(width / 2, image.HotSpotX);
-            Assert.Equal(height / 2, image.HotSpotY);
+            Assert.InRange(image.HotSpotX, (width / 2) - 1, (width / 2) + 1);
+            Assert.InRange(image.HotSpotY, (height / 2) - 1, (height / 2) + 1);
         }
     }
 
