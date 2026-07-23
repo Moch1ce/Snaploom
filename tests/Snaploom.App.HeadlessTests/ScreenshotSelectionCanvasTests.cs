@@ -423,6 +423,57 @@ public sealed class ScreenshotSelectionCanvasTests
     }
 
     [AvaloniaFact]
+    public void PressingInsideSelectionImmediatelyShowsMoveFeedback()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            Drag(window, new Point(10, 10), new Point(80, 80));
+
+            window.MouseDown(
+                new Point(70, 70),
+                MouseButton.Left,
+                RawInputModifiers.LeftMouseButton);
+
+            Assert.Equal(ScreenshotSessionState.MovingSelection, canvas.Session.State);
+            Assert.Equal(ScreenshotPointerFeedback.MoveSelection, canvas.PointerFeedback);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void PressingAnnotationImmediatelyShowsMoveFeedback()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            Drag(window, new Point(10, 10), new Point(80, 80));
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Rectangle);
+            Drag(window, new Point(20, 20), new Point(50, 45));
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Select);
+
+            window.MouseDown(
+                new Point(20, 30),
+                MouseButton.Left,
+                RawInputModifiers.LeftMouseButton);
+
+            Assert.True(canvas.SelectedAnnotation is ScreenshotRectangleAnnotation);
+            Assert.Equal(ScreenshotPointerFeedback.MoveAnnotation, canvas.PointerFeedback);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public void SelectedRectangleShowsEightControlPointsAndResizesFromAnEdge()
     {
         using var frame = CreateHighDpiFrame();

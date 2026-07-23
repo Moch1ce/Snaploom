@@ -494,6 +494,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                     _annotationSession.Select(hitIndex);
                     _annotationSession.BeginMoveSelected(relativePoint);
                     CapturePointer(e.Pointer);
+                    SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
                     _annotationBitmapDirty = true;
                     _mosaicCacheDirty = true;
                     AnnotationSelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -523,6 +524,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
                 _session.BeginMoveSelection(physicalPoint);
                 CapturePointer(e.Pointer);
+                SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveSelection);
                 SelectionChanged?.Invoke(this, EventArgs.Empty);
                 InvalidateVisual();
                 e.Handled = true;
