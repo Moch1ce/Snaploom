@@ -11,34 +11,34 @@ namespace Snaploom.App.HeadlessTests;
 public sealed class ScreenshotSelectionCanvasTests
 {
     [AvaloniaFact]
-    public void MoveCursorUsesPureBlackBlockStyleFourDirectionalArrows()
+    public void MoveCursorUsesCompactPureBlackBlockStyleFourDirectionalArrows()
     {
         var geometry = ScreenshotUiTheme.MoveCursorGeometry;
 
         Assert.Equal(24, ScreenshotUiTheme.MoveCursorSize);
         Assert.Same(Brushes.Black, ScreenshotUiTheme.MoveCursorFillBrush);
-        Assert.Equal(new Rect(3, 3, 18, 18), geometry.Bounds);
+        Assert.Equal(new Rect(4, 4, 16, 16), geometry.Bounds);
         Assert.All(
             new[]
             {
-                new Point(12, 3.5),
-                new Point(20.5, 12),
-                new Point(12, 20.5),
-                new Point(3.5, 12),
+                new Point(12, 4.5),
+                new Point(19.5, 12),
+                new Point(12, 19.5),
+                new Point(4.5, 12),
                 new Point(12, 12),
-                new Point(10.25, 8),
-                new Point(8, 10.25),
-                new Point(13.75, 16),
-                new Point(16, 13.75),
+                new Point(10.75, 8.5),
+                new Point(8.5, 10.75),
+                new Point(13.25, 15.5),
+                new Point(15.5, 13.25),
             },
             point => Assert.True(geometry.FillContains(point)));
         Assert.All(
             new[]
             {
-                new Point(4, 4),
-                new Point(20, 4),
-                new Point(20, 20),
-                new Point(4, 20),
+                new Point(5, 5),
+                new Point(19, 5),
+                new Point(19, 19),
+                new Point(5, 19),
             },
             point => Assert.False(geometry.FillContains(point)));
     }

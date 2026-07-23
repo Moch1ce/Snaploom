@@ -32,10 +32,11 @@ internal static class ScreenshotUiTheme
     internal static readonly Geometry AnnotationOptionsPointerGeometry =
         Geometry.Parse("M 0 7 L 6 0 L 12 7 Z");
     internal static readonly StreamGeometry MoveCursorGeometry = StreamGeometry.Parse(
-        "M 12,3 L 8,7 L 10,7 L 10,10 L 7,10 L 7,8 L 3,12 " +
-        "L 7,16 L 7,14 L 10,14 L 10,17 L 8,17 L 12,21 " +
-        "L 16,17 L 14,17 L 14,14 L 17,14 L 17,16 L 21,12 " +
-        "L 17,8 L 17,10 L 14,10 L 14,7 L 16,7 Z");
+        "M 12,4 L 8.5,7.5 L 10.5,7.5 L 10.5,10.5 L 7.5,10.5 " +
+        "L 7.5,8.5 L 4,12 L 7.5,15.5 L 7.5,13.5 L 10.5,13.5 " +
+        "L 10.5,16.5 L 8.5,16.5 L 12,20 L 15.5,16.5 L 13.5,16.5 " +
+        "L 13.5,13.5 L 16.5,13.5 L 16.5,15.5 L 20,12 L 16.5,8.5 " +
+        "L 16.5,10.5 L 13.5,10.5 L 13.5,7.5 L 15.5,7.5 Z");
     internal static readonly BoxShadows FloatingShadow = new(
         new BoxShadow
         {
