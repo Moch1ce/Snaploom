@@ -42,13 +42,16 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     private readonly Cursor _moveCursor = ScreenshotMoveCursor.Create();
     private readonly Cursor _textCursor = new(StandardCursorType.Ibeam);
     private readonly Cursor _defaultCursor = new(StandardCursorType.Arrow);
-    private readonly Cursor _horizontalResizeCursor = new(StandardCursorType.SizeWestEast);
-    private readonly Cursor _verticalResizeCursor = new(StandardCursorType.SizeNorthSouth);
-    private readonly Cursor _northWestSouthEastResizeCursor =
-        new(StandardCursorType.TopLeftCorner);
-    private readonly Cursor _northEastSouthWestResizeCursor =
-        new(StandardCursorType.TopRightCorner);
-    private readonly Cursor _arrowEndpointCursor = new(StandardCursorType.DragMove);
+    private readonly Dictionary<StandardCursorType, Cursor> _resizeCursors = new()
+    {
+        [StandardCursorType.SizeWestEast] = new(StandardCursorType.SizeWestEast),
+        [StandardCursorType.SizeNorthSouth] = new(StandardCursorType.SizeNorthSouth),
+        [StandardCursorType.TopLeftCorner] = new(StandardCursorType.TopLeftCorner),
+        [StandardCursorType.TopRightCorner] = new(StandardCursorType.TopRightCorner),
+        [StandardCursorType.BottomRightCorner] = new(StandardCursorType.BottomRightCorner),
+        [StandardCursorType.BottomLeftCorner] = new(StandardCursorType.BottomLeftCorner),
+        [StandardCursorType.DragMove] = new(StandardCursorType.DragMove),
+    };
     private Point? _pendingSelectionStart;
     private PendingTextAnnotationInteraction? _pendingTextAnnotationInteraction;
     private PhysicalPoint? _snapHoverOrigin;
@@ -184,11 +187,10 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         _moveCursor.Dispose();
         _textCursor.Dispose();
         _defaultCursor.Dispose();
-        _horizontalResizeCursor.Dispose();
-        _verticalResizeCursor.Dispose();
-        _northWestSouthEastResizeCursor.Dispose();
-        _northEastSouthWestResizeCursor.Dispose();
-        _arrowEndpointCursor.Dispose();
+        foreach (var cursor in _resizeCursors.Values)
+        {
+            cursor.Dispose();
+        }
         _annotationBitmap?.Dispose();
         ResetMosaicCache();
         _annotationSession.Clear();
@@ -1197,49 +1199,66 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
     private void SetResizePointerFeedback(SelectionResizeHandle handle)
     {
-        if (handle is SelectionResizeHandle.Left or SelectionResizeHandle.Right)
-        {
-            SetPointerCursor(_horizontalResizeCursor, ScreenshotPointerFeedback.ResizeHorizontal);
-        }
-        else if (handle is SelectionResizeHandle.Top or SelectionResizeHandle.Bottom)
-        {
-            SetPointerCursor(_verticalResizeCursor, ScreenshotPointerFeedback.ResizeVertical);
-        }
-        else
-        {
-            SetPointerCursor(
-                handle is SelectionResizeHandle.TopLeft or SelectionResizeHandle.BottomRight
-                    ? _northWestSouthEastResizeCursor
-                    : _northEastSouthWestResizeCursor,
-                ScreenshotPointerFeedback.ResizeDiagonal);
-        }
+        var cursorType = GetResizeCursorType(handle);
+        SetPointerCursor(_resizeCursors[cursorType], GetResizePointerFeedback(cursorType));
     }
 
     private void SetResizePointerFeedback(
         IScreenshotAnnotation annotation,
         AnnotationResizeHandle handle)
     {
-        if (annotation is ScreenshotArrowAnnotation)
-        {
-            SetPointerCursor(_arrowEndpointCursor, ScreenshotPointerFeedback.ResizeArrow);
-        }
-        else if (handle is AnnotationResizeHandle.Left or AnnotationResizeHandle.Right)
-        {
-            SetPointerCursor(_horizontalResizeCursor, ScreenshotPointerFeedback.ResizeHorizontal);
-        }
-        else if (handle is AnnotationResizeHandle.Top or AnnotationResizeHandle.Bottom)
-        {
-            SetPointerCursor(_verticalResizeCursor, ScreenshotPointerFeedback.ResizeVertical);
-        }
-        else
-        {
-            SetPointerCursor(
-                handle is AnnotationResizeHandle.TopLeft or AnnotationResizeHandle.BottomRight
-                    ? _northWestSouthEastResizeCursor
-                    : _northEastSouthWestResizeCursor,
-                ScreenshotPointerFeedback.ResizeDiagonal);
-        }
+        var cursorType = annotation is ScreenshotArrowAnnotation
+            ? StandardCursorType.DragMove
+            : GetResizeCursorType(handle);
+        SetPointerCursor(_resizeCursors[cursorType], GetResizePointerFeedback(cursorType));
     }
+
+    internal static StandardCursorType GetResizeCursorType(SelectionResizeHandle handle) =>
+        handle switch
+        {
+            SelectionResizeHandle.Left or SelectionResizeHandle.Right =>
+                StandardCursorType.SizeWestEast,
+            SelectionResizeHandle.Top or SelectionResizeHandle.Bottom =>
+                StandardCursorType.SizeNorthSouth,
+            SelectionResizeHandle.TopLeft => StandardCursorType.TopLeftCorner,
+            SelectionResizeHandle.TopRight => StandardCursorType.TopRightCorner,
+            SelectionResizeHandle.BottomRight => StandardCursorType.BottomRightCorner,
+            SelectionResizeHandle.BottomLeft => StandardCursorType.BottomLeftCorner,
+            _ => throw new ArgumentOutOfRangeException(nameof(handle)),
+        };
+
+    internal static StandardCursorType GetResizeCursorType(AnnotationResizeHandle handle) =>
+        handle switch
+        {
+            AnnotationResizeHandle.Start or AnnotationResizeHandle.End =>
+                StandardCursorType.DragMove,
+            _ => GetResizeCursorType(ToSelectionResizeHandle(handle)),
+        };
+
+    private static SelectionResizeHandle ToSelectionResizeHandle(
+        AnnotationResizeHandle handle) =>
+        handle switch
+        {
+            AnnotationResizeHandle.TopLeft => SelectionResizeHandle.TopLeft,
+            AnnotationResizeHandle.Top => SelectionResizeHandle.Top,
+            AnnotationResizeHandle.TopRight => SelectionResizeHandle.TopRight,
+            AnnotationResizeHandle.Right => SelectionResizeHandle.Right,
+            AnnotationResizeHandle.BottomRight => SelectionResizeHandle.BottomRight,
+            AnnotationResizeHandle.Bottom => SelectionResizeHandle.Bottom,
+            AnnotationResizeHandle.BottomLeft => SelectionResizeHandle.BottomLeft,
+            AnnotationResizeHandle.Left => SelectionResizeHandle.Left,
+            _ => throw new ArgumentOutOfRangeException(nameof(handle)),
+        };
+
+    private static ScreenshotPointerFeedback GetResizePointerFeedback(
+        StandardCursorType cursorType) =>
+        cursorType switch
+        {
+            StandardCursorType.SizeWestEast => ScreenshotPointerFeedback.ResizeHorizontal,
+            StandardCursorType.SizeNorthSouth => ScreenshotPointerFeedback.ResizeVertical,
+            StandardCursorType.DragMove => ScreenshotPointerFeedback.ResizeArrow,
+            _ => ScreenshotPointerFeedback.ResizeDiagonal,
+        };
 
     private void SetPointerCursor(Cursor cursor, ScreenshotPointerFeedback feedback)
     {

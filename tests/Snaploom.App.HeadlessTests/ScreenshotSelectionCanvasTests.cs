@@ -11,6 +11,89 @@ namespace Snaploom.App.HeadlessTests;
 public sealed class ScreenshotSelectionCanvasTests
 {
     [AvaloniaFact]
+    public void ResizeHandlesUseTheirCorrespondingSystemCursorTypes()
+    {
+        Assert.Equal(
+            StandardCursorType.SizeWestEast,
+            ScreenshotSelectionCanvas.GetResizeCursorType(SelectionResizeHandle.Left));
+        Assert.Equal(
+            StandardCursorType.SizeNorthSouth,
+            ScreenshotSelectionCanvas.GetResizeCursorType(SelectionResizeHandle.Bottom));
+        Assert.Equal(
+            StandardCursorType.TopLeftCorner,
+            ScreenshotSelectionCanvas.GetResizeCursorType(SelectionResizeHandle.TopLeft));
+        Assert.Equal(
+            StandardCursorType.TopRightCorner,
+            ScreenshotSelectionCanvas.GetResizeCursorType(SelectionResizeHandle.TopRight));
+        Assert.Equal(
+            StandardCursorType.BottomRightCorner,
+            ScreenshotSelectionCanvas.GetResizeCursorType(SelectionResizeHandle.BottomRight));
+        Assert.Equal(
+            StandardCursorType.BottomLeftCorner,
+            ScreenshotSelectionCanvas.GetResizeCursorType(SelectionResizeHandle.BottomLeft));
+
+        Assert.Equal(
+            StandardCursorType.TopLeftCorner,
+            ScreenshotSelectionCanvas.GetResizeCursorType(AnnotationResizeHandle.TopLeft));
+        Assert.Equal(
+            StandardCursorType.TopRightCorner,
+            ScreenshotSelectionCanvas.GetResizeCursorType(AnnotationResizeHandle.TopRight));
+        Assert.Equal(
+            StandardCursorType.BottomRightCorner,
+            ScreenshotSelectionCanvas.GetResizeCursorType(AnnotationResizeHandle.BottomRight));
+        Assert.Equal(
+            StandardCursorType.BottomLeftCorner,
+            ScreenshotSelectionCanvas.GetResizeCursorType(AnnotationResizeHandle.BottomLeft));
+        Assert.Equal(
+            StandardCursorType.SizeWestEast,
+            ScreenshotSelectionCanvas.GetResizeCursorType(AnnotationResizeHandle.Left));
+        Assert.Equal(
+            StandardCursorType.SizeNorthSouth,
+            ScreenshotSelectionCanvas.GetResizeCursorType(AnnotationResizeHandle.Bottom));
+        Assert.Equal(
+            StandardCursorType.DragMove,
+            ScreenshotSelectionCanvas.GetResizeCursorType(AnnotationResizeHandle.End));
+    }
+
+    [AvaloniaFact]
+    public void SelectionCornersApplyFourDistinctDirectionalCursors()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            Drag(window, new Point(10, 10), new Point(80, 80));
+            var selection = Assert.IsType<Rect>(canvas.LogicalSelection);
+            var cursors = new List<Cursor>();
+            foreach (var corner in new[]
+            {
+                selection.TopLeft,
+                selection.TopRight,
+                selection.BottomRight,
+                selection.BottomLeft,
+            })
+            {
+                window.MouseMove(corner, RawInputModifiers.None);
+                Assert.Equal(ScreenshotPointerFeedback.ResizeDiagonal, canvas.PointerFeedback);
+                cursors.Add(Assert.IsType<Cursor>(canvas.Cursor));
+            }
+
+            for (var first = 0; first < cursors.Count; first++)
+            {
+                for (var second = first + 1; second < cursors.Count; second++)
+                {
+                    Assert.NotSame(cursors[first], cursors[second]);
+                }
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public void MoveCursorUsesSmallThinPureBlackBlockStyleFourDirectionalArrows()
     {
         var geometry = ScreenshotUiTheme.MoveCursorGeometry;
