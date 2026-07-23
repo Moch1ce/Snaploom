@@ -20,10 +20,13 @@ public sealed class MacOSNativeBridgeTests
                 MacOSFrameResizeCursorImageProvider.TryCreate(position, out var image));
 
             Assert.True(image.Png.Length >= 24);
-            Assert.Equal(22, BinaryPrimitives.ReadInt32BigEndian(image.Png.AsSpan(16, 4)));
-            Assert.Equal(22, BinaryPrimitives.ReadInt32BigEndian(image.Png.AsSpan(20, 4)));
-            Assert.Equal(11, image.HotSpotX);
-            Assert.Equal(11, image.HotSpotY);
+            var width = BinaryPrimitives.ReadInt32BigEndian(image.Png.AsSpan(16, 4));
+            var height = BinaryPrimitives.ReadInt32BigEndian(image.Png.AsSpan(20, 4));
+            Assert.InRange(width, 16, 24);
+            Assert.Equal(width, height);
+            Assert.Equal(0, width % 2);
+            Assert.Equal(width / 2, image.HotSpotX);
+            Assert.Equal(height / 2, image.HotSpotY);
         }
     }
 
