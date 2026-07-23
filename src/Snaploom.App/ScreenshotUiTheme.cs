@@ -28,6 +28,8 @@ internal static class ScreenshotUiTheme
     internal static readonly IBrush SizeBadgeTextBrush = Brushes.White;
     internal static readonly IBrush AnnotationControlFillBrush = Brushes.White;
     internal static readonly IBrush MoveCursorFillBrush = Brushes.Black;
+    internal static readonly IBrush ResizeCursorFallbackFillBrush = Brushes.Black;
+    internal static readonly IBrush ResizeCursorFallbackOutlineBrush = Brushes.White;
     internal static readonly IBrush DimBrush = new SolidColorBrush(Color.FromArgb(115, 0, 0, 0));
     internal static readonly Geometry AnnotationOptionsPointerGeometry =
         Geometry.Parse("M 0 7 L 6 0 L 12 7 Z");
@@ -36,6 +38,22 @@ internal static class ScreenshotUiTheme
         "L 7.5,14.5 L 7.5,13 L 11,13 L 11,16.5 L 9.5,16.5 L 12,19 " +
         "L 14.5,16.5 L 13,16.5 L 13,13 L 16.5,13 L 16.5,14.5 L 19,12 " +
         "L 16.5,9.5 L 16.5,11 L 13,11 L 13,7.5 L 14.5,7.5 Z");
+    internal static readonly StreamGeometry ResizeCursorTopLeftFallbackGeometry =
+        StreamGeometry.Parse(
+            "M 3,3 L 10,4 L 7.5,6.5 L 15.5,14.5 L 14.5,15.5 " +
+            "L 6.5,7.5 L 4,10 Z");
+    internal static readonly StreamGeometry ResizeCursorTopRightFallbackGeometry =
+        StreamGeometry.Parse(
+            "M 19,3 L 18,10 L 15.5,7.5 L 7.5,15.5 L 6.5,14.5 " +
+            "L 14.5,6.5 L 12,4 Z");
+    internal static readonly StreamGeometry ResizeCursorBottomRightFallbackGeometry =
+        StreamGeometry.Parse(
+            "M 19,19 L 12,18 L 14.5,15.5 L 6.5,7.5 L 7.5,6.5 " +
+            "L 15.5,14.5 L 18,12 Z");
+    internal static readonly StreamGeometry ResizeCursorBottomLeftFallbackGeometry =
+        StreamGeometry.Parse(
+            "M 3,19 L 4,12 L 6.5,14.5 L 14.5,6.5 L 15.5,7.5 " +
+            "L 7.5,15.5 L 10,18 Z");
     internal static readonly BoxShadows FloatingShadow = new(
         new BoxShadow
         {
@@ -84,6 +102,8 @@ internal static class ScreenshotUiTheme
     internal const double AnnotationControlBorderThickness = 1;
     internal const double AnnotationControlCornerRadius = 1;
     internal const int MoveCursorSize = 24;
+    internal const int ResizeCursorFallbackSize = 22;
+    internal const double ResizeCursorFallbackOutlineThickness = 1;
     internal const double IconSize = 18;
     internal const double ColorSwatchRadius = 6;
     internal const double LineWidthPreviewHorizontalPadding = 2;

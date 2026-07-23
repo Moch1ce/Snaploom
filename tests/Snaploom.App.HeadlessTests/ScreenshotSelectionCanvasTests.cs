@@ -79,6 +79,11 @@ public sealed class ScreenshotSelectionCanvasTests
                 cursors.Add(Assert.IsType<Cursor>(canvas.Cursor));
             }
 
+            if (OperatingSystem.IsMacOS())
+            {
+                Assert.All(cursors, cursor => Assert.Equal("BitmapCursor", cursor.ToString()));
+            }
+
             for (var first = 0; first < cursors.Count; first++)
             {
                 for (var second = first + 1; second < cursors.Count; second++)
@@ -86,6 +91,37 @@ public sealed class ScreenshotSelectionCanvasTests
                     Assert.NotSame(cursors[first], cursors[second]);
                 }
             }
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void SelectionBordersResizeFromAnywhereAlongEachEdge()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            Drag(window, new Point(10, 10), new Point(80, 80));
+            foreach (var (point, feedback) in new[]
+            {
+                (new Point(30, 10), ScreenshotPointerFeedback.ResizeVertical),
+                (new Point(80, 30), ScreenshotPointerFeedback.ResizeHorizontal),
+                (new Point(60, 80), ScreenshotPointerFeedback.ResizeVertical),
+                (new Point(10, 60), ScreenshotPointerFeedback.ResizeHorizontal),
+            })
+            {
+                window.MouseMove(point, RawInputModifiers.None);
+                Assert.Equal(feedback, canvas.PointerFeedback);
+            }
+
+            Drag(window, new Point(30, 10), new Point(30, 20));
+
+            Assert.Equal(new Rect(10, 20, 70, 60), canvas.LogicalSelection);
         }
         finally
         {
@@ -199,6 +235,34 @@ public sealed class ScreenshotSelectionCanvasTests
                 new Point(15.5, 13.25),
             },
             point => Assert.False(geometry.FillContains(point)));
+    }
+
+    [AvaloniaFact]
+    public void ResizeCursorFallbackUsesFourCompactThemeGeometries()
+    {
+        Assert.Equal(22, ScreenshotUiTheme.ResizeCursorFallbackSize);
+        Assert.Same(Brushes.Black, ScreenshotUiTheme.ResizeCursorFallbackFillBrush);
+        Assert.Same(Brushes.White, ScreenshotUiTheme.ResizeCursorFallbackOutlineBrush);
+        Assert.Equal(1, ScreenshotUiTheme.ResizeCursorFallbackOutlineThickness);
+
+        var geometries = new[]
+        {
+            ScreenshotResizeCursor.GetFallbackGeometry(StandardCursorType.TopLeftCorner),
+            ScreenshotResizeCursor.GetFallbackGeometry(StandardCursorType.TopRightCorner),
+            ScreenshotResizeCursor.GetFallbackGeometry(StandardCursorType.BottomRightCorner),
+            ScreenshotResizeCursor.GetFallbackGeometry(StandardCursorType.BottomLeftCorner),
+        };
+        Assert.Same(ScreenshotUiTheme.ResizeCursorTopLeftFallbackGeometry, geometries[0]);
+        Assert.Same(ScreenshotUiTheme.ResizeCursorTopRightFallbackGeometry, geometries[1]);
+        Assert.Same(ScreenshotUiTheme.ResizeCursorBottomRightFallbackGeometry, geometries[2]);
+        Assert.Same(ScreenshotUiTheme.ResizeCursorBottomLeftFallbackGeometry, geometries[3]);
+        for (var first = 0; first < geometries.Length; first++)
+        {
+            for (var second = first + 1; second < geometries.Length; second++)
+            {
+                Assert.NotSame(geometries[first], geometries[second]);
+            }
+        }
     }
 
     [AvaloniaFact]
@@ -740,8 +804,7 @@ public sealed class ScreenshotSelectionCanvasTests
                 new Point(40, 20),
                 MouseButton.Left,
                 RawInputModifiers.None);
-            Assert.Equal(ScreenshotPointerFeedback.SelectAnnotation, canvas.PointerFeedback);
-            Assert.Same(AppCursorStyles.PointerCursor, canvas.Cursor);
+            Assert.Equal(ScreenshotPointerFeedback.ResizeVertical, canvas.PointerFeedback);
         }
         finally
         {
@@ -918,6 +981,45 @@ public sealed class ScreenshotSelectionCanvasTests
                 Assert.Single(canvas.Annotations));
             Assert.Equal(new LogicalPoint(10, 10), resized.Start);
             Assert.Equal(new LogicalPoint(55, 35), resized.End);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void SelectedRectangleBordersResizeFromAnywhereAlongEachEdge()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            Drag(window, new Point(10, 10), new Point(90, 90));
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Rectangle);
+            Drag(window, new Point(20, 20), new Point(70, 70));
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Select);
+            Click(window, new Point(45, 20));
+
+            foreach (var (point, feedback) in new[]
+            {
+                (new Point(30, 20), ScreenshotPointerFeedback.ResizeVertical),
+                (new Point(70, 30), ScreenshotPointerFeedback.ResizeHorizontal),
+                (new Point(60, 70), ScreenshotPointerFeedback.ResizeVertical),
+                (new Point(20, 60), ScreenshotPointerFeedback.ResizeHorizontal),
+            })
+            {
+                window.MouseMove(point, RawInputModifiers.None);
+                Assert.Equal(feedback, canvas.PointerFeedback);
+            }
+
+            Drag(window, new Point(30, 20), new Point(30, 30));
+
+            var resized = Assert.IsType<ScreenshotRectangleAnnotation>(
+                Assert.Single(canvas.Annotations));
+            Assert.Equal(new LogicalPoint(10, 20), resized.Start);
+            Assert.Equal(new LogicalPoint(60, 60), resized.End);
         }
         finally
         {

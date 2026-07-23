@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using Snaploom.Platform.Abstractions;
 using Snaploom.Platform.MacOS;
 
@@ -5,6 +6,27 @@ namespace Snaploom.IntegrationTests;
 
 public sealed class MacOSNativeBridgeTests
 {
+    [Fact]
+    public void NativeBridgeProvidesCompactFrameResizeCursorImages()
+    {
+        if (!OperatingSystem.IsMacOSVersionAtLeast(15))
+        {
+            return;
+        }
+
+        foreach (var position in Enum.GetValues<MacOSFrameResizeCursorPosition>())
+        {
+            Assert.True(
+                MacOSFrameResizeCursorImageProvider.TryCreate(position, out var image));
+
+            Assert.True(image.Png.Length >= 24);
+            Assert.Equal(22, BinaryPrimitives.ReadInt32BigEndian(image.Png.AsSpan(16, 4)));
+            Assert.Equal(22, BinaryPrimitives.ReadInt32BigEndian(image.Png.AsSpan(20, 4)));
+            Assert.Equal(11, image.HotSpotX);
+            Assert.Equal(11, image.HotSpotY);
+        }
+    }
+
     [Fact]
     public void NativeBridgeReportsScreenCapturePermissionWithoutPrompting()
     {

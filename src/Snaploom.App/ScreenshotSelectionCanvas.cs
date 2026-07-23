@@ -33,6 +33,14 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         int AnnotationIndex,
         Point Start);
 
+    private enum ResizeBorder
+    {
+        Top,
+        Right,
+        Bottom,
+        Left,
+    }
+
     private readonly CapturedFrame _frame;
     private readonly ScreenshotSession _session;
     private readonly ScreenshotAnnotationSession _annotationSession = new();
@@ -47,10 +55,14 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     {
         [StandardCursorType.SizeWestEast] = new(StandardCursorType.SizeWestEast),
         [StandardCursorType.SizeNorthSouth] = new(StandardCursorType.SizeNorthSouth),
-        [StandardCursorType.TopLeftCorner] = new(StandardCursorType.TopLeftCorner),
-        [StandardCursorType.TopRightCorner] = new(StandardCursorType.TopRightCorner),
-        [StandardCursorType.BottomRightCorner] = new(StandardCursorType.BottomRightCorner),
-        [StandardCursorType.BottomLeftCorner] = new(StandardCursorType.BottomLeftCorner),
+        [StandardCursorType.TopLeftCorner] =
+            ScreenshotResizeCursor.Create(StandardCursorType.TopLeftCorner),
+        [StandardCursorType.TopRightCorner] =
+            ScreenshotResizeCursor.Create(StandardCursorType.TopRightCorner),
+        [StandardCursorType.BottomRightCorner] =
+            ScreenshotResizeCursor.Create(StandardCursorType.BottomRightCorner),
+        [StandardCursorType.BottomLeftCorner] =
+            ScreenshotResizeCursor.Create(StandardCursorType.BottomLeftCorner),
         [StandardCursorType.DragMove] = new(StandardCursorType.DragMove),
     };
     private Point? _pendingSelectionStart;
@@ -1423,7 +1435,9 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
             }
         }
 
-        return null;
+        return HitTestResizeBorder(point, selection, hitRadius) is { } border
+            ? ToSelectionResizeHandle(border)
+            : null;
     }
 
     private static AnnotationResizeHandle? HitTestAnnotationResizeHandle(
@@ -1441,7 +1455,19 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                 }
             }
 
-            return null;
+            var left = Math.Min(rectangle.Start.X, rectangle.End.X);
+            var top = Math.Min(rectangle.Start.Y, rectangle.End.Y);
+            var bounds = new Rect(
+                left,
+                top,
+                Math.Abs(rectangle.End.X - rectangle.Start.X),
+                Math.Abs(rectangle.End.Y - rectangle.Start.Y));
+            return HitTestResizeBorder(
+                    new Point(point.X, point.Y),
+                    bounds,
+                    radius) is { } border
+                ? ToAnnotationResizeHandle(border)
+                : null;
         }
 
         if (annotation is not ScreenshotArrowAnnotation arrow)
@@ -1461,6 +1487,60 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
         return null;
     }
+
+    private static ResizeBorder? HitTestResizeBorder(
+        Point point,
+        Rect bounds,
+        double hitRadius)
+    {
+        ResizeBorder? nearestBorder = null;
+        var nearestDistance = double.PositiveInfinity;
+
+        void Consider(ResizeBorder border, double distance)
+        {
+            if (distance <= hitRadius && distance < nearestDistance)
+            {
+                nearestBorder = border;
+                nearestDistance = distance;
+            }
+        }
+
+        if (point.X >= bounds.Left && point.X <= bounds.Right)
+        {
+            Consider(ResizeBorder.Top, Math.Abs(point.Y - bounds.Top));
+            Consider(ResizeBorder.Bottom, Math.Abs(point.Y - bounds.Bottom));
+        }
+
+        if (point.Y >= bounds.Top && point.Y <= bounds.Bottom)
+        {
+            Consider(ResizeBorder.Left, Math.Abs(point.X - bounds.Left));
+            Consider(ResizeBorder.Right, Math.Abs(point.X - bounds.Right));
+        }
+
+        return nearestBorder;
+    }
+
+    private static AnnotationResizeHandle ToAnnotationResizeHandle(
+        ResizeBorder border) =>
+        border switch
+        {
+            ResizeBorder.Top => AnnotationResizeHandle.Top,
+            ResizeBorder.Right => AnnotationResizeHandle.Right,
+            ResizeBorder.Bottom => AnnotationResizeHandle.Bottom,
+            ResizeBorder.Left => AnnotationResizeHandle.Left,
+            _ => throw new ArgumentOutOfRangeException(nameof(border)),
+        };
+
+    private static SelectionResizeHandle ToSelectionResizeHandle(
+        ResizeBorder border) =>
+        border switch
+        {
+            ResizeBorder.Top => SelectionResizeHandle.Top,
+            ResizeBorder.Right => SelectionResizeHandle.Right,
+            ResizeBorder.Bottom => SelectionResizeHandle.Bottom,
+            ResizeBorder.Left => SelectionResizeHandle.Left,
+            _ => throw new ArgumentOutOfRangeException(nameof(border)),
+        };
 
     private void DrawSelectedAnnotationControls(DrawingContext context, Rect selection)
     {

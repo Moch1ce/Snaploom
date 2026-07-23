@@ -673,16 +673,16 @@ public sealed class ScreenshotAnnotationShortcutTests
         Drag(window, new Point(50, 50), new Point(500, 300));
         window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
         window.MouseDown(
-            new Point(100, 296),
+            new Point(100, 292),
             MouseButton.Left,
             RawInputModifiers.LeftMouseButton);
         window.MouseUp(
-            new Point(100, 296),
+            new Point(100, 292),
             MouseButton.Left,
             RawInputModifiers.None);
 
         Assert.True(window.TextEditorVisible);
-        Assert.InRange(window.TextEditorVisualHeight, 1, 4);
+        Assert.InRange(window.TextEditorVisualHeight, 1, 8);
     }
 
     [AvaloniaFact]
