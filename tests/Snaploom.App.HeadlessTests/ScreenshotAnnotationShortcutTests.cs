@@ -1060,6 +1060,45 @@ public sealed class ScreenshotAnnotationShortcutTests
     }
 
     [AvaloniaFact]
+    public void TextEditorHeightShrinksAfterDeletingANewline()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+
+        window.KeyTextInput("第一行");
+        var singleLineHeight = window.TextEditorVisualHeight;
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, "\r");
+        window.UpdateLayout();
+        Assert.Equal("第一行\n", window.TextEditor.Text);
+        Assert.True(window.TextEditorVisualHeight > singleLineHeight);
+
+        window.KeyPress(
+            Key.Back,
+            RawInputModifiers.None,
+            PhysicalKey.Backspace,
+            null);
+        window.UpdateLayout();
+
+        Assert.Equal("第一行", window.TextEditor.Text);
+        var edit = Assert.IsType<ScreenshotTextEdit>(window.TextEdit);
+        Assert.False(edit.IsComposing);
+        var measuredBounds = ScreenshotTextEditorLayout.Measure(
+            edit,
+            new Rect(50, 50, 450, 250));
+        Assert.Equal(singleLineHeight, measuredBounds.Height, precision: 3);
+        Assert.Equal(singleLineHeight, window.TextEditorVisualHeight, precision: 3);
+    }
+
+    [AvaloniaFact]
     public void ToolbarPositionFreezesAfterAnnotationStarts()
     {
         var frame = CreateFrame(width: 1000, height: 700);

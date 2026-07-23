@@ -598,7 +598,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             _textEditorHost.Height = (edit.Style.FontSize *
                 ScreenshotTextMetrics.LineHeightMultiplier) +
                 ScreenshotUiTheme.TextEditorMeasuredHeightPadding;
-            GrowTextEditor(edit, selection);
+            UpdateTextEditorSize(edit, selection);
             _textEditorHost.IsVisible = true;
             _textEditor.Focus();
             if (edit.AnnotationIndex is not null)
@@ -639,19 +639,20 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         };
     }
 
-    private void GrowTextEditor(
+    private void UpdateTextEditorSize(
         ScreenshotTextEdit edit,
         Rect selection,
-        string? measurementText = null)
+        string? measurementText = null,
+        bool allowHeightShrink = false)
     {
         var editorBounds = ScreenshotTextEditorLayout.Measure(
             edit,
             selection,
             measurementText);
         _textEditorHost.Width = Math.Max(_textEditorHost.Width, editorBounds.Width);
-        _textEditorHost.Height = Math.Max(
-            _textEditorHost.Height,
-            editorBounds.Height);
+        _textEditorHost.Height = allowHeightShrink
+            ? editorBounds.Height
+            : Math.Max(_textEditorHost.Height, editorBounds.Height);
     }
 
     private void HandleTextEditorTemplateApplied(object? sender, TemplateAppliedEventArgs e)
@@ -679,7 +680,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             return;
         }
 
-        GrowTextEditor(
+        UpdateTextEditorSize(
             edit,
             selection,
             BuildTextEditorMeasurementText(_textEditorPresenter?.PreeditText));
@@ -708,13 +709,19 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
     {
         if (!_changingTextEditor && _selectionCanvas.TextEdit is not null)
         {
+            var text = _textEditor.Text ?? string.Empty;
+            var allowHeightShrink =
+                text.Length < _selectionCanvas.TextEdit.Text.Length;
             _selectionCanvas.UpdateTextDraft(
-                _textEditor.Text ?? string.Empty,
+                text,
                 isComposing: false);
             if (_selectionCanvas.TextEdit is { } edit &&
                 _selectionCanvas.LogicalSelection is { } selection)
             {
-                GrowTextEditor(edit, selection);
+                UpdateTextEditorSize(
+                    edit,
+                    selection,
+                    allowHeightShrink: allowHeightShrink);
             }
         }
     }
