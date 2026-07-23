@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Snaploom.Rendering</AssemblyName>
+    <RootNamespace>Snaploom.Rendering</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Skia" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Snaploom.Core/Snaploom.Core.csproj" />
+  </ItemGroup>
+</Project>

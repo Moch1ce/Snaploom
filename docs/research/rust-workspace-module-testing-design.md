@@ -17,7 +17,7 @@ Snaploom 采用**一个 Git 仓库、三个构建 workspace、三个产品深 Mo
 5. 仓库对第三方唯一承诺稳定、版本化的公开边界是 #28 已冻结的 **C ABI 与本地 IPC**。Rust trait、TypeScript 类型、Tauri commands、目录和内部消息可以在同一仓库提交中原子演进，不承诺外部兼容。
 6. 迁移用功能等价合同 ID 组织 tracer scenarios：每个切片从 App 或 SDK 入口贯穿到可观察状态、最终像素、平台结果或错误恢复；但不为每个副作用、syscall、标注工具或测试替身创建浅端口。
 7. `product` 与 `sdk` 分别拥有 `Cargo.toml`、`Cargo.lock` 和 `cargo-deny` 策略。Apache workspace 禁止解析到 GPL product/web；GPL product 可以单向依赖 Apache protocol/client。
-8. CI 在每次 push/PR 运行依赖方向、生成代码、无头合同、双平台 Release build 与安装包静态验证；真实桌面、性能、权限和 IME 作为非阻塞人工建议，不能用 fake 或无 UI runner 冒充。稳定 Release gate 验证双平台 `stable-unsigned` 信任模式及风险披露。
+8. CI 在每次 push/PR 运行依赖方向、生成代码、无头合同、双平台 Release build 与安装包静态验证；真实桌面、性能、权限、IME、签名/公证在专用 runner 和 Release gate 运行，不能用 fake 或无 UI runner 冒充。
 
 这是一种有约束的混合方案：以深 Module 保持长期架构 Locality，以合同 ID tracer scenarios 驱动一次性替换，不采用“按技术层先横向铺满”或“每个 effect 一个 port”的两个极端。
 
@@ -390,7 +390,7 @@ testing/scenarios/OUT-02-copy-keeps-editing/
 - macOS 14+：TCC、SCK、混合 Retina、Spaces/full-screen Space、Dock/菜单栏、IME、NSPasteboard、dialog；
 - 单/双屏、负原点、热插拔、睡眠唤醒、快捷键冲突、第二实例；
 - 权限拒绝/撤销、受保护桌面、clipboard contention、保存取消/失败；
-- 用户级安装、覆盖升级、卸载、ad hoc/`stable-unsigned` 与 Gatekeeper 风险提示。
+- 用户级安装、覆盖升级、卸载、ad hoc/Developer ID、notarization/staple。
 
 ### 9.5 发布与压力
 
@@ -476,7 +476,7 @@ sdk/c-abi/tests/layout/*.json
 - 构建 App、Capture Host、C SDK、NuGet、Swift/XCFramework、源码、NOTICE、SBOM、checksums；
 - 验证同 tag/semver、独立许可证身份、SDK 不含 Host；
 - Windows/macOS 任一失败或任一资产缺失都不得公开部分 Release；
-- macOS 稳定包必须显式为 `stable-unsigned`，验证 ad hoc 结构签名并披露未认证/Gatekeeper 风险；不得声称 Developer ID 或公证成功。
+- Developer ID/notarization 失败不得回退 ad hoc；测试版 ad hoc 与正式签名模式必须显式区分。
 
 ## 13. 迁移 tracer slices
 
@@ -494,7 +494,7 @@ sdk/c-abi/tests/layout/*.json
 10. **macOS real Adapter**：SCK/TCC frame 先替换 fake，再替换窗口、overlay、pasteboard/dialog、SMAppService/shell。
 11. **Desktop lifecycle**：tray-only、second instance、快捷键事务/唤醒、设置、隐私日志、手动更新。
 12. **SDK wrappers**：C++、C#、Swift 只封装 7-symbol ABI，跑 ownership/thread/cancel/package 矩阵。
-13. **Package/performance/release**：双平台安装、未签名信任模式、性能、SBOM/NOTICE/source 与原子 Release。
+13. **Package/performance/release**：双平台安装、签名、公证、性能、SBOM/NOTICE/source 与原子 Release。
 
 真实 Adapter 的引入采用“替换 fake 的一个领域操作，再跑相同合同”的方式；不长期保留第二捕获 backend，也不先横向写完整个平台层再等待集成。
 

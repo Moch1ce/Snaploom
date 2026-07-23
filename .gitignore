@@ -15,8 +15,6 @@ artifacts/
 # Test and coverage outputs
 TestResults/
 coverage/
-test-results/
-playwright-report/
 *.coverage
 *.coveragexml
 
@@ -25,18 +23,6 @@ playwright-report/
 *.snupkg
 *.dylib
 publish/
-
-# Rust and Tauri outputs
-target/
-product/target/
-sdk/target/
-**/gen/schemas/
-
-# Node and Vite outputs
-node_modules/
-.pnpm-store/
-web/*/dist/
-*.tsbuildinfo
 
 # Platform files
 .DS_Store

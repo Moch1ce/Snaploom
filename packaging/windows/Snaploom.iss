@@ -1,55 +1,70 @@
-; Copyright (C) 2026 Snaploom contributors
-; SPDX-License-Identifier: GPL-3.0-or-later
-
 #ifndef AppVersion
-  #error AppVersion is required
+  #error AppVersion must be supplied by the build script.
 #endif
-#ifndef StagingDir
-  #error StagingDir is required
+#ifndef PublishDir
+  #error PublishDir must be supplied by the build script.
 #endif
 #ifndef OutputDir
-  #error OutputDir is required
+  #error OutputDir must be supplied by the build script.
 #endif
 #ifndef IconPath
-  #error IconPath is required
+  #error IconPath must be supplied by the build script.
 #endif
+#ifndef ChineseLanguagePath
+  #error ChineseLanguagePath must be supplied by the build script.
+#endif
+
+#define AppExeName "Snaploom.App.exe"
 
 [Setup]
 AppId=Snaploom.Desktop
 AppName=Snaploom
 AppVersion={#AppVersion}
-AppPublisher=Snaploom contributors
-AppPublisherURL=https://github.com/Moch1ce/Snaploom
+AppVerName=Snaploom {#AppVersion}
+AppPublisher=Snaploom
+AppPublisherURL=https://github.com/liuchuana/Snaploom
+AppSupportURL=https://github.com/liuchuana/Snaploom/issues
+AppUpdatesURL=https://github.com/liuchuana/Snaploom/releases/latest
 DefaultDirName={localappdata}\Programs\Snaploom
 DefaultGroupName=Snaploom
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-Compression=lzma2/ultra64
-SolidCompression=yes
+MinVersion=10.0.19045
 OutputDir={#OutputDir}
 OutputBaseFilename=snaploom-{#AppVersion}-windows-x64-setup
 SetupIconFile={#IconPath}
 UninstallDisplayName=Snaploom
-UninstallDisplayIcon={app}\snaploom-desktop.exe
+UninstallDisplayIcon={app}\{#AppExeName}
+Compression=lzma2/ultra64
+SolidCompression=yes
+LZMAUseSeparateProcess=yes
+WizardStyle=modern
 CloseApplications=yes
 RestartApplications=no
-WizardStyle=modern
-MinVersion=10.0.19045
+AllowNoIcons=yes
+UsePreviousAppDir=yes
+VersionInfoVersion={#AppVersion}.0
+VersionInfoCompany=Snaploom
+VersionInfoDescription=Snaploom Windows x64 user installer
+VersionInfoProductName=Snaploom
+VersionInfoProductVersion={#AppVersion}
 
-[Files]
-Source: "{#StagingDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-[Icons]
-Name: "{group}\Snaploom"; Filename: "{app}\snaploom-desktop.exe"
-Name: "{userstartup}\Snaploom"; Filename: "{app}\snaploom-desktop.exe"; Tasks: startup
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "chinesesimplified"; MessagesFile: "{#ChineseLanguagePath}"
 
 [Tasks]
-Name: "startup"; Description: "Start Snaploom when I sign in"; Flags: unchecked
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
-[Registry]
-Root: HKCU; Subkey: "Software\Snaploom\CaptureHost"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}\snaploom-capture-host.exe"; Flags: uninsdeletekey
+[Files]
+Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{autoprograms}\Snaploom"; Filename: "{app}\{#AppExeName}"; AppUserModelID: "Snaploom.Desktop"
+Name: "{autodesktop}\Snaploom"; Filename: "{app}\{#AppExeName}"; AppUserModelID: "Snaploom.Desktop"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\snaploom-desktop.exe"; Description: "Launch Snaploom"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,Snaploom}"; Flags: nowait postinstall skipifsilent

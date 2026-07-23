@@ -1,5 +1,7 @@
 # Snaploom 一次性 Tauri 迁移与切换路线
 
+> 历史研究：该迁移路线已由 [ADR 0005](../adr/0005-restore-dotnet-avalonia.md) 终止，不再是当前实施计划。
+
 状态：Issue [#32](https://github.com/moch1ce/Snaploom/issues/32) 的实施输入
 
 适用目标：在主线以 Tauri 2、Rust 与 TypeScript/单 Canvas 一次性替换 .NET/Avalonia Snaploom，交付 Windows x64、macOS arm64、独立 GPL Capture Host 与 Apache Capture SDK。
@@ -34,11 +36,11 @@ M02 -> M10 macOS real adapter -------+-> M12 desktop lifecycle
 M03 -> M11 SDK wrappers -------------/       |
 M08 + M09 + M10 + M11 + M12 -> M13 compliance/package/performance
                                  -> M14 signed legal RC draft
-                                    -> #33 owner risk acceptance
+                                    -> #33 external counsel
                                        -> M15 stable publish
 ```
 
-`M09/M10/M11` 可在共享合同固定后并行；同一工作树内仍必须保持一个任务一个 commit/push。`M15` 是唯一被 #33 阻塞的阶段；没有所有者风险接受记录不阻止完成 M00～M14。
+`M09/M10/M11` 可在共享合同固定后并行；同一工作树内仍必须保持一个任务一个 commit/push。`M15` 是唯一被 #33 阻塞的阶段；没有外部签字不阻止完成 M00～M14。
 
 ## 3. M00：旧实现授权与基线
 
@@ -245,14 +247,14 @@ Tracer：App 与多个 SDK client 并发，恰好一个 Accepted，其他 SDK �
 
 ## 14. M14～M15：Release candidate 与 stable
 
-M14 创建最终平台信任状态的不可见 draft：
+M14 创建签名的不可见 draft：
 
 1. 同一 tag/commit 生成 exact asset set；
-2. Windows/macOS 均使用 `stable-unsigned`；分别披露 SmartScreen 与 Gatekeeper 风险，并以 SHA256SUMS/GitHub attestations 验证来源；
+2. Windows Authenticode/RFC3161，macOS Developer ID/hardened runtime/notary/staple；
 3. 上传后重新下载，复验 manifest、checksum、架构、包边界、SBOM/NOTICE/source 和 consumer tests；
-4. 生成 #33 review bundle：draft URL、tag/commit、manifest digest、payload checksums、Windows/macOS 未签名风险与平台验证记录。
+4. 生成 #33 review bundle：draft URL、tag/commit、manifest digest、payload checksums、签名/公证记录。
 
-M15 只在 #33 所有者批准记录精确覆盖该 RC 且明确确认未经过外部法律复核后执行：publish job 不重建、不重签、不替换资产，只复验后一次把 draft 改为 stable，再 promotion 同一 `.nupkg` 到 NuGet.org；SwiftPM 直接消费同 tag/Release。
+M15 只在 #33 真实外部签字精确覆盖该 RC 后执行：publish job 不重建、不重签、不替换资产，只复验后一次把 draft 改为 stable，再 promotion 同一 `.nupkg` 到 NuGet.org；SwiftPM 直接消费同 tag/Release。
 
 ## 15. 每个 slice 的提交合同
 

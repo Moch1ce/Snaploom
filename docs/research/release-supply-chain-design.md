@@ -4,7 +4,7 @@
 适用范围：Windows 10 22H2 / Windows 11 x64、macOS 14+ arm64、Snaploom 与 Capture SDK 1.x  
 上位约束：[许可证审计](./tauri-open-source-license-audit.md)、[SDK 封装与分发](./capture-sdk-wrappers-distribution.md)、[Rust workspace 与测试体系](./rust-workspace-module-testing-design.md)、[法律复核事实包](../legal/capture-sdk-legal-review-packet.md)、ADR 0001～0004
 
-> 本文是工程与发布流程决策，不是法律意见。Issue #33 现作为仓库所有者对精确发布候选的风险接受门禁；所有者必须明确记录该发布未经过外部法律复核。
+> 本文是工程与发布流程决策，不是法律意见。Issue #33 的真实外部律师签字仍是首个稳定 SDK 发布的不可绕过门禁；CI、维护者批准、候选构建成功或本文本身都不能替代该签字。
 
 ## 1. 最终结论
 
@@ -14,12 +14,12 @@ Snaploom 使用一个版本、一个不可变 tag、一个 GitHub Release，原�
 2. Release 先创建为 draft，所有平台、SDK、源码、许可证、SBOM、NOTICE、校验和与 provenance 全部上传并解包复验后，才进行一次 `draft=false` 的公开动作。
 3. Windows Desktop installer、macOS Desktop DMG、Windows/macOS standalone Capture Host 是 GPL-3.0-or-later 产品资产；C SDK、NuGet、Swift wrapper/XCFramework 是 Apache-2.0 SDK 资产。它们使用相同 `X.Y.Z`，但保持不同文件、包内许可证、SBOM 与安装发现边界。
 4. Desktop installer/DMG 可以携带同版本独立 Host，方便 Snaploom 自用；standalone Host 仍作为单独下载资产提供。SDK 包永远不携带、下载或链接 Host。
-5. 稳定 Windows 与 macOS 资产都明确保持未认证：Windows 不含 Authenticode；macOS 只使用无发布者身份的 ad hoc 结构签名，不含 Developer ID 且不公证。metadata、Release notes 与审批包分别披露 SmartScreen 和 Gatekeeper 风险。
-6. 普通候选构建可以 unsigned/ad hoc，并可产生 prerelease 或 CI artifact；它不需要 #33 批准。供 #33 核对的稳定 RC 必须是最终平台信任状态、最终打包、最终 checksum 的 draft Release 实物。
-7. #33 所有者批准只阻止 stable publish，不阻止 build、test、平台候选、创建 draft、生成 SBOM/NOTICE 或执行消费测试。没有批准时流程必须停在 draft。
+5. 稳定 Windows 产品二进制与 installer 使用 Authenticode SHA-256 签名和 RFC 3161 时间戳；稳定 macOS App、Host 与 DMG 使用 Developer ID、hardened runtime、公证和 stapling。签名或公证失败不得降级为 unsigned/ad hoc。
+6. 普通候选构建可以 unsigned/ad hoc，并可产生 prerelease 或 CI artifact；它不需要 #33 签字。供 #33 审查的“法律 RC”必须是最终签名、最终打包、最终 checksum 的 draft Release 实物。
+7. #33 签字只阻止 stable publish，不阻止 build、test、签名候选、创建 draft、生成 SBOM/NOTICE 或执行消费测试。没有签字时流程必须停在 draft。
 8. GitHub Release 是公共资产的首个不可逆发布点。NuGet.org 发布在 GitHub stable Release 成功后执行；SwiftPM 直接消费同一 Git tag 与 Release XCFramework，不在首版引入第二个 Swift registry。
-9. 所有 payload 都有独立 `.sha256`，另发布权威 `SHA256SUMS` 与 `release-manifest.json`；稳定公开资产生成 GitHub artifact attestation。双平台未签名风险披露、校验和与 attestation 是互补证据，不能互相替代。
-10. 对 Windows 未签名产物和 macOS ad hoc 产物都争取 bit-for-bit 可复现，并以最终 checksum 与 attestation 绑定来源；不能把 ad hoc 签名描述为 Apple 发布者认证。
+9. 所有 payload 都有独立 `.sha256`，另发布权威 `SHA256SUMS` 与 `release-manifest.json`；稳定公开资产生成 GitHub artifact attestation。校验和、签名、notarization 和 attestation 是互补证据，不能互相替代。
+10. 对未签名中间产物争取 bit-for-bit 可复现；对含 Authenticode 时间戳、Developer ID、公证 ticket 的最终产物只承诺“相同源码与锁定输入可重建、最终 bytes 有可验证来源”，不伪称签名产物逐字节可复现。
 
 ## 2. 发布模式与不可逆点
 
@@ -30,21 +30,21 @@ Snaploom 使用一个版本、一个不可变 tag、一个 GitHub Release，原�
 - 恢复锁定依赖、运行完整测试、构建所有资产、生成 manifest/SBOM/NOTICE/checksum；
 - 默认 Windows unsigned、macOS ad hoc，不访问稳定签名凭据；
 - 可使用 `vX.Y.Z-rc.N` 发布公开 prerelease，但 RC tag 与资产同样不得移动或替换；
-- 可创建仅协作者可见的 draft，用于最终稳定候选与所有者复核；
+- 可创建仅协作者可见的 draft，用于最终签名候选与外部复核；
 - 失败只产生短期 Actions artifacts，不创建或公开残缺 Release。
 
-候选构建的成功不是稳定发布批准。候选与稳定必须运行同一构建脚本、同一包内容验证器和同一资产 manifest schema，差异只限明确的信任模式名称、tag 形状与发布门禁。
+候选构建的成功不是稳定发布批准。候选与稳定必须运行同一构建脚本、同一包内容验证器和同一资产 manifest schema，差异只限签名模式、tag 形状与发布门禁。
 
 ### 2.2 稳定 draft
 
-推送 `vX.Y.Z` 后，tag workflow 可以在没有 #33 所有者批准时完成：
+推送 `vX.Y.Z` 后，tag workflow 可以在没有 #33 签字时完成：
 
 1. 校验 tag、版本、默认分支可达性、Release 唯一性和 package manifest。
 2. 从 tag 全新构建，不复用开发机 `artifacts/`、缓存中的未验证二进制或另一个 commit 的产物。
-3. Windows 与 macOS 都生成明确 `stable-unsigned` 的最终资产；macOS 仅使用 ad hoc 结构签名，不访问 Apple 凭据。
-4. 汇总全部资产，验证 exact asset set、版本、架构、双平台未签名信任状态、包内容、许可证、SBOM 与 checksum。
+3. 使用受保护 signing environment 生成最终签名/公证资产。
+4. 汇总全部资产，验证 exact asset set、版本、架构、签名、包内容、许可证、SBOM 与 checksum。
 5. 创建 draft Release，上传全部资产，重新下载并复验 GitHub 存储后的 bytes。
-6. 生成供 #33 使用的 review bundle：draft URL、tag/commit、`release-manifest.json` digest、全部 payload checksum、包内容清单、Windows SmartScreen 风险、macOS Gatekeeper 风险与消费测试结果。
+6. 生成供 #33 使用的 review bundle：draft URL、tag/commit、`release-manifest.json` digest、全部 payload checksum、包内容清单、签名/公证输出与消费测试结果。
 
 该阶段没有 `contents: write` 以外的发布副作用，也不向 NuGet.org push。
 
@@ -52,15 +52,14 @@ Snaploom 使用一个版本、一个不可变 tag、一个 GitHub Release，原�
 
 独立 `publish-stable` job 只能接受既有 draft release ID，不重建、不重签、不替换资产。它必须同时证明：
 
-- draft 的 tag、commit、资产集合和 checksum 与所有者批准对象完全相同；
-- Issue #33 已 `closed/completed`，且存在仓库所有者的风险接受记录；
-- 批准记录包含 tag、commit、draft URL、manifest digest、产物 checksums、所有者身份、日期、结论、决策记录 hash/受控存档位置；
-- 结论为接受、修改项为空，且明确确认未经过外部法律复核；
-- GitHub `stable-release` environment 允许单人仓库所有者自批并保留管理员 bypass；
-- Windows/macOS GitHub-hosted 自动平台门禁、包装、SDK consumer、合规与合同映射 required checks
-  全部成功；qualification 与审批包如实披露缺少交互桌面与真机性能资格证明。
+- draft 的 tag、commit、资产集合和 checksum 与律师复核对象完全相同；
+- Issue #33 已 `closed/completed`，且存在真实外部复核记录；
+- 复核记录包含 tag、commit、draft URL、manifest digest、产物 checksums、复核人身份、日期、结论、意见文件 hash/受控存档位置；
+- 签字结论为接受或所有条件已被新候选满足；
+- GitHub `stable-release` environment 禁止 self-approval 和管理员 bypass；
+- Windows/macOS 真机、性能、包装、SDK consumer、合规与合同映射 required checks 全部成功。
 
-CI 只校验记录存在、所有者身份、字段和 digest 匹配，不能生成、补写或代签批准记录。任一条件不满足时 draft 保留或删除，但不能公开。
+CI 只校验记录存在、身份 allowlist、字段和 digest 匹配，不能生成、补写或代签法律结论。任一条件不满足时 draft 保留或删除，但不能公开。
 
 GitHub 官方对 immutable releases 的建议也是“先 draft、附加全部资产、再公开”；公开后 tag 与资产不可修改。项目启用 immutable releases；若仓库计划暂不支持该能力，仍以 tag ruleset 禁止更新/删除并执行同样的不可变策略，不能以缺少平台功能为理由覆盖资产。[GitHub Immutable releases](https://docs.github.com/en/enterprise-cloud@latest/code-security/concepts/supply-chain-security/immutable-releases)
 
@@ -70,11 +69,11 @@ GitHub 官方对 immutable releases 的建议也是“先 draft、附加全部�
 
 | 资产 | 许可/用途 | 必须包含或满足 |
 | --- | --- | --- |
-| `snaploom-X.Y.Z-windows-x64-setup.exe` | GPL Desktop installer | 用户级、Win10 build 19045+、x64、Desktop + 独立 Host、明确未签名、≤50,000,000 bytes |
-| `snaploom-X.Y.Z-macos-arm64.dmg` | GPL Desktop DMG | `Snaploom.app` + Applications link、Desktop + 独立 Host、arm64、macOS 14+、ad hoc/未公证、≤50,000,000 bytes |
-| `snaploom-capture-host-X.Y.Z-windows-x64.zip` | GPL standalone Host | 未签名 Host executable、安装/登记说明、GPL、Host SBOM/NOTICE、对应源码指引 |
-| `snaploom-capture-host-X.Y.Z-macos-arm64.zip` | GPL standalone Host | ad hoc 且未公证的 Host `.app`、arm64、macOS 14+、GPL、Host SBOM/NOTICE |
-| `snaploom-capture-sdk-c-X.Y.Z-windows-x64.zip` | Apache C/C++ SDK | header、C++17 wrapper、未签名 DLL/import lib、CMake、示例、Apache LICENSE、SDK SBOM/NOTICE |
+| `snaploom-X.Y.Z-windows-x64-setup.exe` | GPL Desktop installer | 用户级、Win10 build 19045+、x64、Desktop + 独立 Host、签名、≤50,000,000 bytes |
+| `snaploom-X.Y.Z-macos-arm64.dmg` | GPL Desktop DMG | `Snaploom.app` + Applications link、Desktop + 独立 Host、arm64、macOS 14+、Developer ID、公证/staple、≤50,000,000 bytes |
+| `snaploom-capture-host-X.Y.Z-windows-x64.zip` | GPL standalone Host | 已签名 Host executable、安装/登记说明、GPL、Host SBOM/NOTICE、对应源码指引 |
+| `snaploom-capture-host-X.Y.Z-macos-arm64.zip` | GPL standalone Host | 已签名并公证/staple 的 Host `.app`、arm64、macOS 14+、GPL、Host SBOM/NOTICE |
+| `snaploom-capture-sdk-c-X.Y.Z-windows-x64.zip` | Apache C/C++ SDK | header、C++17 wrapper、signed DLL/import lib、CMake、示例、Apache LICENSE、SDK SBOM/NOTICE |
 | `snaploom-capture-sdk-c-X.Y.Z-macos-arm64.tar.gz` | Apache C/C++ SDK | header、C++17 wrapper、arm64 dylib、CMake/pkg-config、示例、Apache LICENSE、SDK SBOM/NOTICE |
 | `Snaploom.Capture.X.Y.Z.nupkg` | Apache C# SDK | `net8.0` assembly、win-x64/osx-arm64 native assets、README、LICENSE、SBOM/NOTICE；不得含 Host |
 | `Snaploom.Capture.X.Y.Z.snupkg` | symbols/source link | 仅与同版本 NuGet 匹配的 portable symbols/source mapping |
@@ -82,12 +81,12 @@ GitHub 官方对 immutable releases 的建议也是“先 draft、附加全部�
 | `snaploom-X.Y.Z-corresponding-source.tar.zst` | GPL Corresponding Source | 精确 tag 源码、锁文件、`.proto`、生成器输入、构建/安装/打包脚本、REUSE/许可证、修改版构建说明 |
 | `snaploom-X.Y.Z-sbom.cdx.json` | Release 聚合 SBOM | 引用每个产品/SDK component 与各自 SBOM，不把 GPL/Apache 身份混成一个包 |
 | `snaploom-X.Y.Z-third-party-notices.txt` | Release 索引 | 按资产列出对应 NOTICE/第三方声明位置；不能替代包内材料 |
-| `release-manifest.json` | 权威发布描述 | schema、tag、commit、version、每个资产 size/digest/license/kind、platform trust、Swift checksum、NuGet identity、builder/run |
+| `release-manifest.json` | 权威发布描述 | schema、tag、commit、version、每个资产 size/digest/license/kind、signing/notary、Swift checksum、NuGet identity、builder/run |
 | `SHA256SUMS` | 全部 payload 摘要 | 只列 manifest 中的 payload，稳定排序，LF；本文件本身由 attestation 保护 |
 
 除 `release-manifest.json`、`SHA256SUMS` 与聚合 SBOM/NOTICE 外，每个 payload 都有同名 `.sha256`。`.sha256` 不递归拥有自己的 `.sha256`。
 
-Desktop 包内的 Host 与 standalone Host 必须来自同一次最终 Host staging 输出；Windows 比较 unsigned executable hash，macOS 比较规范化 ad hoc `.app` 内容 manifest。SDK DLL/dylib 在 C archive、NuGet 与 XCFramework 中也必须来自同一次 SDK native staging，不允许各包重新编译出“同版本不同 bytes”。
+Desktop 包内的 Host 与 standalone Host 必须来自同一次已签名 Host staging 输出；Windows 比较 executable hash，macOS 比较规范化 `.app` 内容 manifest。SDK DLL/dylib 在 C archive、NuGet 与 XCFramework 中也必须来自同一次 SDK native staging，不允许各包重新编译出“同版本不同 bytes”。
 
 ## 4. 许可证、NOTICE、SBOM 与对应源码
 
@@ -161,54 +160,57 @@ XCFramework ZIP 必须使用固定文件顺序、时间、权限和压缩工具�
 
 这些资产在相同 tag、toolchain、lockfile 与环境下做双构建 digest compare。无法复现时先定位时间、路径、随机 UUID、archive metadata 或生成器漂移，不允许更新 `Package.swift` checksum 掩盖问题。
 
-### 6.2 最终 bytes 策略
+### 6.2 不承诺最终 bytes 相同的资产
 
-Windows 最终资产保持 unsigned，macOS 最终资产保持 ad hoc 且未公证；两者都应在锁定输入下争取可复现，
-并用 checksum 与 attestation 绑定来源。对 macOS App/Host 与 DMG：
+Authenticode RFC 3161 时间戳、Apple Developer ID 时间戳、notarization/staple 和部分平台 installer metadata 会改变 bytes。对 Windows installer、Developer ID App/Host 与 DMG：
 
-- 保存最终 payload manifest 与 digest；
-- 记录 `stable-unsigned`、`adHocSignatureVerified=true`、`notarized=false` 与 `gatekeeperWarning=true`；
-- 从 tag 重新构建时验证包结构、依赖和 ad hoc 签名状态相同；
-- 发布文案使用“来源可验证”，不得声称 Apple 已认证或已公证。
+- 保存签名前 payload manifest 和最终 payload digest；
+- 记录签名证书 subject/thumbprint、timestamp policy/result、Apple Team ID、notary submission ID/status、stapler 与验证结果；
+- 从 tag 重新构建时验证未签名内容、包结构与依赖相同，重新签名后的最终 bytes 由 attestation 绑定到 workflow/commit；
+- 发布文案使用“可重建且来源可验证”，不使用“最终签名包 bit-reproducible”。
 
 所有 dependency restore 使用 `cargo --locked`/适用 `--frozen`、pnpm frozen lockfile、NuGet locked restore；工具链由 `rust-toolchain.toml`、Corepack/pnpm version、.NET SDK、Swift/Xcode 与 Windows SDK/Inno/Tauri 版本锁定。workflow 记录 runner image 版本和工具 `--version` 输出。
 
-## 7. Windows 构建、未签名披露与安装
+## 7. Windows 构建、签名与安装
 
 ### 7.1 顺序
 
 1. 在 Windows x64 runner 构建 Release Desktop、Host 与 C SDK DLL。
 2. 运行 ABI exports、machine type、依赖、无 GPL-in-SDK 与 package consumer 测试。
-3. 稳定模式确认 DLL/EXE 均未签名，metadata 写入 `unknownPublisherWarning=true`。
-4. 把同一个 unsigned Host 放入 Desktop installer staging 和 standalone Host ZIP。
-5. 构建用户级 installer，并再次确认 installer 未签名。
-6. Release notes 与审批包披露未知发布者/SmartScreen 风险，并指向逐文件 SHA-256、`SHA256SUMS` 与 GitHub attestation。
+3. 稳定模式先签 DLL/EXE，使用 SHA-256 file digest 和 RFC 3161 SHA-256 timestamp。
+4. 验证每个签名、证书链、timestamp 与预期 signer；warning exit code 也视为失败。
+5. 把同一个 signed Host 放入 Desktop installer staging 和 standalone Host ZIP。
+6. 构建用户级 installer，再对 installer 本身签名与时间戳。
 7. 运行静默安装、启动、覆盖升级、卸载、HKCU 登记、Host 发现、保留设置/日志与普通用户测试。
 8. 对最终 installer/ZIP/DLL 重新计算 digest，生成 SBOM/NOTICE 与 attestation。
+
+SignTool 官方要求显式指定 file digest 与 timestamp digest，并推荐 SHA-256；`verify /pa` 使用默认 Authenticode 策略检查签名。[Microsoft SignTool](https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool)
 
 ### 7.2 模式
 
 - `candidate-unsigned`：明确 metadata 与 release notes 标记 unsigned，不访问签名环境。
-- `stable-unsigned`：明确验证 Desktop、Host、installer 与 SDK DLL 未签名，风险披露、checksum 与 attestation 都是 hard gate。
-- `.lib`、header、SBOM、source 同样依赖 checksum/attestation，不声称发布者证书身份。
+- `stable-signed`：证书、timestamp、完整 verify 都是 hard gate；不能因 provider 暂时不可用发布 unsigned。
+- SDK Windows DLL 与产品 EXE 均签名；`.lib`、header、SBOM、source 不做 Authenticode，依赖 checksum/attestation。
 
-## 8. macOS 构建与未认证分发
+## 8. macOS 构建、签名与公证
 
 ### 8.1 顺序
 
 1. 在 macOS arm64 runner 构建最低 macOS 14 的 Desktop、Host、C SDK dylib 和 XCFramework。
 2. 验证所有 Mach-O 仅 arm64、deployment target、install name、ABI exports、bundle ID、Info.plist 本地化权限说明和 entitlements。
-3. 从最内层 helper 开始，先对 standalone Host 施加 ad hoc 结构签名，再处理 Desktop bundle；不携带旧 Swift bridge、`allow-jit`、`disable-library-validation` 或 `get-task-allow`，除非后续 ADR 对 Tauri 实物证明最小例外。
-4. 对 Host/应用执行 `codesign --verify --deep --strict`，并确认 `Signature=adhoc`、没有 Developer ID identity。
-5. 构建 standalone Host ZIP，确认 metadata 为未公证、未 stapling 且要求 Gatekeeper 风险提示。
-6. 把同一个 ad hoc Host staging 放入 Desktop，构建并 ad hoc 签署 DMG；不调用 `notarytool`、`stapler` 或 Apple 证书服务。
+3. 从最内层 dylib/helper 开始，先签 standalone Host，再签 Desktop bundle；保持 library validation，不携带旧 Swift bridge、`allow-jit`、`disable-library-validation` 或 `get-task-allow`，除非后续 ADR 对 Tauri 实物证明最小例外。
+4. 对 Host/应用执行 `codesign --verify --deep --strict`，检查 Developer ID Application identity。
+5. 构建 standalone Host ZIP，提交公证；Accepted 后 staple Host `.app`，重新形成最终 ZIP并验证 Host Gatekeeper。
+6. 把同一个已签名 Host staging 放入 Desktop，构建并签署 DMG，使用 `notarytool --wait` 公证，staple/validate DMG，并执行 `spctl`。
 7. 运行 DMG mount/install/launch/uninstall、TCC 文案、Host 发现、Spaces/Retina 与包内容测试。
-8. 保存 builder identity、ad hoc 验证、架构与包验证日志；workflow 不读取 private key。
+8. 保存 notary submission ID、结果 JSON 与验证日志；日志和 artifact 不包含 private key。
+
+Apple 对 Developer ID 的官方流程要求签名、提交 Apple notary service，并可用 `notarytool` 与 `stapler` 完成自定义流水线。[Apple Developer ID](https://developer.apple.com/developer-id/)、[Notarizing macOS software](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)
 
 ### 8.2 模式
 
-- 普通 candidate 使用 `adhoc`，稳定 RC 与 stable 使用 `stable-unsigned`；两者都不公证，稳定模式额外强制固定 Gatekeeper 风险文案、checksum 与 attestation。
-- 如果未来取得 Developer ID，必须另开 Issue 重新设计并验证；Apple 认证不是当前 stable gate。
+- 普通 candidate 使用 ad hoc，不公证，并明确 Gatekeeper 风险。
+- 法律 RC 与 stable 使用 Developer ID + hardened runtime + notarization + staple；任何一步失败都停在 draft。
 - Apache C SDK/XCFramework 必须能被第三方宿主在其产品构建中重新签名，不能依赖与 Snaploom Host 相同 Team ID。
 
 ## 9. GitHub Actions 权限、Secrets 与 provenance
@@ -224,20 +226,20 @@ permissions:
 
 | Job | 权限/环境 | 规则 |
 | --- | --- | --- |
-| build/test/compliance | `contents: read` | 无 secrets、无 write token |
+| build/test/compliance | `contents: read` | 无 secrets，无 write token，不能从 fork/PR 进入签名 |
 | attest | `contents: read`, `id-token: write`, `attestations: write` | 只对已验证最终 payload/SBOM生成 provenance |
 | assemble-draft | `contents: write` | 只创建/上传 draft；无签名、Apple、NuGet secrets |
-| windows-build | `contents: read` | 构建并验证明确未签名的 Windows 资产；无 secrets、无 Release write |
-| macos-build | `contents: read` | 构建并验证明确未认证的 macOS 资产；无 Apple secrets、无 Release write |
-| publish-stable | `contents: write`, `issues: read` + `stable-release` | 只把所有者已批准并复验的 draft 公开；允许单人所有者自批 |
+| windows-sign | protected `release-signing` | 只取得 Windows provider 所需最小短期凭据；不拥有 Release write |
+| macos-sign-notary | protected `release-signing` | ephemeral keychain 与 App Store Connect API key；不拥有 Release write |
+| publish-stable | `contents: write`, `issues: read` + `stable-release` | 只把已复验 draft 公开；禁止 self/admin bypass |
 | publish-nuget | `id-token: write`, `contents: read` + `nuget-org` | GitHub stable 成功后以 NuGet Trusted Publishing 换短期 key |
 
 安全规则：
 
 - 所有 `uses:` 固定完整 commit SHA并由 Dependabot/人工复核升级。
 - checkout `persist-credentials: false`；build job 不保留可写 token。
-- stable build 和 publish job 不执行来自 PR、fork、外部 artifact 的脚本；只 checkout 已验证 tag。
-- Apple private key 如无法使用 OIDC/托管签名服务，只放 environment secret，写入临时文件/ephemeral keychain，job 结束立即删除。
+- 签名和 publish job 不执行来自 PR、fork、外部 artifact 的脚本；只 checkout 已验证 tag。
+- PFX/Apple private key 如无法使用 OIDC/托管签名服务，只放 environment secret，写入临时文件/ephemeral keychain，job 结束立即删除。
 - 不把 secret 作为命令行回显、metadata、SBOM、日志、cache 或 upload-artifact 内容。
 - cache 只缓存下载依赖，不缓存签名后 payload；恢复后仍执行 lock/integrity 校验。
 - release concurrency 使用 tag 与 stable environment 双重串行，`cancel-in-progress: false`。
@@ -304,17 +306,18 @@ Swift Package Index 等目录收录是发布后的可选元数据操作，不是
 
 ### 12.1 公开前
 
-- build/platform-trust/package/legal 任一失败：保持或删除 draft，不公开、不 push NuGet。
+- build/sign/notary/package/legal 任一失败：保持或删除 draft，不公开、不 push NuGet。
 - 已存在错误 tag：不移动、不删除后复用；修复 commit 使用新版本/tag。
 - 已公开 RC 错误：发布新的 `-rc.N+1`，不替换旧 RC URL/asset。
-- draft asset 若重建导致 digest 改变，必须生成新 manifest 和新的 #33 审批对象；旧批准自动失效。
+- draft asset 若重建导致 digest 改变，必须生成新 manifest 和新的 #33 审查对象；旧签字自动失效。
 
 ### 12.2 公开后
 
 - immutable stable Release、tag、asset、Package.swift checksum 永不覆盖。
-- 修复使用新 patch `vX.Y.(Z+1)`，完整重跑 build、法律门禁适用性、平台信任验证、资产与 registry promotion。
+- 修复使用新 patch `vX.Y.(Z+1)`，完整重跑 build、法律门禁适用性、签名、资产与 registry promotion。
 - 严重安全问题通过 GitHub Security Advisory/明确公告，必要时将 NuGet 旧版本 unlist；不能上传同版本“修正版”。
 - NuGet push 成功而后续 consumer smoke 失败：不覆盖包；停止推广、unlist（如必要）并发布新 patch。
+- notarization/timestamp 服务故障：停止 stable；不发布 ad hoc/unsigned 替代品。
 
 所谓 rollback 是停止推广、撤下索引可见性或发布新 patch，不是改写已经公开的供应链历史。
 
@@ -333,15 +336,15 @@ Swift Package Index 等目录收录是发布后的可选元数据操作，不是
 ### 13.2 Windows
 
 - x64、Windows 10 build 19045 minimum、PerMonitorV2、普通用户、≤50 MB；
-- Desktop/Host/DLL/installer 均验证为 unsigned，metadata 与 Release notes 披露未知发布者/SmartScreen 风险；
+- Desktop/Host/DLL/installer Authenticode signer、SHA-256/RFC3161 timestamp 与 `/pa` verify；
 - 静默 install/launch/overwrite/uninstall、HKCU uninstall/Host registration、设置日志保留；
 - SDK DLL exports 精确 7 symbols，C/C++/C# consumer 从最终包运行。
 
 ### 13.3 macOS
 
 - 所有 Mach-O 仅 arm64、minimum 14、bundle/install name 正确；
-- Desktop/Host/DMG 的 ad hoc 结构签名验证通过，无 Developer ID identity；
-- metadata 明确 `notarized=false`、`adHocSignatureVerified=true` 与 `gatekeeperWarning=true`；
+- Desktop/Host leaf-to-root Developer ID、hardened runtime、无未批准 entitlement；
+- DMG/Host notarization Accepted、staple validate、`spctl` 通过；
 - DMG mount/install/launch/uninstall、权限文案、Host discovery；
 - XCFramework import、SwiftPM checksum、consumer embed/re-sign/run。
 
@@ -355,12 +358,10 @@ Swift Package Index 等目录收录是发布后的可选元数据操作，不是
 
 ### 13.5 稳定发布人工门禁
 
-- Issue #33 所有者风险接受记录已完成且精确覆盖当前 tag/commit/draft/checksum；
-- `stable-release` 环境由仓库所有者批准，可与触发人为同一人；
+- Issue #33 外部律师记录已完成且精确覆盖当前 tag/commit/draft/checksum；
+- `stable-release` 环境 required reviewer 通过，触发人不能自批，管理员不能 bypass；
 - release notes 明确 GPL App/Host 与 Apache SDK 独立、Host 安装/发现、未承诺“IPC 自动消除 GPL 风险”；
-- release notes 明确 Windows 资产未签名，并提供 SHA256SUMS 与 GitHub attestation 验证方式；
-- Windows/macOS GitHub-hosted 自动门禁有当前版本证据，并如实披露没有真机 4K 性能、20+ 循环
-  资源稳定与安装矩阵证明。人工矩阵继续作为非阻塞建议跟踪。
+- Windows/macOS 真机、4K 性能、20+ 循环资源稳定与安装矩阵有当前版本证据。
 
 ## 14. 对现有 release workflow 与脚本的迁移要求
 
@@ -377,12 +378,11 @@ Tauri 迁移时必须替换/加强：
 1. 删除 .NET restore/build/test 与旧 `allow-jit`、`disable-library-validation` 假设。
 2. 将旧的四资产 prerelease 扩展为本文 exact asset matrix，不再只验证 installer/DMG。
 3. 将 `actions/*@vN` 改为 full commit SHA。
-4. 拆分双平台 build、attest、draft、stable publish、NuGet promotion，避免同一 job 同时持有源码执行与 Release write。
-5. 旧 Issue #18 的自动合同迁移到 GitHub-hosted qualification；真机/性能矩阵降级为非阻塞人工建议，
-   qualification 与审批包必须披露缺少这些证明。
-6. Windows installer 增加 `stable-unsigned` 模式、SmartScreen 风险披露和 attestation/checksum 验证，并在 installer 内安装/登记独立 Host。
-7. macOS 脚本删除旧 Swift dylib/.NET entitlement，分别构建 Host 与 Desktop，稳定模式强制 `stable-unsigned`、ad hoc 验证和 Gatekeeper 风险披露。
-8. metadata schema 升级并并入 `release-manifest.json`，记录 commit、builder、platform trust、license/SBOM/source。
+4. 拆分 build、sign、attest、draft、stable publish、NuGet promotion，避免同一 job 同时持有源码执行、签名 secret 和 Release write。
+5. 旧 Issue #18 门禁迁移为当前合同映射/真机/性能门禁；#33 作为稳定 SDK 不可 bypass 的额外人工门禁。
+6. Windows installer 从 unsigned candidate 增加 stable Authenticode 模式，并在 installer 内安装/登记独立 Host。
+7. macOS 脚本删除旧 Swift dylib/.NET entitlement，分别构建/签名 Host 与 Desktop，稳定模式强制 Developer ID + notarization。
+8. metadata schema 升级并并入 `release-manifest.json`，记录 commit、builder、signing/notary、license/SBOM/source。
 9. 发布后启用 immutable Release/attestation；任何 `--clobber`、覆盖 tag 或同版本重传均由静态 workflow 检查拒绝。
 
 ## 15. 明确失败降级
@@ -391,9 +391,9 @@ Tauri 迁移时必须替换/加强：
 | --- | --- |
 | Windows/macOS 任一平台失败 | draft 不公开；不发布另一平台 |
 | 任一 Host/SDK/source/SBOM/NOTICE 缺失 | draft 不公开 |
-| Windows 产物出现签名、缺少风险披露或 checksum/attestation 不一致 | stable 停止；重新生成候选 |
-| macOS 出现 Developer ID/公证声称、ad hoc 验证失败或缺少 Gatekeeper 风险披露 | stable 停止；重新生成候选 |
-| #33 未批准、未确认无外部复核，或记录与 checksum 不同 | 保留候选/draft；stable publish 禁止 |
+| Windows 签名或 timestamp 失败 | stable 停止；不降级 unsigned |
+| Apple signing/notary/staple 失败 | stable 停止；不降级 ad hoc |
+| #33 未签字或记录与 checksum 不同 | 保留候选/draft；stable publish 禁止 |
 | immutable Release 不可用 | 强制 tag ruleset与不覆盖政策；不能用 overwrite 模拟修复 |
 | NuGet.org/OIDC 暂时失败 | GitHub stable 保持；重试相同 nupkg，不创建新 bytes |
 | Swift checksum 与 ZIP 不同 | stable 停止；修正 prep commit并使用新 tag |
@@ -404,13 +404,13 @@ Tauri 迁移时必须替换/加强：
 
 1. 建立 `release-manifest.json` schema、命名器、checksum 与 exact asset set verifier。
 2. 建立 product/sdk/web locked build、双工作区 license/SBOM/NOTICE 和 deterministic source archive。
-3. 建立 Windows Desktop/Host/C SDK staging、稳定未签名模式、installer 与消费验证。
-4. 建立 macOS Desktop/Host/C SDK/XCFramework staging、`stable-unsigned`/ad hoc 与消费验证。
+3. 建立 Windows Desktop/Host/C SDK staging、签名模式、installer 与消费验证。
+4. 建立 macOS Desktop/Host/C SDK/XCFramework staging、Developer ID/notary/staple 与消费验证。
 5. 建立 C archive、NuGet、Swift Package checksum 的双构建与解包边界扫描。
 6. 将 workflow 拆成 candidate、tag-build/draft、stable-publish、NuGet-promotion 四个不可混权阶段。
-7. 配置 tag ruleset、immutable releases、full-SHA actions、`stable-release`/`nuget-org` environments 与 OIDC policies。
-8. 生成最终法律 RC draft 与审批包，由仓库所有者在 #33 核对并记录风险接受；批准前只停留在 draft。
-9. 所有者批准与全验收通过后，一次公开 GitHub stable，再把同一 nupkg promotion 到 NuGet.org并验证 SwiftPM消费。
+7. 配置 tag ruleset、immutable releases、full-SHA actions、`release-signing`/`stable-release`/`nuget-org` environments 与 OIDC policies。
+8. 生成最终法律 RC draft 与 review bundle，交 #33 外部律师复核；签字前只停留在 draft。
+9. 签字与全验收通过后，一次公开 GitHub stable，再把同一 nupkg promotion 到 NuGet.org并验证 SwiftPM消费。
 
 任何后续增加应用商店、自动更新、Windows ARM64、Intel/Universal Mac、静态 SDK、Node/Java/Python binding、Host-in-SDK packaging 或新的第三方 registry，都必须新开票重新审查许可、签名、资产原子性与 rollback，不能作为本工作流的隐藏分支。
 
@@ -418,7 +418,8 @@ Tauri 迁移时必须替换/加强：
 
 - GitHub Release：[REST Releases API](https://docs.github.com/en/rest/releases/releases)、[Immutable releases](https://docs.github.com/en/enterprise-cloud@latest/code-security/concepts/supply-chain-security/immutable-releases)
 - GitHub Actions 安全：[Secure use](https://docs.github.com/en/actions/reference/security/secure-use)、[Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)、[Artifact attestations](https://docs.github.com/en/actions/concepts/security/artifact-attestations)
-- Apple 未认证应用打开说明：[Safely open apps on your Mac](https://support.apple.com/102445)
+- Windows 签名：[SignTool](https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool)、[Authenticode timestamps](https://learn.microsoft.com/en-us/windows/win32/seccrypto/time-stamping-authenticode-signatures)
+- Apple 分发：[Developer ID](https://developer.apple.com/developer-id/)、[Notarization](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)
 - NuGet：[Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing)、[Native package assets](https://learn.microsoft.com/en-us/nuget/create-packages/native-files-in-net-packages)
 - SwiftPM：[Releasing a package](https://docs.swift.org/swiftpm/documentation/packagemanagerdocs/releasingpublishingapackage/)、[Binary target checksum](https://docs.swift.org/swiftpm/documentation/packagedescription/target/checksum/)
 - 许可证：[GNU GPLv3](https://www.gnu.org/licenses/gpl-3.0.html)、[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)、[CycloneDX](https://cyclonedx.org/specification/overview/)

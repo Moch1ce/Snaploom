@@ -1,58 +1,52 @@
-# Snaploom 依赖许可证与生成物审计
+# Snaploom 依赖许可证审计
 
-- 审计日期：2026-07-22
-- 审计范围：根工具 workspace、`product/`、`sdk/`、`web/` 的锁文件、直接依赖、测试工具与受控字体
-- 项目授权：产品与根工具默认 `GPL-3.0-or-later`；`sdk/`、`Package.swift` 与 `examples/sdk/` 按 `Apache-2.0` 边界发布，具体以 `REUSE.toml` 和文件 SPDX 标记为准
+- 审计日期：2026-07-15
+- 审计范围：`Snaploom.sln` 当前的直接依赖与传递依赖
+- 目标：确认依赖允许 Snaploom 未来以闭源商业软件形式分发
 
-## 结论与门禁
+## 结论
 
-仓库已不再使用旧版 `.NET/Avalonia` 架构，也不以闭源分发为目标。Rust 依赖由三个 `deny.toml` 的许可证 allow-list、来源限制和禁用 wildcard 规则约束；Web 依赖以 `pnpm-lock.yaml` 固定；仓库文件由 REUSE 校验。
+当前运行时依赖采用 MIT 或 BSD 3-Clause 宽松许可证；测试依赖采用 MIT 或 Apache-2.0 许可证。未发现 GPL、AGPL、LGPL 或其他要求公开 Snaploom 源码的强 Copyleft 依赖。
 
-新增或升级依赖时必须同时更新锁文件，并通过：
+这些许可证允许闭源商业使用与再分发，但发布安装包时仍需保留相应版权声明和许可证文本。项目尚未添加开源 `LICENSE` 文件，避免误示 Snaploom 自身已按开源许可证授权。
 
-```bash
-reuse lint
-cargo deny --manifest-path Cargo.toml check
-cargo deny --manifest-path product/Cargo.toml check
-cargo deny --manifest-path sdk/Cargo.toml check
-pnpm install --frozen-lockfile
-pnpm run check
-```
+## 运行时依赖
 
-根 workspace 与产品 workspace 接受的许可证集合见各自 `deny.toml`；SDK 的集合更窄。`MPL-2.0` 仅在产品依赖图中准入，并不改变 Snaploom 自有代码的授权。发布包的第三方声明由锁文件生成并在 CI 中复核。
+| 依赖 | 当前版本 | 许可证 | 用途 |
+| --- | --- | --- | --- |
+| Avalonia、Avalonia.Desktop、Avalonia.Skia、Avalonia.Themes.Fluent | 12.1.0 | MIT | 跨平台桌面 UI、桌面后端与渲染 |
+| CommunityToolkit.Mvvm | 8.4.2 | MIT | MVVM 命令生成 |
+| Vortice.Direct3D11（含 Vortice.DXGI、Vortice.DirectX、Vortice.Mathematics、SharpGen.Runtime 传递依赖） | 3.8.3 | MIT | Windows Graphics Capture 的 D3D11 互操作 |
+| Avalonia.Angle.Windows.Natives | 2.1.27548.20260419 | BSD 3-Clause | Windows ANGLE 原生运行库 |
+| Avalonia.BuildServices | 11.3.2 | MIT | Avalonia 构建支持 |
+| HarfBuzzSharp | 8.3.1.3 | MIT | 文本塑形 |
+| MicroCom.Runtime | 0.11.6 | MIT | COM 互操作支持 |
+| SkiaSharp | 3.119.4 | MIT | 2D 图形渲染 |
+| Tmds.DBus.Protocol | 0.94.1 | MIT | Linux/FreeDesktop 传递支持；当前产品目标不含 Linux |
 
-## 主要运行时依赖组
+Avalonia 的其他传递包（FreeDesktop、HarfBuzz、Native、Remote.Protocol、Win32、X11）均为 12.1.0，包清单声明为 MIT。
 
-| 依赖组 | 锁定方式 | 用途与许可证控制 |
+## 仅测试与构建使用的依赖
+
+| 依赖 | 当前版本 | 许可证 |
 | --- | --- | --- |
-| Tauri 2.11.x 与官方插件 | `product/Cargo.toml`、`product/Cargo.lock` | 桌面窗口、托盘、快捷键、通知、对话框、开机启动和单实例；由 `product/deny.toml` 验证许可证与 crates.io 来源 |
-| `objc2` / ScreenCaptureKit 绑定 | `product/Cargo.toml`、`product/Cargo.lock` | macOS 捕获与系统集成；由产品 cargo-deny 门禁验证 |
-| Windows API 生成绑定 | 根 `Cargo.toml`、`Cargo.lock` | `windows-bindgen 0.62.1`，`MIT OR Apache-2.0`，来源为 Microsoft `windows-rs` |
-| `prost`、`serde`、`zeroize`、`png` 等 | 各 Rust workspace 锁文件 | 协议、序列化、敏感内存清理与 PNG 编码；由对应 cargo-deny 门禁验证 |
-| `@tauri-apps/api` | `pnpm-lock.yaml` | WebView 到原生命令的桥接 |
+| xunit.v3 | 3.2.2 | Apache-2.0 |
+| Avalonia.Headless、Avalonia.Headless.XUnit | 12.1.0 | MIT |
+| Microsoft.Testing.Platform 及 Microsoft 测试宿主组件 | 1.9.1 | MIT |
+| Microsoft.ApplicationInsights、Microsoft.Bcl.AsyncInterfaces、Microsoft.Win32.Registry | 2.23.0、6.0.0、5.0.0 | MIT |
+| xunit.analyzers | 1.27.0 | Apache-2.0 |
+| Inno Setup | 6.7.1 | Inno Setup License（允许商业使用与二进制再分发） |
 
-`product/platform/windows/src/sys/bindings.rs` 由仓库内 `tools/windows-bindings` 使用固定版本 `windows-bindgen 0.62.1` 生成。上游源码为 `https://github.com/microsoft/windows-rs`，生成器许可证为 `MIT OR Apache-2.0`；生成后的仓库文件按项目 REUSE 聚合规则标记为 `GPL-3.0-or-later`。复现与漂移检查命令为：
+Headless 测试引入的 Avalonia 字体、HarfBuzzSharp 和 SkiaSharp 平台原生资源包均为 MIT。
 
-```bash
-cargo run --manifest-path Cargo.toml --locked --bin windows-bindings
-cargo run --manifest-path Cargo.toml --locked --bin windows-bindings -- --check
-```
+Inno Setup 只在 Windows 安装包构建阶段使用。其安装程序运行时保留上游版权与网站信息，Snaploom 不修改或冒充该组件来源。仓库内固定保存的简体中文消息文件来自 Inno Setup 6.7.1 上游源码，文件头保留译者与来源说明。
 
-## 仅测试与构建使用的浏览器资产
+## 复核方法
 
-| 依赖或资产 | 版本 | 许可证 / 分发边界 |
-| --- | --- | --- |
-| `@playwright/test` / Playwright | 1.61.1 | Apache-2.0；只用于测试 |
-| Chromium headless shell | `Google Chrome for Testing 149.0.7827.55` / Playwright revision 1228 / Linux x86_64 | Chromium BSD 风格许可证及其第三方声明；来自固定摘要的 Playwright 测试镜像，只用于比较金图，不随产品分发 |
-| `@fontsource/inter` | 5.3.0 | OFL-1.1；测试专用受控字体 |
-| `@fontsource/noto-sans-sc` | 5.3.0 | OFL-1.1；测试专用受控字体 |
-
-字体包来自 Fontsource npm 包，包元数据分别指向 Fontsource 的 Inter 与 Noto Sans SC 字体仓库。它们只在 Ubuntu 24.04 的固定 Chromium 金图夹具中加载，用于消除字体渲染漂移；生产截图浮层遵循 `docs/ui/screenshot-ui.md`，使用系统无衬线字体，不打包这些字体。
-
-金图更新必须显式运行：
+版本树可通过以下命令重新生成：
 
 ```bash
-cargo run --locked --bin xtask -- goldens-update
+dotnet list Snaploom.sln package --include-transitive
 ```
 
-该入口只允许 Ubuntu 24.04 x86_64 更新；CI 使用固定镜像 `mcr.microsoft.com/playwright@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48`，永远只比较已提交 PNG 和 sidecar，不自动重写基线。sidecar 同时记录浏览器 revision、实际二进制版本、操作系统与架构，避免同一 revision 或多架构镜像的渲染产物漂移。
+许可证以还原后 NuGet 包内的 `.nuspec` 与许可证文件为准。每次新增或升级运行时依赖时，都应更新本文件；发布流程还需把运行时依赖的许可证文本汇总到安装包的第三方声明中。

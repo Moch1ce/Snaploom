@@ -1,6 +1,0 @@
-Snaploom Desktop and Capture Host
-Copyright 2026 Snaploom contributors
-
-Snaploom Desktop and Capture Host are distributed under GPL-3.0-or-later.
-They include separately licensed Apache-2.0 protocol/client components. See
-THIRD-PARTY-NOTICES.txt and sbom.cdx.json for the packaged dependency set.

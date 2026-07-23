@@ -1,9 +1,0 @@
-prefix=${pcfiledir}/../..
-libdir=${prefix}/lib
-includedir=${prefix}/include
-
-Name: Snaploom Capture
-Description: Snaploom Capture SDK C ABI
-Version: @SNAPLOOM_VERSION@
-Libs: -L${libdir} -lsnaploom_capture
-Cflags: -I${includedir}

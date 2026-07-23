@@ -228,7 +228,7 @@ SDK 不联网、不下载 Host，也不把 Host 打进 NuGet、XCFramework、C S
 2. 平台安装登记：Windows 用户级 Host installer 写入 `HKCU\Software\Snaploom\CaptureHost\InstallPath`；macOS 通过 bundle identifier `com.snaploom.capture-host` 的 Launch Services 记录定位 `.app`。[Windows Registry hives](https://learn.microsoft.com/en-us/windows/win32/sysinfo/registry-hives) [NSWorkspace application lookup](https://developer.apple.com/documentation/appkit/nsworkspace/urlforapplication%28withbundleidentifier%3A%29)
 3. Snaploom App 自用时可显式传递其同一 GPL app asset 内的 adjacent Host；这不是公共 SDK 的搜索路径。
 
-找不到时返回 `HOST_NOT_FOUND`；绝不从工作目录、`PATH`、临时目录或网络猜测。启动前要求绝对、存在、普通可执行文件；拒绝网络路径和 world-writable 可执行文件。官方发布验证 checksum、GitHub attestation 与明确的双平台未签名信任模式，但 SDK 不把“只能由 Snaploom 官方签名”写成协议条件，以免阻止 GPL 修改版通过显式 override 运行。
+找不到时返回 `HOST_NOT_FOUND`；绝不从工作目录、`PATH`、临时目录或网络猜测。启动前要求绝对、存在、普通可执行文件；拒绝网络路径和 world-writable 可执行文件。官方发布验证签名/公证，但 SDK 不把“只能由 Snaploom 官方签名”写成协议条件，以免阻止 GPL 修改版通过显式 override 运行。
 
 ### 4.2 安全启动
 

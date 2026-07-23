@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Snaploom.App</AssemblyName>
+    <RootNamespace>Snaploom.App</RootNamespace>
+    <OutputType>WinExe</OutputType>
+    <ApplicationTitle>Snaploom</ApplicationTitle>
+    <Product>Snaploom</Product>
+    <Description>轻量桌面截图与标注工具</Description>
+    <Company>Snaploom</Company>
+    <ApplicationManifest>Platforms/Windows/app.manifest</ApplicationManifest>
+    <ApplicationIcon Condition="$([MSBuild]::IsOSPlatform('Windows')) Or '$(SnaploomTargetWindows)' == 'true'">Assets/Snaploom.ico</ApplicationIcon>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Snaploom.App.HeadlessTests" />
+    <InternalsVisibleTo Include="Snaploom.IntegrationTests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Snaploom.Core/Snaploom.Core.csproj" />
+    <ProjectReference Include="../Snaploom.Rendering/Snaploom.Rendering.csproj" />
+    <ProjectReference Include="../Snaploom.Platform.Abstractions/Snaploom.Platform.Abstractions.csproj" />
+    <ProjectReference Include="../Snaploom.Platform.Windows/Snaploom.Platform.Windows.csproj" />
+    <ProjectReference Include="../Snaploom.Platform.MacOS/Snaploom.Platform.MacOS.csproj" />
+  </ItemGroup>
+
+  <Target
+    Name="CreateMacOSApplicationBundle"
+    AfterTargets="Publish"
+    Condition="'$(RuntimeIdentifier)' == 'osx-arm64'">
+    <PropertyGroup>
+      <_MacOSBundleDirectory>$(PublishDir)bundle/Snaploom.app</_MacOSBundleDirectory>
+      <_MacOSBundleRoot>$(_MacOSBundleDirectory)/Contents</_MacOSBundleRoot>
+      <_MacOSResourcesDirectory>$(_MacOSBundleRoot)/Resources</_MacOSResourcesDirectory>
+    </PropertyGroup>
+    <RemoveDir Directories="$(PublishDir)bundle" />
+    <ItemGroup>
+      <_MacOSPublishedFile
+        Include="$(PublishDir)**/*"
+        Exclude="$(PublishDir)bundle/**/*" />
+    </ItemGroup>
+    <MakeDir Directories="$(_MacOSBundleRoot)/MacOS;$(_MacOSResourcesDirectory)/en.lproj;$(_MacOSResourcesDirectory)/zh-Hans.lproj" />
+    <Copy
+      SourceFiles="@(_MacOSPublishedFile)"
+      DestinationFiles="@(_MacOSPublishedFile->'$(_MacOSBundleRoot)/MacOS/%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+    <Copy
+      SourceFiles="$(MSBuildProjectDirectory)/Platforms/macOS/Info.plist"
+      DestinationFolder="$(_MacOSBundleRoot)" />
+    <Copy
+      SourceFiles="$(MSBuildProjectDirectory)/Assets/Snaploom.icns"
+      DestinationFolder="$(_MacOSResourcesDirectory)" />
+    <Copy
+      SourceFiles="$(MSBuildProjectDirectory)/Platforms/macOS/en.lproj/InfoPlist.strings"
+      DestinationFolder="$(_MacOSResourcesDirectory)/en.lproj" />
+    <Copy
+      SourceFiles="$(MSBuildProjectDirectory)/Platforms/macOS/zh-Hans.lproj/InfoPlist.strings"
+      DestinationFolder="$(_MacOSResourcesDirectory)/zh-Hans.lproj" />
+  </Target>
+</Project>

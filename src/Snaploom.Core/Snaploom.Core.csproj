@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Snaploom.Core</AssemblyName>
+    <RootNamespace>Snaploom.Core</RootNamespace>
+  </PropertyGroup>
+</Project>

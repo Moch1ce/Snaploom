@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="StartScreenshot" xml:space="preserve"><value>开始截图</value></data>
+  <data name="SettingsMenu" xml:space="preserve"><value>设置…</value></data>
+  <data name="AutoStart" xml:space="preserve"><value>开机启动</value></data>
+  <data name="Exit" xml:space="preserve"><value>退出</value></data>
+  <data name="SettingsTitle" xml:space="preserve"><value>Snaploom 设置</value></data>
+  <data name="ShortcutSection" xml:space="preserve"><value>截图快捷键</value></data>
+  <data name="ShortcutInstruction" xml:space="preserve"><value>请按下包含至少一个修饰键的新快捷键。</value></data>
+  <data name="ShortcutStartupConflict" xml:space="preserve"><value>当前快捷键已被其他应用占用，请设置新的快捷键。</value></data>
+  <data name="Apply" xml:space="preserve"><value>应用</value></data>
+  <data name="Close" xml:space="preserve"><value>关闭</value></data>
+  <data name="ShortcutModifierRequired" xml:space="preserve"><value>快捷键必须包含 Alt、Control、Shift 或 Command。</value></data>
+  <data name="ShortcutApplyHint" xml:space="preserve"><value>点击“应用”保存新快捷键。</value></data>
+  <data name="ShortcutSaved" xml:space="preserve"><value>快捷键已生效。</value></data>
+  <data name="ShortcutConflict" xml:space="preserve"><value>该快捷键已被其他应用占用，原快捷键已恢复。</value></data>
+  <data name="Language" xml:space="preserve"><value>语言</value></data>
+  <data name="LanguageSystem" xml:space="preserve"><value>跟随系统</value></data>
+  <data name="LanguageSimplifiedChinese" xml:space="preserve"><value>简体中文</value></data>
+  <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
+  <data name="PermissionTitle" xml:space="preserve"><value>允许 Snaploom 录制屏幕</value></data>
+  <data name="PermissionDescription" xml:space="preserve"><value>截图需要 macOS 的“屏幕与系统音频录制”权限。Snaploom 只在你主动截图时读取屏幕。</value></data>
+  <data name="ContinueAuthorization" xml:space="preserve"><value>继续授权</value></data>
+  <data name="OpenSystemSettings" xml:space="preserve"><value>打开系统设置</value></data>
+  <data name="PermissionRestartHint" xml:space="preserve"><value>授权后请重新启动 Snaploom，再使用截图快捷键。</value></data>
+  <data name="Later" xml:space="preserve"><value>稍后</value></data>
+  <data name="PermissionNotGranted" xml:space="preserve"><value>权限尚未开启。请打开系统设置，允许 Snaploom 录制屏幕后重新启动应用。</value></data>
+  <data name="CaptureFailureTitle" xml:space="preserve"><value>Snaploom 截图失败</value></data>
+  <data name="ExitScreenshot" xml:space="preserve"><value>退出截图</value></data>
+  <data name="CaptureFailureHeading" xml:space="preserve"><value>无法截取当前屏幕</value></data>
+  <data name="CaptureSystemFailure" xml:space="preserve"><value>系统未能读取显示器画面。请退出截图后重试。</value></data>
+  <data name="CaptureUnexpectedFailure" xml:space="preserve"><value>截图过程中发生错误。请退出后重试。</value></data>
+  <data name="ModifierCommand" xml:space="preserve"><value>Command</value></data>
+  <data name="ModifierControl" xml:space="preserve"><value>Control</value></data>
+  <data name="ModifierAlt" xml:space="preserve"><value>Alt</value></data>
+  <data name="ModifierShift" xml:space="preserve"><value>Shift</value></data>
+  <data name="OpenLogs" xml:space="preserve"><value>打开日志目录</value></data>
+  <data name="ClearLogs" xml:space="preserve"><value>清除日志</value></data>
+  <data name="LogsCleared" xml:space="preserve"><value>本地日志已清除。</value></data>
+  <data name="LogOperationFailed" xml:space="preserve"><value>本地日志操作失败。</value></data>
+  <data name="BackgroundErrorTitle" xml:space="preserve"><value>Snaploom 需要处理</value></data>
+  <data name="HotKeyConflictNotification" xml:space="preserve"><value>截图快捷键当前不可用。请从托盘打开设置更换快捷键，或查看本地日志。</value></data>
+  <data name="HotKeyReregisterNotification" xml:space="preserve"><value>系统唤醒后未能恢复截图快捷键。请从托盘打开设置，或查看本地日志。</value></data>
+  <data name="AutoStartFailure" xml:space="preserve"><value>无法更改开机启动设置。请打开设置或查看本地日志。</value></data>
+  <data name="PlatformUnavailable" xml:space="preserve"><value>当前系统无法使用截图能力。请打开设置或查看本地日志。</value></data>
+  <data name="UpdateSection" xml:space="preserve"><value>更新</value></data>
+  <data name="CheckUpdates" xml:space="preserve"><value>检查更新</value></data>
+  <data name="CheckingUpdates" xml:space="preserve"><value>正在查询 GitHub Releases…</value></data>
+  <data name="UpdateAvailableFormat" xml:space="preserve"><value>发现新版本 {0}。</value></data>
+  <data name="UpToDateFormat" xml:space="preserve"><value>当前已是最新版（{0}）。</value></data>
+  <data name="PublishedFormat" xml:space="preserve"><value>发布于 {0:D}</value></data>
+  <data name="ReleaseNotes" xml:space="preserve"><value>更新说明</value></data>
+  <data name="OpenRelease" xml:space="preserve"><value>打开 GitHub Release</value></data>
+  <data name="UpdateNetworkFailure" xml:space="preserve"><value>无法连接 GitHub。请检查网络后重试。</value></data>
+  <data name="UpdateRateLimited" xml:space="preserve"><value>GitHub 暂时限制了更新查询，请稍后重试。</value></data>
+  <data name="UpdateInvalidResponse" xml:space="preserve"><value>GitHub 返回的版本信息无法识别。</value></data>
+  <data name="OpenReleaseFailed" xml:space="preserve"><value>无法打开 GitHub Release 页面。</value></data>
+</root>

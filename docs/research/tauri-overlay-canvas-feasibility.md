@@ -16,9 +16,7 @@
 - React 只承载应用壳、浮动 UI 与声明式状态投影。高频指针状态、命中、手势和逐帧绘制不得依赖每个 `pointermove` 触发 React 重渲染。
 - Rust 与平台 Adapter 继续拥有系统捕获、显示器/窗口拓扑、权限、全局快捷键、置顶窗口、剪贴板、原生保存对话框、文件写入、单实例、开机启动、唤醒和通知。WebView 不直接获得这些插件或系统权限。
 
-该决定是有条件的“可实施”，不是把风险原型等同于最终验收。本文第 10 节的真实多显示器、混合
-DPI、IME、4K 性能与双平台真机矩阵保留为非阻塞人工建议；缺少结果不阻断发布，但不得冒充已通过，
-也不允许静默降低图片分辨率、交互帧率或合同能力。
+该决定是有条件的“可实施”，不是把风险原型等同于最终验收。生产代码仍必须通过本文第 10 节的真实多显示器、混合 DPI、IME、4K 性能与双平台真机门禁；任一硬门槛失败都阻断发布，不允许静默降低图片分辨率、交互帧率或合同能力。
 
 ## 2. 决策依据与证据边界
 
@@ -164,9 +162,7 @@ Canvas 设置为：backing `width = physicalWidth`、`height = physicalHeight`�
 - 失焦原因必须分类：点击画布第一次只提交并退出编辑，第二次才开始新文字；保存/复制先提交；直接取消 Session 不产生 Capture Result。
 - 自动换行后的所有行共享一个对象命中区域；提交后的字体、换行、裁切和导出全部回到统一 Canvas renderer。
 
-如果某目标 WebView 的简中/英文 IME、候选窗定位或 composition 序列尚未经过真机矩阵，应继续作为
-非阻塞人工建议跟踪且不得声称已验收；不得把文字工具改成不支持 IME、WebView prompt、独立原生窗口
-或逐字 DOM 标注作为降级。
+如果某目标 WebView 的简中/英文 IME、候选窗定位或 composition 序列未通过真机矩阵，必须阻断该平台发布；不得把文字工具改成不支持 IME、WebView prompt、独立原生窗口或逐字 DOM 标注作为降级。
 
 ## 8. 必须留在 Rust / Platform Adapter 的职责
 
@@ -279,7 +275,7 @@ Windows CI 的 Tauri build 和 macOS 原型视觉证据继续作为构建回归�
 1. 建立独立、可序列化的 Overlay Session 状态机、坐标值对象、输入枚举与无头测试，不先耦合 React/Tauri。
 2. 建立单可见 Canvas renderer、受控底图 fixture 和像素金图；先完成选区/遮罩，再完成对象与最终选区导出。
 3. 建立根 capture-phase 输入路由和浮动 DOM 层，首先固化工具栏 pointer 冒泡回归。
-4. 接入复用 `textarea` 的 composition Adapter；简中/英文真机验证作为非阻塞人工建议，未验证时不得声称已覆盖真实 IME。
+4. 接入复用 `textarea` 的 composition Adapter，完成简中/英文真机门禁后再声明文字工具完成。
 5. 通过窄 Tauri command/channel 接入 Rust Session 资源；删除原型 data URL/Base64，验证参数、尺寸上限、dispose 和隐私边界。
 6. 接 Windows/macOS Platform Adapter 的真实捕获、候选窗口、显式目标显示器 overlay、clipboard 和 save workflow。
 7. 实现马赛克瓦片缓存、dirty rect、逐帧输入合并，跑真实 4K 性能并按分段数据优化。

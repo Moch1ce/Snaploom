@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework Condition="$([MSBuild]::IsOSPlatform('Windows')) Or '$(SnaploomTargetWindows)' == 'true'">net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework Condition="'$(TargetFramework)' == ''">net10.0</TargetFramework>
+    <EnableWindowsTargeting Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">true</EnableWindowsTargeting>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+  </PropertyGroup>
+</Project>

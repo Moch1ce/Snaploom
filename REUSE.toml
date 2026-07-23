@@ -10,7 +10,7 @@ SPDX-FileCopyrightText = "2026 Snaploom contributors"
 SPDX-License-Identifier = "GPL-3.0-or-later"
 
 [[annotations]]
-path = ["Package.swift", "sdk/**", "examples/sdk/**"]
+path = ["sdk/**", "examples/sdk/**"]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Snaploom contributors"
 SPDX-License-Identifier = "Apache-2.0"
