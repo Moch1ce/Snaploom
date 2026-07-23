@@ -264,6 +264,33 @@ public sealed class ScreenshotCompletionWorkflowTests
     }
 
     [AvaloniaFact]
+    public void DoubleClickingTheMaskCopiesTheCurrentSelectionAndExits()
+    {
+        var frame = CreateFrame(600, 400);
+        var clipboard = new CapturingClipboard();
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(100, 100));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new RecordingSaveDialog(path: null),
+            clipboard,
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+
+        Click(window, new Point(20, 20));
+        window.MouseDown(
+            new Point(20, 20),
+            MouseButton.Left,
+            RawInputModifiers.LeftMouseButton);
+
+        Assert.False(window.IsVisible);
+        Assert.NotEmpty(clipboard.Png);
+        using var bitmap = SKBitmap.Decode(clipboard.Png);
+        Assert.Equal(450, bitmap.Width);
+        Assert.Equal(250, bitmap.Height);
+    }
+
+    [AvaloniaFact]
     public void ShownOverlaySignalsThatItIsInteractive()
     {
         var frame = CreateFrame(600, 400);

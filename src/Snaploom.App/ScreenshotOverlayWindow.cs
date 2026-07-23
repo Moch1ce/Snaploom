@@ -748,6 +748,14 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             return;
         }
 
+        if (_selectionCanvas.HandleMaskPointerPressed(
+                e.GetPosition(_selectionCanvas),
+                e.ClickCount))
+        {
+            e.Handled = true;
+            return;
+        }
+
         e.Handled = true;
         CommitTextEditing();
     }

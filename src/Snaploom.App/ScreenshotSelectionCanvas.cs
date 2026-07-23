@@ -12,6 +12,7 @@ namespace Snaploom.App;
 internal enum ScreenshotPointerFeedback
 {
     Default,
+    Disabled,
     Crosshair,
     Text,
     SelectAnnotation,
@@ -51,6 +52,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     private readonly Cursor _moveCursor = ScreenshotMoveCursor.Create();
     private readonly Cursor _textCursor = new(StandardCursorType.Ibeam);
     private readonly Cursor _defaultCursor = new(StandardCursorType.Arrow);
+    private readonly Cursor _disabledCursor = new(GetMaskCursorType());
     private readonly Dictionary<StandardCursorType, Cursor> _resizeCursors = new()
     {
         [StandardCursorType.SizeWestEast] = new(StandardCursorType.SizeWestEast),
@@ -144,6 +146,13 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
     internal Rect? LogicalSelection =>
         _session.Selection is { } selection ? ToLogicalRect(selection) : null;
+
+    internal bool IsMaskInteractionArea(Point point) =>
+        _session.State == ScreenshotSessionState.Selected &&
+        HitTestSelectionResizeHandle(point) is null &&
+        !_session.SelectionContains(ToPhysicalPoint(point));
+
+    internal static StandardCursorType GetMaskCursorType() => StandardCursorType.No;
 
     public override void Render(DrawingContext context)
     {
@@ -402,6 +411,12 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         var physicalPoint = ToPhysicalPoint(position);
         if (_session.State == ScreenshotSessionState.Selected)
         {
+            if (HandleMaskPointerPressed(position, e.ClickCount))
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (_annotationSession.TextEdit is not null)
             {
                 CommitTextEdit();
@@ -561,6 +576,22 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         e.Handled = true;
     }
 
+    internal bool HandleMaskPointerPressed(Point point, int clickCount)
+    {
+        if (!IsMaskInteractionArea(point))
+        {
+            return false;
+        }
+
+        SetPointerCursor(_disabledCursor, ScreenshotPointerFeedback.Disabled);
+        if (clickCount >= 2)
+        {
+            SelectionDoubleClicked?.Invoke(this, EventArgs.Empty);
+        }
+
+        return true;
+    }
+
     private bool TryBeginTextAnnotationInteraction(Point position)
     {
         if (HitTestTextAnnotation(position) is not { } textIndex ||
@@ -705,6 +736,12 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                 if (HitTestSelectionResizeHandle(rawPosition) is { } selectionHandle)
                 {
                     SetResizePointerFeedback(selectionHandle);
+                    return;
+                }
+
+                if (IsMaskInteractionArea(rawPosition))
+                {
+                    SetPointerCursor(_disabledCursor, ScreenshotPointerFeedback.Disabled);
                     return;
                 }
 
@@ -1280,7 +1317,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
         if (!_session.SelectionContains(ToPhysicalPoint(point)))
         {
-            SetPointerCursor(_crosshairCursor, ScreenshotPointerFeedback.Crosshair);
+            SetPointerCursor(_disabledCursor, ScreenshotPointerFeedback.Disabled);
             return;
         }
 

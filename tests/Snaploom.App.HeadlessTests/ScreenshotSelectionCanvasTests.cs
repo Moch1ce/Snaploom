@@ -130,6 +130,64 @@ public sealed class ScreenshotSelectionCanvasTests
     }
 
     [AvaloniaFact]
+    public void CompletedSelectionMaskIsInertAndUsesTheSystemNoCursor()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            Drag(window, new Point(20, 20), new Point(80, 80));
+            var selection = canvas.Session.Selection;
+
+            window.MouseMove(new Point(5, 5), RawInputModifiers.None);
+
+            Assert.Equal(ScreenshotPointerFeedback.Disabled, canvas.PointerFeedback);
+            Assert.Equal(
+                StandardCursorType.No,
+                ScreenshotSelectionCanvas.GetMaskCursorType());
+
+            Click(window, new Point(5, 5));
+            canvas.SelectAnnotationTool(ScreenshotAnnotationTool.Rectangle);
+            window.MouseMove(new Point(95, 95), RawInputModifiers.None);
+            Assert.Equal(ScreenshotPointerFeedback.Disabled, canvas.PointerFeedback);
+            Drag(window, new Point(95, 95), new Point(85, 85));
+
+            Assert.Equal(ScreenshotSessionState.Selected, canvas.Session.State);
+            Assert.Equal(selection, canvas.Session.Selection);
+            Assert.Empty(canvas.Annotations);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void DoubleClickingCompletedSelectionMaskRaisesCompletion()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        var completionCount = 0;
+        canvas.SelectionDoubleClicked += (_, _) => completionCount++;
+        try
+        {
+            Drag(window, new Point(20, 20), new Point(80, 80));
+
+            Click(window, new Point(5, 5));
+            Click(window, new Point(5, 5));
+
+            Assert.Equal(1, completionCount);
+            Assert.Equal(new Rect(20, 20, 60, 60), canvas.LogicalSelection);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public void SelectionCornerKeepsResizePriorityWhileDrawingToolIsActive()
     {
         using var frame = CreateHighDpiFrame();

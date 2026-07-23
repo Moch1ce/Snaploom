@@ -149,10 +149,11 @@
 
 ### SEL-04 替换选区（MUST）
 
-- 在允许重新框选的状态开始新选区时，清除旧标注、预览、对象选择、文字草稿与撤销/重做历史，并解冻浮动 UI。
+- 仅在尚未完成选区的可框选状态开始新选区；选区完成后，选区外蒙版显示系统禁用光标，单击、拖拽和绘制不得替换选区或改变标注、文字草稿及撤销/重做历史。
+- 双击选区或选区外蒙版均完成当前选区；绿色选区边框及控制点仍优先响应缩放。
 - 取消保存不是替换选区，必须保留上述全部状态。
 - 验证：核心/Headless 状态快照。
-- 证据：`dotnet-final:src/Snaploom.App/ScreenshotSelectionCanvas.cs`、`ScreenshotSessionTests.ACompletedSelectionCanBeReplacedByDraggingAgain`、`ScreenshotCompletionWorkflowTests.CancelingSavePreservesSelectionAnnotationsAndHistory`。
+- 证据：`dotnet-final:src/Snaploom.App/ScreenshotSelectionCanvas.cs`、`ScreenshotSelectionCanvasTests.CompletedSelectionMaskIsInertAndUsesTheSystemNoCursor`、`ScreenshotCompletionWorkflowTests.DoubleClickingTheMaskCopiesTheCurrentSelectionAndExits`、`CancelingSavePreservesSelectionAnnotationsAndHistory`。
 
 ## 6. 截图浮层视觉合同
 

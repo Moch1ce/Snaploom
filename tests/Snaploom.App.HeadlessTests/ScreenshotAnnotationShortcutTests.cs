@@ -251,6 +251,29 @@ public sealed class ScreenshotAnnotationShortcutTests
     }
 
     [AvaloniaFact]
+    public void ClickingTheMaskDoesNotCommitAnActiveTextEditor()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        window.TextEditor.Text = "保持编辑";
+
+        Click(window, new Point(20, 20));
+
+        Assert.True(window.TextEditorVisible);
+        Assert.Equal("保持编辑", window.TextEdit?.Text);
+        Assert.Empty(window.Annotations);
+    }
+
+    [AvaloniaFact]
     public void FirstSelectionCornerClickCommitsTextWithoutResizing()
     {
         var frame = CreateFrame(width: 600, height: 400);
