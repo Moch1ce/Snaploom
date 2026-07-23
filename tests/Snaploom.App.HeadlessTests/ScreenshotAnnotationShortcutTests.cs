@@ -1115,7 +1115,7 @@ public sealed class ScreenshotAnnotationShortcutTests
         var singleLineHeight = window.TextEditorVisualHeight;
         window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, "\r");
         window.UpdateLayout();
-        Assert.Equal("第一行\n", window.TextEditor.Text);
+        Assert.Equal("第一行\n", window.TextEdit?.Text);
         Assert.True(window.TextEditorVisualHeight > singleLineHeight);
 
         window.KeyPress(
@@ -1125,7 +1125,7 @@ public sealed class ScreenshotAnnotationShortcutTests
             null);
         window.UpdateLayout();
 
-        Assert.Equal("第一行", window.TextEditor.Text);
+        Assert.Equal("第一行", window.TextEdit?.Text);
         var edit = Assert.IsType<ScreenshotTextEdit>(window.TextEdit);
         Assert.False(edit.IsComposing);
         var measuredBounds = ScreenshotTextEditorLayout.Measure(

@@ -691,7 +691,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         var text = _textEditor.Text ?? string.Empty;
         if (string.IsNullOrEmpty(preeditText))
         {
-            return text;
+            return NormalizeTextEditorLineEndings(text);
         }
 
         var selectionStart = Math.Clamp(
@@ -702,14 +702,15 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             Math.Max(_textEditor.SelectionStart, _textEditor.SelectionEnd),
             selectionStart,
             text.Length);
-        return text[..selectionStart] + preeditText + text[selectionEnd..];
+        return NormalizeTextEditorLineEndings(
+            text[..selectionStart] + preeditText + text[selectionEnd..]);
     }
 
     private void HandleTextChanged(object? sender, TextChangedEventArgs e)
     {
         if (!_changingTextEditor && _selectionCanvas.TextEdit is not null)
         {
-            var text = _textEditor.Text ?? string.Empty;
+            var text = NormalizeTextEditorLineEndings(_textEditor.Text);
             var allowHeightShrink =
                 text.Length < _selectionCanvas.TextEdit.Text.Length;
             _selectionCanvas.UpdateTextDraft(
@@ -725,6 +726,9 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             }
         }
     }
+
+    private static string NormalizeTextEditorLineEndings(string? text) =>
+        (text ?? string.Empty).ReplaceLineEndings("\n");
 
     private void HandleTextEditorKeyDown(object? sender, KeyEventArgs e)
     {
