@@ -1276,12 +1276,20 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         IScreenshotAnnotation annotation,
         Rect selection)
     {
-        var bounds = ScreenshotAnnotationRenderer.MeasureVisualBounds(annotation);
+        var bounds = annotation is ScreenshotTextAnnotation text
+            ? ToAnnotationBounds(
+                ScreenshotTextEditorLayout.Measure(
+                    text,
+                    new Rect(0, 0, selection.Width, selection.Height)))
+            : ScreenshotAnnotationRenderer.MeasureVisualBounds(annotation);
         return AnnotationMovementConstraint.Within(
             new LogicalSize(selection.Width, selection.Height),
             new LogicalPoint(bounds.Left, bounds.Top),
             new LogicalPoint(bounds.Right, bounds.Bottom));
     }
+
+    private static ScreenshotAnnotationBounds ToAnnotationBounds(Rect bounds) =>
+        new(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom);
 
     private void ResetAnnotationsForNewSelection()
     {
@@ -1693,15 +1701,17 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                 break;
 
             case ScreenshotTextAnnotation text:
-                var textBounds = ScreenshotAnnotationRenderer.MeasureText(text);
+                if (_pendingTextAnnotationInteraction is null &&
+                    !_isAnnotationMoveTransform)
+                {
+                    break;
+                }
+
+                var textBounds = ScreenshotTextEditorLayout.Measure(text, selection);
                 context.DrawRectangle(
                     brush: null,
                     controlPen,
-                    new Rect(
-                        selection.X + textBounds.X,
-                        selection.Y + textBounds.Y,
-                        textBounds.Width,
-                        textBounds.Height));
+                    textBounds);
                 break;
 
             case ScreenshotMosaicAnnotation mosaic when mosaic.Points.Count > 0:

@@ -180,10 +180,13 @@ public sealed class ScreenshotAnnotationShortcutTests
         var text = Assert.IsType<ScreenshotTextAnnotation>(Assert.Single(window.Annotations));
         Assert.Equal("可拖拽文字", text.Text);
         var textBounds = ScreenshotAnnotationRenderer.MeasureVisualBounds(text);
+        var editorBounds = ScreenshotTextEditorLayout.Measure(
+            text,
+            new Rect(0, 0, 450, 150));
         Assert.InRange(textBounds.Left, 0, 450);
         Assert.InRange(textBounds.Top, 0, 150);
-        Assert.Equal(450, textBounds.Right, precision: 5);
-        Assert.Equal(150, textBounds.Bottom, precision: 5);
+        Assert.Equal(450, editorBounds.Right, precision: 5);
+        Assert.Equal(150, editorBounds.Bottom, precision: 5);
     }
 
     [AvaloniaFact]
@@ -281,7 +284,9 @@ public sealed class ScreenshotAnnotationShortcutTests
         var annotation = Assert.IsType<ScreenshotTextAnnotation>(
             Assert.Single(window.Annotations));
         var bounds = Snaploom.Rendering.ScreenshotAnnotationRenderer.MeasureText(annotation);
-        var visualBounds = ScreenshotAnnotationRenderer.MeasureVisualBounds(annotation);
+        var editorBounds = ScreenshotTextEditorLayout.Measure(
+            annotation,
+            new Rect(0, 0, 450, 250));
         Assert.True(bounds.Height > annotation.Style.FontSize * 1.25);
         var tailLinePoint = new Point(
             50 + bounds.X + (annotation.Style.FontSize / 2),
@@ -296,13 +301,18 @@ public sealed class ScreenshotAnnotationShortcutTests
         Assert.Null(window.TextEdit);
         var moved = Assert.IsType<ScreenshotTextAnnotation>(Assert.Single(window.Annotations));
         var movedBounds = ScreenshotAnnotationRenderer.MeasureVisualBounds(moved);
+        var movedEditorBounds = ScreenshotTextEditorLayout.Measure(
+            moved,
+            new Rect(0, 0, 450, 250));
         Assert.Equal(
             new LogicalPoint(
-                annotation.Origin.X + Math.Min(50, 450 - visualBounds.Right),
-                annotation.Origin.Y + Math.Min(20, 250 - visualBounds.Bottom)),
+                annotation.Origin.X + Math.Min(50, 450 - editorBounds.Right),
+                annotation.Origin.Y + Math.Min(20, 250 - editorBounds.Bottom)),
             moved.Origin);
         Assert.InRange(movedBounds.Right, 0, 450);
         Assert.InRange(movedBounds.Bottom, 0, 250);
+        Assert.InRange(movedEditorBounds.Right, 0, 450);
+        Assert.InRange(movedEditorBounds.Bottom, 0, 250);
     }
 
     [AvaloniaFact]
@@ -905,6 +915,81 @@ public sealed class ScreenshotAnnotationShortcutTests
     }
 
     [AvaloniaFact]
+    public void CommittedTextShowsItsGreenBorderOnlyWhileBeingDragged()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        window.TextEditor.Text = "拖拽文字";
+        var commandModifier = OperatingSystem.IsMacOS()
+            ? RawInputModifiers.Meta
+            : RawInputModifiers.Control;
+        window.KeyPress(Key.Enter, commandModifier, PhysicalKey.Enter, "\r");
+
+        window.MouseDown(
+            new Point(105, 125),
+            MouseButton.Left,
+            RawInputModifiers.LeftMouseButton);
+        window.MouseMove(
+            new Point(205, 205),
+            RawInputModifiers.LeftMouseButton);
+        using var draggingFrame = window.CaptureRenderedFrame();
+        Assert.NotNull(draggingFrame);
+        AssertHasAccentPixels(
+            draggingFrame,
+            new PixelRect(60, 60, 430, 230));
+        var draggingBorder = GetAccentPixelBounds(
+            draggingFrame,
+            new PixelRect(60, 60, 430, 230));
+
+        window.MouseUp(
+            new Point(205, 205),
+            MouseButton.Left,
+            RawInputModifiers.None);
+        using var releasedFrame = window.CaptureRenderedFrame();
+        Assert.NotNull(releasedFrame);
+        AssertNoAccentPixels(
+            releasedFrame,
+            new PixelRect(60, 60, 430, 230));
+
+        Click(window, new Point(205, 205));
+        Assert.True(window.TextEditorVisible);
+        var editorTopLeft = Assert.IsType<Point>(
+            window.TextEditor.TranslatePoint(
+                new Point(
+                    -ScreenshotUiTheme.FloatingBorderThickness,
+                    -ScreenshotUiTheme.FloatingBorderThickness),
+                window));
+        var editorRight = editorTopLeft.X + window.TextEditorVisualWidth;
+        var editorBottom = editorTopLeft.Y + window.TextEditorVisualHeight;
+
+        Assert.InRange(
+            draggingBorder.X,
+            (int)Math.Floor(editorTopLeft.X) - 1,
+            (int)Math.Ceiling(editorTopLeft.X) + 1);
+        Assert.InRange(
+            draggingBorder.Y,
+            (int)Math.Floor(editorTopLeft.Y) - 1,
+            (int)Math.Ceiling(editorTopLeft.Y) + 1);
+        Assert.InRange(
+            draggingBorder.Right,
+            (int)Math.Floor(editorRight) - 1,
+            (int)Math.Ceiling(editorRight) + 1);
+        Assert.InRange(
+            draggingBorder.Bottom,
+            (int)Math.Floor(editorBottom) - 1,
+            (int)Math.Ceiling(editorBottom) + 1);
+    }
+
+    [AvaloniaFact]
     public void FocusedTextEditorCaretRendersInsideItsBorder()
     {
         var frame = CreateFrame(width: 600, height: 400);
@@ -1093,6 +1178,54 @@ public sealed class ScreenshotAnnotationShortcutTests
     }
 
     private static void AssertNoAccentPixels(Bitmap bitmap, PixelRect region)
+        => Assert.Equal(0, CountAccentPixels(bitmap, region));
+
+    private static void AssertHasAccentPixels(Bitmap bitmap, PixelRect region) =>
+        Assert.True(CountAccentPixels(bitmap, region) > 0);
+
+    private static PixelRect GetAccentPixelBounds(Bitmap bitmap, PixelRect region)
+    {
+        using var pixels = new WriteableBitmap(
+            bitmap.PixelSize,
+            bitmap.Dpi,
+            PixelFormat.Bgra8888,
+            AlphaFormat.Premul);
+        using var framebuffer = pixels.Lock();
+        bitmap.CopyPixels(framebuffer);
+        var bytes = new byte[framebuffer.RowBytes * bitmap.PixelSize.Height];
+        Marshal.Copy(framebuffer.Address, bytes, 0, bytes.Length);
+
+        var minimumX = int.MaxValue;
+        var minimumY = int.MaxValue;
+        var maximumX = int.MinValue;
+        var maximumY = int.MinValue;
+        for (var y = region.Y; y < region.Bottom; y++)
+        {
+            for (var x = region.X; x < region.Right; x++)
+            {
+                var offset = (y * framebuffer.RowBytes) + (x * 4);
+                var blue = bytes[offset];
+                var green = bytes[offset + 1];
+                var red = bytes[offset + 2];
+                if (green > 100 && green > red + 20 && green > blue + 20)
+                {
+                    minimumX = Math.Min(minimumX, x);
+                    minimumY = Math.Min(minimumY, y);
+                    maximumX = Math.Max(maximumX, x);
+                    maximumY = Math.Max(maximumY, y);
+                }
+            }
+        }
+
+        Assert.True(minimumX <= maximumX && minimumY <= maximumY);
+        return new PixelRect(
+            minimumX,
+            minimumY,
+            maximumX - minimumX + 1,
+            maximumY - minimumY + 1);
+    }
+
+    private static int CountAccentPixels(Bitmap bitmap, PixelRect region)
     {
         using var pixels = new WriteableBitmap(
             bitmap.PixelSize,
@@ -1120,7 +1253,7 @@ public sealed class ScreenshotAnnotationShortcutTests
             }
         }
 
-        Assert.Equal(0, accentPixelCount);
+        return accentPixelCount;
     }
 
     private static void AssertAccentPixelsStayInside(
