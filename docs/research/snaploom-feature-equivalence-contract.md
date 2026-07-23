@@ -225,6 +225,7 @@
 - 矩形显示 8 个控制柄，可整体移动、四边缩放、四角缩放并改颜色/线宽。
 - 箭头显示起点和终点控制柄，可整体移动、拖动任一端点改变长度方向并改颜色/线宽。
 - 文字可移动、改颜色/字号、双击重新编辑；马赛克可移动、删除、改强度，但不可缩放。
+- 矩形、箭头和文字的整体移动不得越出截图选区；矩形四边及四角缩放仅在该矩形已经选中后生效，首次命中未选中矩形时只执行对象选中与整体拖动。
 - 绘制矩形/箭头工具仍激活时，单击已有同类型对象优先选中，自动返回选择工具并打开对应设置；样式修改立即作用于已选对象。矩形工具不得误选马赛克。
 - 验证：核心/Headless 输入序列与历史快照。
 - 证据：`docs/ui/screenshot-ui.md`、`ScreenshotAnnotationSessionTests`、`ScreenshotAnnotationShortcutTests.ClickingADrawnRectangleSelectsItAndAppliesStyleChanges`。
@@ -232,8 +233,8 @@
 ### ANN-05 光标反馈（MUST）
 
 - 绘制工具为空白区域时用十字光标；文字工具为空白区域用文本光标。
-- 对象悬停使用四向移动；文字工具悬停已有文字也使用移动，离开后恢复文本光标。
-- 矩形边柄为水平/垂直缩放，角柄为对应对角缩放；箭头端点使用端点拖动光标。
+- 可移动对象在悬停、按下和整体拖动期间都使用四向移动，不使用 `pointer`；文字工具悬停已有文字也使用移动，离开后恢复文本光标。
+- 只有已选中矩形的边柄才使用水平/垂直缩放，角柄使用对应对角缩放；已选中箭头端点使用端点拖动光标。
 - 验证：Headless 指针反馈枚举与平台真机视觉复核。
 - 证据：`docs/ui/screenshot-ui.md`、`ScreenshotSelectionCanvasTests.HoverFeedbackDistinguishesSelectionObjectsHandlesAndEditedBlankSpace`。
 

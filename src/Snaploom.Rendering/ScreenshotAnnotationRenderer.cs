@@ -18,8 +18,14 @@ public readonly record struct ScreenshotTextBounds(
 {
     public bool Contains(LogicalPoint point) =>
         point.X >= X && point.X <= X + Width &&
-        point.Y >= Y && point.Y <= Y + Height;
+            point.Y >= Y && point.Y <= Y + Height;
 }
+
+public readonly record struct ScreenshotAnnotationBounds(
+    double Left,
+    double Top,
+    double Right,
+    double Bottom);
 
 public static class ScreenshotAnnotationRenderer
 {
@@ -122,6 +128,23 @@ public static class ScreenshotAnnotationRenderer
             layout.Height);
     }
 
+    public static ScreenshotAnnotationBounds MeasureVisualBounds(
+        IScreenshotAnnotation annotation,
+        string? preferredTextFontFamily = null)
+    {
+        ArgumentNullException.ThrowIfNull(annotation);
+        return annotation switch
+        {
+            ScreenshotRectangleAnnotation rectangle =>
+                MeasureRectangleVisualBounds(rectangle),
+            ScreenshotArrowAnnotation arrow => MeasureArrowVisualBounds(arrow),
+            ScreenshotTextAnnotation text =>
+                MeasureTextVisualBounds(text, preferredTextFontFamily),
+            _ => throw new InvalidOperationException(
+                $"Unsupported screenshot annotation: {annotation.GetType().Name}."),
+        };
+    }
+
     public static int? HitTestText(
         IReadOnlyList<IScreenshotAnnotation> annotations,
         LogicalPoint point,
@@ -180,6 +203,88 @@ public static class ScreenshotAnnotationRenderer
         double scaleX,
         double scaleY)
     {
+        if (CreateArrowGeometry(arrow, scaleX, scaleY) is not { } geometry)
+        {
+            return;
+        }
+
+        canvas.DrawLine(geometry.Start, geometry.End, paint);
+        using var path = new SKPath();
+        path.MoveTo(geometry.FirstWing);
+        path.LineTo(geometry.End);
+        path.LineTo(geometry.SecondWing);
+        canvas.DrawPath(path, paint);
+    }
+
+    private static ScreenshotAnnotationBounds MeasureRectangleVisualBounds(
+        ScreenshotRectangleAnnotation rectangle)
+    {
+        var halfStroke = rectangle.Style.LineWidth / 2d;
+        return new ScreenshotAnnotationBounds(
+            Math.Min(rectangle.Start.X, rectangle.End.X) - halfStroke,
+            Math.Min(rectangle.Start.Y, rectangle.End.Y) - halfStroke,
+            Math.Max(rectangle.Start.X, rectangle.End.X) + halfStroke,
+            Math.Max(rectangle.Start.Y, rectangle.End.Y) + halfStroke);
+    }
+
+    private static ScreenshotAnnotationBounds MeasureArrowVisualBounds(
+        ScreenshotArrowAnnotation arrow)
+    {
+        var halfStroke = arrow.Style.LineWidth / 2d;
+        if (CreateArrowGeometry(arrow, scaleX: 1, scaleY: 1) is not { } geometry)
+        {
+            return new ScreenshotAnnotationBounds(
+                arrow.Start.X - halfStroke,
+                arrow.Start.Y - halfStroke,
+                arrow.Start.X + halfStroke,
+                arrow.Start.Y + halfStroke);
+        }
+
+        var points = new[]
+        {
+            geometry.Start,
+            geometry.End,
+            geometry.FirstWing,
+            geometry.SecondWing,
+        };
+        return new ScreenshotAnnotationBounds(
+            points.Min(point => point.X) - halfStroke,
+            points.Min(point => point.Y) - halfStroke,
+            points.Max(point => point.X) + halfStroke,
+            points.Max(point => point.Y) + halfStroke);
+    }
+
+    private static ScreenshotAnnotationBounds MeasureTextVisualBounds(
+        ScreenshotTextAnnotation text,
+        string? preferredTextFontFamily)
+    {
+        using var layout = CreateTextLayout(
+            text,
+            scaleX: 1,
+            scaleY: 1,
+            preferredTextFontFamily);
+        if (layout.InkBounds is { } inkBounds)
+        {
+            return new ScreenshotAnnotationBounds(
+                inkBounds.Left,
+                inkBounds.Top,
+                inkBounds.Right,
+                inkBounds.Bottom);
+        }
+
+        var measured = MeasureText(text, preferredTextFontFamily);
+        return new ScreenshotAnnotationBounds(
+            measured.X,
+            measured.Y,
+            measured.X + measured.Width,
+            measured.Y + measured.Height);
+    }
+
+    private static ArrowGeometry? CreateArrowGeometry(
+        ScreenshotArrowAnnotation arrow,
+        double scaleX,
+        double scaleY)
+    {
         var start = ToSkPoint(arrow.Start, scaleX, scaleY);
         var end = ToSkPoint(arrow.End, scaleX, scaleY);
         var deltaX = end.X - start.X;
@@ -187,10 +292,8 @@ public static class ScreenshotAnnotationRenderer
         var length = Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
         if (length <= 0)
         {
-            return;
+            return null;
         }
-
-        canvas.DrawLine(start, end, paint);
 
         var scale = (scaleX + scaleY) / 2;
         var headLength = Math.Min(ArrowHeadLength * scale, length * 0.45);
@@ -202,11 +305,7 @@ public static class ScreenshotAnnotationRenderer
         var secondWing = new SKPoint(
             (float)(end.X - (headLength * Math.Cos(direction + angle))),
             (float)(end.Y - (headLength * Math.Sin(direction + angle))));
-        using var path = new SKPath();
-        path.MoveTo(firstWing);
-        path.LineTo(end);
-        path.LineTo(secondWing);
-        canvas.DrawPath(path, paint);
+        return new ArrowGeometry(start, end, firstWing, secondWing);
     }
 
     private static void DrawText(
@@ -282,7 +381,7 @@ public static class ScreenshotAnnotationRenderer
             var typeface = ResolveTypeface(baseTypeface, element);
             layout.Own(typeface);
             using var font = new SKFont(typeface, fontSize);
-            var width = Math.Max(0, font.MeasureText(element));
+            var width = Math.Max(0, font.MeasureText(element, out var glyphInkBounds));
             if (x > 0 && x + width > maxWidth)
             {
                 layout.Width = Math.Max(layout.Width, x);
@@ -290,11 +389,18 @@ public static class ScreenshotAnnotationRenderer
                 line++;
             }
 
+            var glyphX = originX + x;
+            var glyphBaseline = originY + fontSize + (line * lineHeight);
             layout.Glyphs.Add(new TextGlyph(
                 element,
                 typeface,
-                originX + x,
-                originY + fontSize + (line * lineHeight)));
+                glyphX,
+                glyphBaseline));
+            layout.IncludeInkBounds(new SKRect(
+                Math.Max(originX, glyphX + glyphInkBounds.Left),
+                glyphBaseline + glyphInkBounds.Top,
+                Math.Min(originX + maxWidth, glyphX + glyphInkBounds.Right),
+                glyphBaseline + glyphInkBounds.Bottom));
             x += width;
         }
 
@@ -336,6 +442,12 @@ public static class ScreenshotAnnotationRenderer
         float X,
         float Baseline);
 
+    private readonly record struct ArrowGeometry(
+        SKPoint Start,
+        SKPoint End,
+        SKPoint FirstWing,
+        SKPoint SecondWing);
+
     private sealed class TextLayout(float fontSize, float lineHeight) : IDisposable
     {
         private readonly HashSet<SKTypeface> _ownedTypefaces =
@@ -350,6 +462,24 @@ public static class ScreenshotAnnotationRenderer
         internal float Width { get; set; }
 
         internal float Height { get; set; }
+
+        internal SKRect? InkBounds { get; private set; }
+
+        internal void IncludeInkBounds(SKRect bounds)
+        {
+            if (bounds.Right < bounds.Left || bounds.Bottom < bounds.Top)
+            {
+                return;
+            }
+
+            InkBounds = InkBounds is { } current
+                ? new SKRect(
+                    Math.Min(current.Left, bounds.Left),
+                    Math.Min(current.Top, bounds.Top),
+                    Math.Max(current.Right, bounds.Right),
+                    Math.Max(current.Bottom, bounds.Bottom))
+                : bounds;
+        }
 
         internal void Own(SKTypeface typeface) => _ownedTypefaces.Add(typeface);
 

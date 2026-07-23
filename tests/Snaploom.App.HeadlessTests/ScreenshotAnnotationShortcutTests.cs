@@ -8,6 +8,7 @@ using Avalonia.VisualTree;
 using System.Runtime.InteropServices;
 using Snaploom.Core;
 using Snaploom.Platform.Abstractions;
+using Snaploom.Rendering;
 
 namespace Snaploom.App.HeadlessTests;
 
@@ -154,28 +155,32 @@ public sealed class ScreenshotAnnotationShortcutTests
         var canvas = Assert.Single(
             window.GetVisualDescendants().OfType<ScreenshotSelectionCanvas>());
         window.MouseMove(new Point(105, 125), RawInputModifiers.None);
-        Assert.Equal(ScreenshotPointerFeedback.SelectAnnotation, canvas.PointerFeedback);
-        Assert.Same(AppCursorStyles.PointerCursor, canvas.Cursor);
+        Assert.Equal(ScreenshotPointerFeedback.MoveAnnotation, canvas.PointerFeedback);
+        Assert.NotSame(AppCursorStyles.PointerCursor, canvas.Cursor);
 
         window.MouseDown(
             new Point(105, 125),
             MouseButton.Left,
             RawInputModifiers.LeftMouseButton);
-        Assert.Equal(ScreenshotPointerFeedback.SelectAnnotation, canvas.PointerFeedback);
-        Assert.Same(AppCursorStyles.PointerCursor, canvas.Cursor);
+        Assert.Equal(ScreenshotPointerFeedback.MoveAnnotation, canvas.PointerFeedback);
+        Assert.NotSame(AppCursorStyles.PointerCursor, canvas.Cursor);
 
-        window.MouseMove(new Point(205, 155), RawInputModifiers.LeftMouseButton);
+        window.MouseMove(new Point(550, 250), RawInputModifiers.LeftMouseButton);
         Assert.Equal(ScreenshotPointerFeedback.MoveAnnotation, canvas.PointerFeedback);
         window.MouseUp(
-            new Point(205, 155),
+            new Point(550, 250),
             MouseButton.Left,
             RawInputModifiers.None);
 
         Assert.False(window.TextEditorVisible);
         Assert.Null(window.TextEdit);
         var text = Assert.IsType<ScreenshotTextAnnotation>(Assert.Single(window.Annotations));
-        Assert.Equal(new LogicalPoint(150, 100), text.Origin);
         Assert.Equal("可拖拽文字", text.Text);
+        var textBounds = ScreenshotAnnotationRenderer.MeasureVisualBounds(text);
+        Assert.InRange(textBounds.Left, 0, 450);
+        Assert.InRange(textBounds.Top, 0, 150);
+        Assert.Equal(450, textBounds.Right, precision: 5);
+        Assert.Equal(150, textBounds.Bottom, precision: 5);
     }
 
     [AvaloniaFact]
@@ -201,6 +206,7 @@ public sealed class ScreenshotAnnotationShortcutTests
         var annotation = Assert.IsType<ScreenshotTextAnnotation>(
             Assert.Single(window.Annotations));
         var bounds = Snaploom.Rendering.ScreenshotAnnotationRenderer.MeasureText(annotation);
+        var visualBounds = ScreenshotAnnotationRenderer.MeasureVisualBounds(annotation);
         Assert.True(bounds.Height > annotation.Style.FontSize * 1.25);
         var tailLinePoint = new Point(
             50 + bounds.X + (annotation.Style.FontSize / 2),
@@ -214,9 +220,14 @@ public sealed class ScreenshotAnnotationShortcutTests
         Assert.False(window.TextEditorVisible);
         Assert.Null(window.TextEdit);
         var moved = Assert.IsType<ScreenshotTextAnnotation>(Assert.Single(window.Annotations));
+        var movedBounds = ScreenshotAnnotationRenderer.MeasureVisualBounds(moved);
         Assert.Equal(
-            new LogicalPoint(annotation.Origin.X + 50, annotation.Origin.Y + 20),
+            new LogicalPoint(
+                annotation.Origin.X + Math.Min(50, 450 - visualBounds.Right),
+                annotation.Origin.Y + Math.Min(20, 250 - visualBounds.Bottom)),
             moved.Origin);
+        Assert.InRange(movedBounds.Right, 0, 450);
+        Assert.InRange(movedBounds.Bottom, 0, 250);
     }
 
     [AvaloniaFact]

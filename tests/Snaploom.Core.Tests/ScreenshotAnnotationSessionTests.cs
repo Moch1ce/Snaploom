@@ -225,7 +225,9 @@ public sealed class ScreenshotAnnotationSessionTests
         Assert.True(session.Redo());
 
         Assert.True(session.Select(0));
-        Assert.True(session.BeginMoveSelected(new LogicalPoint(5, 5)));
+        Assert.True(session.BeginMoveSelected(
+            new LogicalPoint(5, 5),
+            AnnotationMovementConstraint.Unbounded));
         session.UpdateSelectedTransform(new LogicalPoint(15, 10));
         Assert.True(session.CompleteSelectedTransform());
         var moved = Assert.IsType<ScreenshotRectangleAnnotation>(session.SelectedAnnotation);
@@ -252,6 +254,36 @@ public sealed class ScreenshotAnnotationSessionTests
         Assert.Equal(
             ScreenshotAnnotationColor.Red,
             Assert.IsType<ScreenshotRectangleAnnotation>(session.SelectedAnnotation).Style.Color);
+    }
+
+    [Theory]
+    [InlineData(-100, -100, 0, 0, 30, 30)]
+    [InlineData(100, 100, 70, 30, 100, 60)]
+    public void MovementConstraintClampsAllRectangleEdges(
+        double pointerX,
+        double pointerY,
+        double expectedLeft,
+        double expectedTop,
+        double expectedRight,
+        double expectedBottom)
+    {
+        var session = new ScreenshotAnnotationSession();
+        DrawRectangle(session, new LogicalPoint(10, 20), new LogicalPoint(40, 50));
+        Assert.True(session.Select(0));
+        Assert.True(session.BeginMoveSelected(
+            new LogicalPoint(10, 20),
+            AnnotationMovementConstraint.Within(
+                new LogicalSize(100, 60),
+                new LogicalPoint(10, 20),
+                new LogicalPoint(40, 50))));
+
+        session.UpdateSelectedTransform(new LogicalPoint(pointerX, pointerY));
+        Assert.True(session.CompleteSelectedTransform());
+
+        var rectangle = Assert.IsType<ScreenshotRectangleAnnotation>(
+            session.SelectedAnnotation);
+        Assert.Equal(new LogicalPoint(expectedLeft, expectedTop), rectangle.Start);
+        Assert.Equal(new LogicalPoint(expectedRight, expectedBottom), rectangle.End);
     }
 
     [Theory]
@@ -326,7 +358,9 @@ public sealed class ScreenshotAnnotationSessionTests
         Assert.True(session.Select(1));
         Assert.False(session.BeginResizeSelected(AnnotationResizeHandle.End));
         Assert.True(session.UpdateSelectedStyle(new ScreenshotMosaicStyle(64, 16)));
-        Assert.True(session.BeginMoveSelected(new LogicalPoint(30, 30)));
+        Assert.True(session.BeginMoveSelected(
+            new LogicalPoint(30, 30),
+            AnnotationMovementConstraint.Unbounded));
         session.UpdateSelectedTransform(new LogicalPoint(40, 35));
         Assert.True(session.CompleteSelectedTransform());
         var mosaic = Assert.IsType<ScreenshotMosaicAnnotation>(session.SelectedAnnotation);

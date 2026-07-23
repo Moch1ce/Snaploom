@@ -155,7 +155,9 @@ public static class PerformanceBenchmarkRunner
         session.Update(new LogicalPoint(1200, 900));
         _ = session.Complete();
         _ = session.Select(0);
-        _ = session.BeginMoveSelected(new LogicalPoint(400, 400));
+        _ = session.BeginMoveSelected(
+            new LogicalPoint(400, 400),
+            AnnotationMovementConstraint.Unbounded);
 
         var samples = new double[30];
         for (var index = 0; index < samples.Length; index++)
@@ -284,7 +286,9 @@ public static class PerformanceBenchmarkRunner
         {
             var selected = (ScreenshotMosaicAnnotation)session.SelectedAnnotation!;
             var origin = selected.Points[0];
-            _ = session.BeginMoveSelected(origin);
+            _ = session.BeginMoveSelected(
+                origin,
+                AnnotationMovementConstraint.Unbounded);
             samples[index] = MeasureMilliseconds(() =>
             {
                 session.UpdateSelectedTransform(new LogicalPoint(origin.X + 2, origin.Y + 1));

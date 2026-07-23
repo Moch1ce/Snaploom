@@ -15,7 +15,6 @@ internal enum ScreenshotPointerFeedback
     Disabled,
     Crosshair,
     Text,
-    SelectAnnotation,
     MoveSelection,
     MoveAnnotation,
     ResizeHorizontal,
@@ -451,9 +450,12 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
             {
                 _annotationSession.SetTool(ScreenshotAnnotationTool.Select);
                 _annotationSession.Select(existingIndex);
+                BeginMoveSelectedAnnotation(ToSelectionLogicalPoint(position));
+                _isAnnotationMoveTransform = true;
+                CapturePointer(e.Pointer);
                 _annotationBitmapDirty = true;
                 _mosaicCacheDirty = true;
-                UpdateSelectedPointerFeedback(position);
+                SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
                 AnnotationSelectionChanged?.Invoke(this, EventArgs.Empty);
                 InvalidateVisual();
                 e.Handled = true;
@@ -525,12 +527,10 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                 if (HitTestAnnotation(relativePoint) is { } hitIndex)
                 {
                     _annotationSession.Select(hitIndex);
-                    _annotationSession.BeginMoveSelected(relativePoint);
+                    BeginMoveSelectedAnnotation(relativePoint);
                     _isAnnotationMoveTransform = true;
                     CapturePointer(e.Pointer);
-                    SetPointerCursor(
-                        AppCursorStyles.PointerCursor,
-                        ScreenshotPointerFeedback.SelectAnnotation);
+                    SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
                     _annotationBitmapDirty = true;
                     _mosaicCacheDirty = true;
                     AnnotationSelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -603,9 +603,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         _pendingTextAnnotationInteraction = new(textIndex, position);
         _annotationBitmapDirty = true;
         _mosaicCacheDirty = true;
-        SetPointerCursor(
-            AppCursorStyles.PointerCursor,
-            ScreenshotPointerFeedback.SelectAnnotation);
+        SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
         AnnotationSelectionChanged?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
         return true;
@@ -664,20 +662,17 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                         pendingTextInteraction.Start.Y),
                     new LogicalPoint(rawPosition.X, rawPosition.Y)))
             {
-                SetPointerCursor(
-                    AppCursorStyles.PointerCursor,
-                    ScreenshotPointerFeedback.SelectAnnotation);
+                SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
                 e.Handled = true;
                 return;
             }
 
             _pendingTextAnnotationInteraction = null;
-            _annotationSession.BeginMoveSelected(
+            BeginMoveSelectedAnnotation(
                 ToSelectionLogicalPoint(pendingTextInteraction.Start));
             _isAnnotationMoveTransform = true;
             SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
-            _annotationSession.UpdateSelectedTransform(
-                ToSelectionLogicalPoint(rawPosition));
+            UpdateSelectedAnnotationTransform(rawPosition);
             _annotationBitmapDirty = true;
             _mosaicCacheDirty = true;
             InvalidateVisual();
@@ -692,7 +687,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                 SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
             }
 
-            _annotationSession.UpdateSelectedTransform(ToSelectionLogicalPoint(rawPosition));
+            UpdateSelectedAnnotationTransform(rawPosition);
             _annotationBitmapDirty = true;
             _mosaicCacheDirty = true;
             InvalidateVisual();
@@ -749,18 +744,14 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
                         ScreenshotAnnotationTool.Arrow &&
                     HitTestSelectableShapeAnnotation(rawPosition) is not null)
                 {
-                    SetPointerCursor(
-                        AppCursorStyles.PointerCursor,
-                        ScreenshotPointerFeedback.SelectAnnotation);
+                    SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
                     return;
                 }
 
                 if (_annotationSession.ActiveTool == ScreenshotAnnotationTool.Text &&
                     HitTestTextAnnotation(rawPosition) is not null)
                 {
-                    SetPointerCursor(
-                        AppCursorStyles.PointerCursor,
-                        ScreenshotPointerFeedback.SelectAnnotation);
+                    SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
                     return;
                 }
 
@@ -867,9 +858,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         _mosaicCacheDirty = true;
         if (wasAnnotationMoveTransform || hadPendingTextInteraction)
         {
-            SetPointerCursor(
-                AppCursorStyles.PointerCursor,
-                ScreenshotPointerFeedback.SelectAnnotation);
+            SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
         }
         else if (_session.State == ScreenshotSessionState.Selected)
         {
@@ -898,8 +887,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         base.OnPointerReleased(e);
         if (_annotationSession.IsTransforming)
         {
-            _annotationSession.UpdateSelectedTransform(
-                ToSelectionLogicalPoint(e.GetPosition(this)));
+            UpdateSelectedAnnotationTransform(e.GetPosition(this));
             var changed = _annotationSession.CompleteSelectedTransform();
             ReleasePointerCapture();
             UpdateSelectedPointerFeedback(e.GetPosition(this));
@@ -1198,6 +1186,40 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
             Math.Clamp(point.Y - selection.Y, 0, selection.Height));
     }
 
+    private void UpdateSelectedAnnotationTransform(Point point)
+    {
+        _annotationSession.UpdateSelectedTransform(ToSelectionLogicalPoint(point));
+    }
+
+    private bool BeginMoveSelectedAnnotation(LogicalPoint point)
+    {
+        if (LogicalSelection is not { } selection ||
+            _annotationSession.SelectedAnnotation is not { } annotation)
+        {
+            throw new InvalidOperationException(
+                "A completed selection is required for annotation transforms.");
+        }
+
+        var constraint = annotation is
+            ScreenshotRectangleAnnotation or
+            ScreenshotArrowAnnotation or
+            ScreenshotTextAnnotation
+                ? CreateMovementConstraint(annotation, selection)
+                : AnnotationMovementConstraint.Unbounded;
+        return _annotationSession.BeginMoveSelected(point, constraint);
+    }
+
+    private static AnnotationMovementConstraint CreateMovementConstraint(
+        IScreenshotAnnotation annotation,
+        Rect selection)
+    {
+        var bounds = ScreenshotAnnotationRenderer.MeasureVisualBounds(annotation);
+        return AnnotationMovementConstraint.Within(
+            new LogicalSize(selection.Width, selection.Height),
+            new LogicalPoint(bounds.Left, bounds.Top),
+            new LogicalPoint(bounds.Right, bounds.Bottom));
+    }
+
     private void ResetAnnotationsForNewSelection()
     {
         _pendingTextAnnotationInteraction = null;
@@ -1331,9 +1353,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
         if (HitTestAnnotation(relativePoint) is not null)
         {
-            SetPointerCursor(
-                AppCursorStyles.PointerCursor,
-                ScreenshotPointerFeedback.SelectAnnotation);
+            SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveAnnotation);
             return;
         }
 
