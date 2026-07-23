@@ -597,7 +597,11 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             _textEditorTransform.Y = selection.Y +
                 edit.Origin.Y -
                 ScreenshotUiTheme.TextEditorChromeInset;
-            ResizeTextEditor(edit, selection);
+            _textEditorHost.Width = ScreenshotUiTheme.TextEditorMinimumWidth;
+            _textEditorHost.Height = (edit.Style.FontSize *
+                ScreenshotTextMetrics.LineHeightMultiplier) +
+                ScreenshotUiTheme.TextEditorMeasuredHeightPadding;
+            GrowTextEditor(edit, selection);
             _textEditorHost.IsVisible = true;
             _textEditor.Focus();
             if (edit.AnnotationIndex is not null)
@@ -638,7 +642,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         };
     }
 
-    private void ResizeTextEditor(
+    private void GrowTextEditor(
         ScreenshotTextEdit edit,
         Rect selection,
         string? measurementText = null)
@@ -674,11 +678,13 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
                 edit.Origin.Y +
                 ScreenshotUiTheme.TextEditorChromeInset);
         minimumHeight = Math.Min(minimumHeight, maximumHeight);
-        _textEditorHost.Width = width;
-        _textEditorHost.Height = Math.Clamp(
-            measured.Height + ScreenshotUiTheme.TextEditorMeasuredHeightPadding,
-            minimumHeight,
-            maximumHeight);
+        _textEditorHost.Width = Math.Max(_textEditorHost.Width, width);
+        _textEditorHost.Height = Math.Max(
+            _textEditorHost.Height,
+            Math.Clamp(
+                measured.Height + ScreenshotUiTheme.TextEditorMeasuredHeightPadding,
+                minimumHeight,
+                maximumHeight));
     }
 
     private void HandleTextEditorTemplateApplied(object? sender, TemplateAppliedEventArgs e)
@@ -706,7 +712,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             return;
         }
 
-        ResizeTextEditor(
+        GrowTextEditor(
             edit,
             selection,
             BuildTextEditorMeasurementText(_textEditorPresenter?.PreeditText));
@@ -741,7 +747,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             if (_selectionCanvas.TextEdit is { } edit &&
                 _selectionCanvas.LogicalSelection is { } selection)
             {
-                ResizeTextEditor(edit, selection);
+                GrowTextEditor(edit, selection);
             }
         }
     }

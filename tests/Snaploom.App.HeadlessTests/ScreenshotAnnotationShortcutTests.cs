@@ -807,6 +807,52 @@ public sealed class ScreenshotAnnotationShortcutTests
     }
 
     [AvaloniaFact]
+    public void ConfirmingPinyinKeepsTheCaretAfterTheCommittedText()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        var request = new Avalonia.Input.TextInput.TextInputMethodClientRequestedEventArgs
+        {
+            RoutedEvent = InputElement.TextInputMethodClientRequestedEvent,
+        };
+        window.TextEditor.RaiseEvent(request);
+        var client = Assert.IsAssignableFrom<
+            Avalonia.Input.TextInput.TextInputMethodClient>(request.Client);
+
+        client.SetPreeditText("wen", cursorPos: 3);
+        window.UpdateLayout();
+        client.SetPreeditText(string.Empty);
+        window.KeyTextInput("文");
+        window.UpdateLayout();
+
+        client.SetPreeditText("zi", cursorPos: 2);
+        window.UpdateLayout();
+        var preeditWidth = window.TextEditorVisualWidth;
+        client.SetPreeditText(string.Empty);
+        window.KeyTextInput("字");
+        window.UpdateLayout();
+
+        Assert.Equal("文字", window.TextEditor.Text);
+        Assert.Equal("文字".Length, window.TextEditor.CaretIndex);
+        var scrollViewer = Assert.Single(
+            window.TextEditor.GetVisualDescendants().OfType<ScrollViewer>());
+        Assert.Equal(Vector.Zero, scrollViewer.Offset);
+        Assert.True(
+            client.CursorRectangle.X > window.TextEditor.Padding.Left,
+            $"caret={window.TextEditor.CaretIndex}, cursor={client.CursorRectangle}");
+        Assert.True(window.TextEditorVisualWidth >= preeditWidth);
+    }
+
+    [AvaloniaFact]
     public void FocusedTextEditorDoesNotRenderAThemeBlueBorder()
     {
         var frame = CreateFrame(width: 600, height: 400);
