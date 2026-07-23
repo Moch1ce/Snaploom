@@ -39,7 +39,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
     private readonly WriteableBitmap _bitmap;
     private readonly ScreenshotPixelInspector _pixelInspector;
     private readonly Cursor _crosshairCursor = new(StandardCursorType.Cross);
-    private readonly Cursor _moveCursor = new(StandardCursorType.SizeAll);
+    private readonly Cursor _moveCursor = ScreenshotMoveCursor.Create();
     private readonly Cursor _textCursor = new(StandardCursorType.Ibeam);
     private readonly Cursor _defaultCursor = new(StandardCursorType.Arrow);
     private readonly Cursor _horizontalResizeCursor = new(StandardCursorType.SizeWestEast);
@@ -535,6 +535,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         position = _pixelInspector.UpdatePointer(position, Bounds.Size);
         _pendingSelectionStart = position;
         CapturePointer(e.Pointer);
+        SetPointerCursor(_moveCursor, ScreenshotPointerFeedback.MoveSelection);
         InvalidateVisual();
         e.Handled = true;
     }
@@ -788,6 +789,7 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
             if (_snapHoverOrigin is { } origin && ToPhysicalPoint(snapPosition) == origin)
             {
                 ReleasePointerCapture();
+                SetPointerCursor(_crosshairCursor, ScreenshotPointerFeedback.Crosshair);
                 InvalidateVisual();
                 e.Handled = true;
                 return;
@@ -843,8 +845,16 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
 
         var position = _pixelInspector.UpdatePointer(e.GetPosition(this), Bounds.Size);
         _session.UpdateSelection(ToPhysicalPoint(position));
-        _session.CompleteSelection();
+        var completed = _session.CompleteSelection();
         ReleasePointerCapture();
+        if (completed)
+        {
+            UpdateSelectedPointerFeedback(position);
+        }
+        else
+        {
+            SetPointerCursor(_crosshairCursor, ScreenshotPointerFeedback.Crosshair);
+        }
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
         e.Handled = true;

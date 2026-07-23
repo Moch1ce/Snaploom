@@ -27,9 +27,17 @@ internal static class ScreenshotUiTheme
     internal static readonly IBrush SizeBadgeBrush = new SolidColorBrush(Color.FromArgb(235, 20, 21, 23));
     internal static readonly IBrush SizeBadgeTextBrush = Brushes.White;
     internal static readonly IBrush AnnotationControlFillBrush = Brushes.White;
+    internal static readonly IBrush MoveCursorFillBrush = Brushes.White;
+    internal static readonly IBrush MoveCursorOutlineBrush = Brushes.Black;
     internal static readonly IBrush DimBrush = new SolidColorBrush(Color.FromArgb(115, 0, 0, 0));
     internal static readonly Geometry AnnotationOptionsPointerGeometry =
         Geometry.Parse("M 0 7 L 6 0 L 12 7 Z");
+    internal static readonly StreamGeometry MoveCursorGeometry = StreamGeometry.Parse(
+        "M 16,1.5 L 10,7.5 L 14,7.5 L 14,14 L 7.5,14 " +
+        "L 7.5,10 L 1.5,16 L 7.5,22 L 7.5,18 L 14,18 " +
+        "L 14,24.5 L 10,24.5 L 16,30.5 L 22,24.5 L 18,24.5 " +
+        "L 18,18 L 24.5,18 L 24.5,22 L 30.5,16 L 24.5,10 " +
+        "L 24.5,14 L 18,14 L 18,7.5 L 22,7.5 Z");
     internal static readonly BoxShadows FloatingShadow = new(
         new BoxShadow
         {
@@ -77,6 +85,8 @@ internal static class ScreenshotUiTheme
     internal const double AnnotationControlHitRadius = 8;
     internal const double AnnotationControlBorderThickness = 1;
     internal const double AnnotationControlCornerRadius = 1;
+    internal const int MoveCursorSize = 32;
+    internal const double MoveCursorOutlineThickness = 1.5;
     internal const double IconSize = 18;
     internal const double ColorSwatchRadius = 6;
     internal const double LineWidthPreviewHorizontalPadding = 2;

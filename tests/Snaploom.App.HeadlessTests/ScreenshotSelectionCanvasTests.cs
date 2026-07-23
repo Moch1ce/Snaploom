@@ -10,6 +10,69 @@ namespace Snaploom.App.HeadlessTests;
 public sealed class ScreenshotSelectionCanvasTests
 {
     [AvaloniaFact]
+    public void MoveCursorGeometryHasFourDirectionalArrows()
+    {
+        var geometry = ScreenshotUiTheme.MoveCursorGeometry;
+
+        Assert.Equal(new Rect(1.5, 1.5, 29, 29), geometry.Bounds);
+        Assert.All(
+            new[]
+            {
+                new Point(16, 2),
+                new Point(30, 16),
+                new Point(16, 30),
+                new Point(2, 16),
+                new Point(16, 16),
+            },
+            point => Assert.True(geometry.FillContains(point)));
+        Assert.All(
+            new[]
+            {
+                new Point(2, 2),
+                new Point(30, 2),
+                new Point(30, 30),
+                new Point(2, 30),
+            },
+            point => Assert.False(geometry.FillContains(point)));
+    }
+
+    [AvaloniaFact]
+    public void CreatingSelectionUsesMoveCursorFromPointerDown()
+    {
+        using var frame = CreateHighDpiFrame();
+        using var canvas = new ScreenshotSelectionCanvas(frame);
+        var window = ShowCanvas(canvas);
+        try
+        {
+            window.MouseDown(
+                new Point(10, 10),
+                MouseButton.Left,
+                RawInputModifiers.LeftMouseButton);
+
+            Assert.Equal(ScreenshotPointerFeedback.MoveSelection, canvas.PointerFeedback);
+
+            window.MouseMove(
+                new Point(13, 13),
+                RawInputModifiers.LeftMouseButton);
+
+            Assert.Equal(ScreenshotSessionState.Selecting, canvas.Session.State);
+            Assert.Equal(ScreenshotPointerFeedback.MoveSelection, canvas.PointerFeedback);
+
+            window.MouseUp(
+                new Point(13, 13),
+                MouseButton.Left,
+                RawInputModifiers.None);
+
+            Assert.Equal(ScreenshotSessionState.Ready, canvas.Session.State);
+            Assert.Equal(ScreenshotPointerFeedback.Crosshair, canvas.PointerFeedback);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public void DragThresholdAndMinimumSizeUseLogicalAndPhysicalCoordinates()
     {
         using var frame = CreateHighDpiFrame();
@@ -43,6 +106,7 @@ public sealed class ScreenshotSelectionCanvasTests
 
             Assert.Equal(ScreenshotSessionState.Selected, canvas.Session.State);
             Assert.Equal(new PhysicalRect(20, 20, 8, 8), canvas.Session.Selection);
+            Assert.Equal(ScreenshotPointerFeedback.ResizeDiagonal, canvas.PointerFeedback);
         }
         finally
         {
@@ -141,6 +205,7 @@ public sealed class ScreenshotSelectionCanvasTests
             Click(window, new Point(20, 20));
             Assert.Equal(ScreenshotSessionState.Ready, canvas.Session.State);
             Assert.Null(canvas.Session.Selection);
+            Assert.Equal(ScreenshotPointerFeedback.Crosshair, canvas.PointerFeedback);
 
             window.MouseMove(new Point(21, 20), RawInputModifiers.None);
 
