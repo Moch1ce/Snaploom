@@ -1437,11 +1437,21 @@ public sealed class ScreenshotSelectionCanvas : Control, IDisposable
         SetPointerCursor(_defaultCursor, ScreenshotPointerFeedback.Default);
     }
 
-    private int? HitTestAnnotation(LogicalPoint point) =>
-        _annotationSession.HitTest(
+    private int? HitTestAnnotation(LogicalPoint point)
+    {
+        if (LogicalSelection is not { } selection)
+        {
+            return null;
+        }
+
+        var relativeSelection = new Rect(0, 0, selection.Width, selection.Height);
+        return _annotationSession.HitTest(
             point,
-            static (text, candidate) =>
-                ScreenshotAnnotationRenderer.MeasureText(text).Contains(candidate));
+            (text, candidate) =>
+                ScreenshotTextEditorLayout
+                    .Measure(text, relativeSelection)
+                    .Contains(new Point(candidate.X, candidate.Y)));
+    }
 
     private SelectionResizeHandle? HitTestSelectionResizeHandle(Point point) =>
         _session.Selection is { } selection

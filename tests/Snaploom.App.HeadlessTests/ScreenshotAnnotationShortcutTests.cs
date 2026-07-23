@@ -190,6 +190,43 @@ public sealed class ScreenshotAnnotationShortcutTests
     }
 
     [AvaloniaFact]
+    public void DraggingCommittedTextFromItsFrameBorderMovesIt()
+    {
+        var frame = CreateFrame(width: 600, height: 400);
+        using var capturedScreen = new CapturedScreen(frame, new PhysicalPoint(10, 10));
+        using var window = new ScreenshotOverlayWindow(
+            capturedScreen,
+            new NullSaveDialog(),
+            new NullClipboard(),
+            new NullOverlayConfigurator());
+        window.Show();
+        Drag(window, new Point(50, 50), new Point(500, 300));
+        window.KeyPress(Key.T, RawInputModifiers.None, PhysicalKey.T, "t");
+        Click(window, new Point(100, 120));
+        window.TextEditor.Text = "边框可拖拽";
+        var commandModifier = OperatingSystem.IsMacOS()
+            ? RawInputModifiers.Meta
+            : RawInputModifiers.Control;
+        window.KeyPress(Key.Enter, commandModifier, PhysicalKey.Enter, "\r");
+        var original = Assert.IsType<ScreenshotTextAnnotation>(
+            Assert.Single(window.Annotations));
+        var canvas = Assert.Single(
+            window.GetVisualDescendants().OfType<ScreenshotSelectionCanvas>());
+
+        window.MouseMove(new Point(91, 125), RawInputModifiers.None);
+
+        Assert.Equal(ScreenshotPointerFeedback.MoveAnnotation, canvas.PointerFeedback);
+        Drag(window, new Point(91, 125), new Point(131, 155));
+
+        Assert.False(window.TextEditorVisible);
+        var moved = Assert.IsType<ScreenshotTextAnnotation>(
+            Assert.Single(window.Annotations));
+        Assert.Equal(
+            new LogicalPoint(original.Origin.X + 40, original.Origin.Y + 30),
+            moved.Origin);
+    }
+
+    [AvaloniaFact]
     public void EditingTextAtTheSelectionEdgeKeepsTheEditorChromeInside()
     {
         var frame = CreateFrame(width: 600, height: 400);
