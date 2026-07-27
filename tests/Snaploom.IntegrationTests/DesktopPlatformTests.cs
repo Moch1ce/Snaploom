@@ -121,6 +121,37 @@ public sealed class DesktopPlatformTests
     }
 
     [Fact]
+    public void PlatformAdaptersExposeTheSameUserFacingCapabilities()
+    {
+        using var windows = new WindowsDesktopPlatform();
+        using var macOS = new MacOSDesktopPlatform();
+        var expectedCapabilities = new[]
+        {
+            typeof(IScreenCapturePermissionService),
+            typeof(IGlobalScreenshotHotKeyService),
+            typeof(IAutoStartService),
+            typeof(ISystemResumeService),
+            typeof(ISystemNotificationService),
+            typeof(IFolderLauncher),
+            typeof(IExternalUriLauncher),
+            typeof(IScreenCaptureService),
+            typeof(IPngSaveDialogService),
+            typeof(IScreenshotClipboardService),
+            typeof(IScreenshotOverlayConfigurator),
+        };
+
+        Assert.All(expectedCapabilities, capability =>
+        {
+            Assert.True(
+                capability.IsInstanceOfType(windows),
+                $"Windows is missing {capability.Name}.");
+            Assert.True(
+                capability.IsInstanceOfType(macOS),
+                $"macOS is missing {capability.Name}.");
+        });
+    }
+
+    [Fact]
     public void CurrentPlatformMatchesTheRunningOperatingSystem()
     {
         var platform = DesktopPlatformFactory.CreateCurrent();
