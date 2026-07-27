@@ -185,6 +185,73 @@ final class CapturedFrameHandle: @unchecked Sendable {
     }
 }
 
+private final class FrameResizeCursorImageHandle: @unchecked Sendable {
+    let pngData: NSData
+    let hotSpotX: Int32
+    let hotSpotY: Int32
+
+    init?(positionCode: Int32) {
+        guard #available(macOS 15.0, *) else {
+            return nil
+        }
+
+        let position: NSCursor.FrameResizePosition
+        switch positionCode {
+        case 0:
+            position = .topLeft
+        case 1:
+            position = .topRight
+        case 2:
+            position = .bottomRight
+        case 3:
+            position = .bottomLeft
+        default:
+            return nil
+        }
+
+        let cursor = NSCursor.frameResize(
+            position: position,
+            directions: [.inward, .outward])
+        let imageSize = cursor.image.size
+        guard imageSize.width > 0,
+              imageSize.height > 0,
+              let representation = NSBitmapImageRep(
+                  bitmapDataPlanes: nil,
+                  pixelsWide: Int(imageSize.width.rounded()),
+                  pixelsHigh: Int(imageSize.height.rounded()),
+                  bitsPerSample: 8,
+                  samplesPerPixel: 4,
+                  hasAlpha: true,
+                  isPlanar: false,
+                  colorSpaceName: .deviceRGB,
+                  bytesPerRow: 0,
+                  bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: representation)
+        else {
+            return nil
+        }
+
+        representation.size = imageSize
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        context.imageInterpolation = .high
+        cursor.image.draw(
+            in: NSRect(origin: .zero, size: imageSize),
+            from: NSRect(origin: .zero, size: imageSize),
+            operation: .copy,
+            fraction: 1)
+        context.flushGraphics()
+        NSGraphicsContext.restoreGraphicsState()
+        guard let png = representation.representation(using: .png, properties: [:]) else {
+            return nil
+        }
+
+        pngData = png as NSData
+        hotSpotX = Int32(cursor.hotSpot.x.rounded())
+        hotSpotY = Int32(cursor.hotSpot.y.rounded())
+    }
+}
+
 private func currentWindowMetadata() -> [CGWindowID: WindowMetadata] {
     guard let windowList = CGWindowListCopyWindowInfo(
         [.optionOnScreenOnly, .excludeDesktopElements],
@@ -522,6 +589,53 @@ private func captureCurrentDisplay() async throws -> CapturedFrameHandle {
         displayFrame: display.frame,
         windows: shareableContent.windows
     )
+}
+
+private func frameResizeCursorImage(
+    from pointer: UnsafeMutableRawPointer
+) -> FrameResizeCursorImageHandle {
+    Unmanaged<FrameResizeCursorImageHandle>.fromOpaque(pointer).takeUnretainedValue()
+}
+
+@_cdecl("snaploom_create_frame_resize_cursor_image")
+public func createFrameResizeCursorImage(
+    _ positionCode: Int32
+) -> UnsafeMutableRawPointer? {
+    FrameResizeCursorImageHandle(positionCode: positionCode)
+        .map { Unmanaged.passRetained($0).toOpaque() }
+}
+
+@_cdecl("snaploom_frame_resize_cursor_png_data")
+public func frameResizeCursorPngData(
+    _ pointer: UnsafeMutableRawPointer
+) -> UnsafeRawPointer {
+    frameResizeCursorImage(from: pointer).pngData.bytes
+}
+
+@_cdecl("snaploom_frame_resize_cursor_png_length")
+public func frameResizeCursorPngLength(
+    _ pointer: UnsafeMutableRawPointer
+) -> Int {
+    frameResizeCursorImage(from: pointer).pngData.length
+}
+
+@_cdecl("snaploom_frame_resize_cursor_hot_spot_x")
+public func frameResizeCursorHotSpotX(
+    _ pointer: UnsafeMutableRawPointer
+) -> Int32 {
+    frameResizeCursorImage(from: pointer).hotSpotX
+}
+
+@_cdecl("snaploom_frame_resize_cursor_hot_spot_y")
+public func frameResizeCursorHotSpotY(
+    _ pointer: UnsafeMutableRawPointer
+) -> Int32 {
+    frameResizeCursorImage(from: pointer).hotSpotY
+}
+
+@_cdecl("snaploom_release_frame_resize_cursor_image")
+public func releaseFrameResizeCursorImage(_ pointer: UnsafeMutableRawPointer) {
+    Unmanaged<FrameResizeCursorImageHandle>.fromOpaque(pointer).release()
 }
 
 @_cdecl("snaploom_capture_current_display")

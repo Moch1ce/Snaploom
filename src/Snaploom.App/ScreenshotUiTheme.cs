@@ -25,9 +25,35 @@ internal static class ScreenshotUiTheme
     internal static readonly IBrush HoveredToolBrush = new SolidColorBrush(Color.Parse("#F2F2F2"));
     internal static readonly IBrush SelectedToolBrush = new SolidColorBrush(Color.Parse("#EDEDED"));
     internal static readonly IBrush SizeBadgeBrush = new SolidColorBrush(Color.FromArgb(235, 20, 21, 23));
+    internal static readonly IBrush SizeBadgeTextBrush = Brushes.White;
+    internal static readonly IBrush AnnotationControlFillBrush = Brushes.White;
+    internal static readonly IBrush MoveCursorFillBrush = Brushes.Black;
+    internal static readonly IBrush ResizeCursorFallbackFillBrush = Brushes.Black;
+    internal static readonly IBrush ResizeCursorFallbackOutlineBrush = Brushes.White;
     internal static readonly IBrush DimBrush = new SolidColorBrush(Color.FromArgb(115, 0, 0, 0));
     internal static readonly Geometry AnnotationOptionsPointerGeometry =
         Geometry.Parse("M 0 7 L 6 0 L 12 7 Z");
+    internal static readonly StreamGeometry MoveCursorGeometry = StreamGeometry.Parse(
+        "M 12,5 L 9.5,7.5 L 11,7.5 L 11,11 L 7.5,11 L 7.5,9.5 L 5,12 " +
+        "L 7.5,14.5 L 7.5,13 L 11,13 L 11,16.5 L 9.5,16.5 L 12,19 " +
+        "L 14.5,16.5 L 13,16.5 L 13,13 L 16.5,13 L 16.5,14.5 L 19,12 " +
+        "L 16.5,9.5 L 16.5,11 L 13,11 L 13,7.5 L 14.5,7.5 Z");
+    internal static readonly StreamGeometry ResizeCursorTopLeftFallbackGeometry =
+        StreamGeometry.Parse(
+            "M 3,3 L 10,4 L 7.5,6.5 L 15.5,14.5 L 14.5,15.5 " +
+            "L 6.5,7.5 L 4,10 Z");
+    internal static readonly StreamGeometry ResizeCursorTopRightFallbackGeometry =
+        StreamGeometry.Parse(
+            "M 19,3 L 18,10 L 15.5,7.5 L 7.5,15.5 L 6.5,14.5 " +
+            "L 14.5,6.5 L 12,4 Z");
+    internal static readonly StreamGeometry ResizeCursorBottomRightFallbackGeometry =
+        StreamGeometry.Parse(
+            "M 19,19 L 12,18 L 14.5,15.5 L 6.5,7.5 L 7.5,6.5 " +
+            "L 15.5,14.5 L 18,12 Z");
+    internal static readonly StreamGeometry ResizeCursorBottomLeftFallbackGeometry =
+        StreamGeometry.Parse(
+            "M 3,19 L 4,12 L 6.5,14.5 L 14.5,6.5 L 15.5,7.5 " +
+            "L 7.5,15.5 L 10,18 Z");
     internal static readonly BoxShadows FloatingShadow = new(
         new BoxShadow
         {
@@ -54,6 +80,10 @@ internal static class ScreenshotUiTheme
 
     internal const double FloatingCornerRadius = 8;
     internal const double FloatingBorderThickness = 1;
+    internal const double SizeBadgeFontSize = 12;
+    internal const double SizeBadgeCornerRadius = 4;
+    internal const double SizeBadgeHorizontalPadding = 7;
+    internal const double SizeBadgeVerticalPadding = 3;
     internal const double ToolbarHeight = 44;
     internal const double ToolbarButtonSize = 40;
     internal const double ToolbarHorizontalPadding = 14;
@@ -61,16 +91,49 @@ internal static class ScreenshotUiTheme
     internal const double ToolbarSeparatorMargin = 10;
     internal const double HoveredToolBackgroundSize = 28;
     internal const double SelectedToolBackgroundSize = 24;
+    internal const double ToolBackgroundCornerRadius = 4;
+    internal const double SelectionBorderThickness = 2;
     internal const double SelectionHandleSize = 8;
+    internal const double SelectionHandleCornerRadius = 1;
+    internal const double SelectionHandleMinimumHitRadius = 6;
+    internal const double SelectionHandleHitPadding = 3;
+    internal const double AnnotationControlSize = 8;
+    internal const double AnnotationControlHitRadius = 8;
+    internal const double AnnotationControlBorderThickness = 1;
+    internal const double AnnotationControlCornerRadius = 1;
+    internal const int MoveCursorSize = 24;
+    internal const int ResizeCursorFallbackSize = 22;
+    internal const double ResizeCursorFallbackOutlineThickness = 1;
     internal const double IconSize = 18;
+    internal const double ColorSwatchRadius = 6;
+    internal const double LineWidthPreviewHorizontalPadding = 2;
+    internal const double LineWidthPreviewMinimum = 1;
+    internal const double LineWidthPreviewMaximum = 4;
+    internal const double LineWidthPreviewScale = 0.5;
+    internal const double FontSizePreviewFontSize = 10;
+    internal const double MosaicSmallPreviewDiameter = 6;
+    internal const double MosaicMediumPreviewDiameter = 10;
+    internal const double MosaicLargePreviewDiameter = 14;
+    internal const double MosaicPreviewGridSize = 3;
+    internal const double MosaicPreviewMinimumCellSize = 2;
+    internal const double MosaicPreviewMinimumFilledCellSize = 1;
+    internal const double MosaicPreviewCellGap = 0.5;
+    internal const double PixelInspectorWidth = 132;
+    internal const double PixelInspectorHeight = 132;
+    internal const double PixelInspectorPointerGap = 16;
+    internal const double PixelInspectorScreenMargin = 8;
+    internal const double PixelInspectorCornerRadius = 8;
+    internal const int PixelInspectorSampleDiameter = 55;
     internal const double TextEditorMinimumWidth = 24;
     internal const double TextEditorCornerRadius = 2;
     internal const double TextEditorControlPointSize = 6;
-    internal const double TextEditorHorizontalPadding = 4;
-    internal const double TextEditorVerticalPadding = 1;
-    internal const double TextEditorLineHeightMultiplier = 1.35;
-    internal const double TextEditorMeasuredWidthPadding = 10;
-    internal const double TextEditorMeasuredHeightPadding = 4;
+    internal const double TextEditorPadding = 8;
+    internal const double TextEditorChromeInset =
+        TextEditorPadding + FloatingBorderThickness;
+    internal const double TextEditorMeasuredWidthPadding =
+        TextEditorChromeInset * 2;
+    internal const double TextEditorMeasuredHeightPadding =
+        TextEditorChromeInset * 2;
     internal const double AnnotationOptionsFlyoutVerticalOffset = 4;
     internal const double AnnotationOptionsPointerWidth = 12;
     internal const double AnnotationOptionsPointerHeight = 7;

@@ -40,6 +40,10 @@ public sealed class App : Application, IDisposable
         Name = ProductIdentity.Name;
         RequestedThemeVariant = ThemeVariant.Light;
         Styles.Add(new FluentTheme());
+        foreach (var style in AppCursorStyles.Create())
+        {
+            Styles.Add(style);
+        }
     }
 
     public override void OnFrameworkInitializationCompleted()

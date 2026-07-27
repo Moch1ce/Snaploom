@@ -22,6 +22,7 @@ public sealed class ScreenCapturePermissionWindow : Window
         ShowInTaskbar = true;
         Topmost = true;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        AppWindowChrome.Configure(this);
 
         _statusText = new TextBlock
         {
@@ -35,6 +36,7 @@ public sealed class ScreenCapturePermissionWindow : Window
             Content = AppUiText.ContinueAuthorization,
             MinWidth = 96,
         };
+        AppUiTheme.StylePrimaryButton(requestButton);
         requestButton.Click += HandleRequestPermission;
 
         var settingsButton = new Button
@@ -42,6 +44,7 @@ public sealed class ScreenCapturePermissionWindow : Window
             Content = AppUiText.OpenSystemSettings,
             MinWidth = 110,
         };
+        AppUiTheme.StyleSecondaryButton(settingsButton);
         settingsButton.Click += (_, _) =>
         {
             _permissionService.OpenPermissionSettings();
@@ -53,24 +56,27 @@ public sealed class ScreenCapturePermissionWindow : Window
             Content = AppUiText.Later,
             MinWidth = 76,
         };
+        AppUiTheme.StyleSecondaryButton(cancelButton);
         cancelButton.Click += (_, _) => Close();
 
-        Content = new StackPanel
-        {
-            Margin = new Thickness(24),
-            Spacing = 22,
-            Children =
+        Content = AppWindowChrome.Wrap(
+            this,
+            new StackPanel
             {
-                _statusText,
-                new StackPanel
+                Margin = new Thickness(24),
+                Spacing = 22,
+                Children =
                 {
-                    Orientation = Orientation.Horizontal,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    Spacing = 10,
-                    Children = { cancelButton, settingsButton, requestButton },
+                    _statusText,
+                    new StackPanel
+                    {
+                        Orientation = Orientation.Horizontal,
+                        HorizontalAlignment = HorizontalAlignment.Right,
+                        Spacing = 10,
+                        Children = { cancelButton, settingsButton, requestButton },
+                    },
                 },
-            },
-        };
+            });
     }
 
     private void HandleRequestPermission(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

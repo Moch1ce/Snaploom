@@ -76,6 +76,7 @@ public sealed class ShortcutSettingsWindow : Window
         CanResize = false;
         ShowInTaskbar = true;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        AppWindowChrome.Configure(this);
 
         _shortcutHeading.FontSize = 16;
         _shortcutHeading.FontWeight = FontWeight.SemiBold;
@@ -102,6 +103,12 @@ public sealed class ShortcutSettingsWindow : Window
         _releaseNotesScroll.IsVisible = false;
         _openReleaseButton.IsVisible = false;
         _openReleaseButton.Click += HandleOpenRelease;
+        AppUiTheme.StylePrimaryButton(_saveButton);
+        AppUiTheme.StyleSecondaryButton(_closeButton);
+        AppUiTheme.StyleSecondaryButton(_openLogsButton);
+        AppUiTheme.StyleSecondaryButton(_clearLogsButton);
+        AppUiTheme.StyleSecondaryButton(_checkUpdatesButton);
+        AppUiTheme.StyleSecondaryButton(_openReleaseButton);
 
         var content = new StackPanel
         {
@@ -139,7 +146,9 @@ public sealed class ShortcutSettingsWindow : Window
                 },
             },
         };
-        Content = new ScrollViewer { Content = content };
+        Content = AppWindowChrome.Wrap(
+            this,
+            new ScrollViewer { Content = content });
 
         _trayViewModel.PropertyChanged += HandleTrayViewModelChanged;
         Closed += (_, _) => _trayViewModel.PropertyChanged -= HandleTrayViewModelChanged;

@@ -10,6 +10,56 @@ namespace Snaploom.App.HeadlessTests;
 public sealed class ScreenshotToolbarButtonTests
 {
     [AvaloniaFact]
+    public void ClickableControlsUsePointerAndDisabledControlsUseDefaultCursor()
+    {
+        var button = new Button();
+        var checkBox = new CheckBox();
+        var comboBox = new ComboBox();
+        var comboBoxItem = new ComboBoxItem();
+        var toolbarButton = new ScreenshotToolbarButton(
+            ScreenshotToolbarIconKind.Arrow,
+            "Arrow",
+            Brushes.Black,
+            isEnabled: true);
+        var controls = new Control[]
+        {
+            button,
+            checkBox,
+            comboBox,
+            comboBoxItem,
+            toolbarButton,
+        };
+        var window = new Window
+        {
+            Content = new StackPanel
+            {
+                Children = { button, checkBox, comboBox, comboBoxItem, toolbarButton },
+            },
+        };
+        try
+        {
+            window.Show();
+
+            Assert.All(
+                controls,
+                control => Assert.Same(AppCursorStyles.PointerCursor, control.Cursor));
+
+            foreach (var control in controls)
+            {
+                control.IsEnabled = false;
+            }
+
+            Assert.All(
+                controls,
+                control => Assert.Same(AppCursorStyles.DefaultCursor, control.Cursor));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public void InvokesWhenPointerLeavesAndReturnsBeforeRelease()
     {
         var button = new ScreenshotToolbarButton(

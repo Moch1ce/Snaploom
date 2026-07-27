@@ -127,16 +127,18 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
 
         _sizeText = new TextBlock
         {
-            Foreground = Brushes.White,
-            FontSize = 12,
+            Foreground = ScreenshotUiTheme.SizeBadgeTextBrush,
+            FontSize = ScreenshotUiTheme.SizeBadgeFontSize,
             FontWeight = FontWeight.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
         };
         _sizeBadge = new Border
         {
             Background = ScreenshotUiTheme.SizeBadgeBrush,
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(7, 3),
+            CornerRadius = new CornerRadius(ScreenshotUiTheme.SizeBadgeCornerRadius),
+            Padding = new Thickness(
+                ScreenshotUiTheme.SizeBadgeHorizontalPadding,
+                ScreenshotUiTheme.SizeBadgeVerticalPadding),
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
             IsHitTestVisible = false,
@@ -174,14 +176,19 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             MinHeight = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
-            Padding = new Thickness(
-                ScreenshotUiTheme.TextEditorHorizontalPadding,
-                ScreenshotUiTheme.TextEditorVerticalPadding),
+            VerticalContentAlignment = VerticalAlignment.Top,
+            Padding = new Thickness(ScreenshotUiTheme.TextEditorPadding),
             BorderThickness = new Thickness(0),
             Background = ScreenshotUiTheme.TransparentBrush,
             CaretBrush = ScreenshotUiTheme.AccentBrush,
             SelectionBrush = ScreenshotUiTheme.TextEditorSelectionBrush,
         };
+        ScrollViewer.SetHorizontalScrollBarVisibility(
+            _textEditor,
+            ScrollBarVisibility.Disabled);
+        ScrollViewer.SetVerticalScrollBarVisibility(
+            _textEditor,
+            ScrollBarVisibility.Disabled);
         _textEditorControlPoints =
         [
             CreateTextEditorControlPoint(HorizontalAlignment.Left, VerticalAlignment.Top),
@@ -193,7 +200,8 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         {
             Width = ScreenshotUiTheme.TextEditorMinimumWidth,
             Height = ScreenshotTextStyle.Default.FontSize *
-                ScreenshotUiTheme.TextEditorLineHeightMultiplier,
+                ScreenshotTextMetrics.LineHeightMultiplier +
+                ScreenshotUiTheme.TextEditorMeasuredHeightPadding,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
             ClipToBounds = false,
@@ -220,6 +228,10 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _textEditor.AddHandler(
             InputElement.KeyDownEvent,
             HandleTextEditorKeyDown,
+            RoutingStrategies.Tunnel);
+        _textEditor.AddHandler(
+            InputElement.PointerWheelChangedEvent,
+            HandleTextEditorPointerWheelChanged,
             RoutingStrategies.Tunnel);
 
         var root = new Grid();
@@ -575,11 +587,18 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         {
             _textEditor.Text = edit.Text;
             _textEditor.FontSize = edit.Style.FontSize;
+            _textEditor.LineHeight = edit.Style.FontSize *
+                ScreenshotTextMetrics.LineHeightMultiplier;
             _textEditor.Foreground = new SolidColorBrush(
                 Color.FromRgb(color.Red, color.Green, color.Blue));
-            _textEditorTransform.X = selection.X + edit.Origin.X;
-            _textEditorTransform.Y = selection.Y + edit.Origin.Y;
-            ResizeTextEditor(edit, selection);
+            var editorBounds = ScreenshotTextEditorLayout.Measure(edit, selection);
+            _textEditorTransform.X = editorBounds.X;
+            _textEditorTransform.Y = editorBounds.Y;
+            _textEditorHost.Width = ScreenshotUiTheme.TextEditorMinimumWidth;
+            _textEditorHost.Height = (edit.Style.FontSize *
+                ScreenshotTextMetrics.LineHeightMultiplier) +
+                ScreenshotUiTheme.TextEditorMeasuredHeightPadding;
+            UpdateTextEditorSize(edit, selection);
             _textEditorHost.IsVisible = true;
             _textEditor.Focus();
             if (edit.AnnotationIndex is not null)
@@ -620,35 +639,20 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         };
     }
 
-    private void ResizeTextEditor(
+    private void UpdateTextEditorSize(
         ScreenshotTextEdit edit,
         Rect selection,
-        string? measurementText = null)
+        string? measurementText = null,
+        bool allowHeightShrink = false)
     {
-        var draftText = measurementText ?? edit.Text;
-        var text = string.IsNullOrEmpty(draftText)
-            ? "I"
-            : draftText;
-        var measured = ScreenshotAnnotationRenderer.MeasureText(new ScreenshotTextAnnotation(
-            new LogicalPoint(0, 0),
-            text,
-            edit.MaxWidth,
-            edit.Style));
-        var maximumWidth = Math.Max(1, edit.MaxWidth);
-        var minimumWidth = Math.Min(ScreenshotUiTheme.TextEditorMinimumWidth, maximumWidth);
-        var width = Math.Clamp(
-            measured.Width + ScreenshotUiTheme.TextEditorMeasuredWidthPadding,
-            minimumWidth,
-            maximumWidth);
-        var minimumHeight = edit.Style.FontSize *
-            ScreenshotUiTheme.TextEditorLineHeightMultiplier;
-        var maximumHeight = Math.Max(1, selection.Height - edit.Origin.Y);
-        minimumHeight = Math.Min(minimumHeight, maximumHeight);
-        _textEditorHost.Width = width;
-        _textEditorHost.Height = Math.Clamp(
-            measured.Height + ScreenshotUiTheme.TextEditorMeasuredHeightPadding,
-            minimumHeight,
-            maximumHeight);
+        var editorBounds = ScreenshotTextEditorLayout.Measure(
+            edit,
+            selection,
+            measurementText);
+        _textEditorHost.Width = Math.Max(_textEditorHost.Width, editorBounds.Width);
+        _textEditorHost.Height = allowHeightShrink
+            ? editorBounds.Height
+            : Math.Max(_textEditorHost.Height, editorBounds.Height);
     }
 
     private void HandleTextEditorTemplateApplied(object? sender, TemplateAppliedEventArgs e)
@@ -676,7 +680,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             return;
         }
 
-        ResizeTextEditor(
+        UpdateTextEditorSize(
             edit,
             selection,
             BuildTextEditorMeasurementText(_textEditorPresenter?.PreeditText));
@@ -687,7 +691,7 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         var text = _textEditor.Text ?? string.Empty;
         if (string.IsNullOrEmpty(preeditText))
         {
-            return text;
+            return NormalizeTextEditorLineEndings(text);
         }
 
         var selectionStart = Math.Clamp(
@@ -698,23 +702,33 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             Math.Max(_textEditor.SelectionStart, _textEditor.SelectionEnd),
             selectionStart,
             text.Length);
-        return text[..selectionStart] + preeditText + text[selectionEnd..];
+        return NormalizeTextEditorLineEndings(
+            text[..selectionStart] + preeditText + text[selectionEnd..]);
     }
 
     private void HandleTextChanged(object? sender, TextChangedEventArgs e)
     {
         if (!_changingTextEditor && _selectionCanvas.TextEdit is not null)
         {
+            var text = NormalizeTextEditorLineEndings(_textEditor.Text);
+            var allowHeightShrink =
+                text.Length < _selectionCanvas.TextEdit.Text.Length;
             _selectionCanvas.UpdateTextDraft(
-                _textEditor.Text ?? string.Empty,
+                text,
                 isComposing: false);
             if (_selectionCanvas.TextEdit is { } edit &&
                 _selectionCanvas.LogicalSelection is { } selection)
             {
-                ResizeTextEditor(edit, selection);
+                UpdateTextEditorSize(
+                    edit,
+                    selection,
+                    allowHeightShrink: allowHeightShrink);
             }
         }
     }
+
+    private static string NormalizeTextEditorLineEndings(string? text) =>
+        (text ?? string.Empty).ReplaceLineEndings("\n");
 
     private void HandleTextEditorKeyDown(object? sender, KeyEventArgs e)
     {
@@ -735,6 +749,11 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         }
     }
 
+    private static void HandleTextEditorPointerWheelChanged(
+        object? sender,
+        PointerWheelEventArgs e) =>
+        e.Handled = true;
+
     private void HandlePointerPressedWhileEditingText(
         object? sender,
         PointerPressedEventArgs e)
@@ -743,6 +762,14 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
             !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed ||
             !ReferenceEquals(e.Source, _selectionCanvas))
         {
+            return;
+        }
+
+        if (_selectionCanvas.HandleMaskPointerPressed(
+                e.GetPosition(_selectionCanvas),
+                e.ClickCount))
+        {
+            e.Handled = true;
             return;
         }
 
@@ -958,6 +985,9 @@ public sealed class ScreenshotOverlayWindow : Window, IDisposable
         _textEditor.RemoveHandler(
             InputElement.KeyDownEvent,
             HandleTextEditorKeyDown);
+        _textEditor.RemoveHandler(
+            InputElement.PointerWheelChangedEvent,
+            HandleTextEditorPointerWheelChanged);
         RemoveHandler(
             InputElement.PointerPressedEvent,
             HandlePointerPressedWhileEditingText);

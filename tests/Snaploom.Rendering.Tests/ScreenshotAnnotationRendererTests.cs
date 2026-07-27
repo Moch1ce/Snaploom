@@ -73,6 +73,38 @@ public sealed class ScreenshotAnnotationRendererTests
     }
 
     [Fact]
+    public void VisualBoundsIncludeStrokeArrowHeadAndTextInk()
+    {
+        var rectangle = new ScreenshotRectangleAnnotation(
+            new LogicalPoint(10, 10),
+            new LogicalPoint(40, 30),
+            new ScreenshotAnnotationStyle(ScreenshotAnnotationColor.Red, 8));
+        Assert.Equal(
+            new ScreenshotAnnotationBounds(6, 6, 44, 34),
+            ScreenshotAnnotationRenderer.MeasureVisualBounds(rectangle));
+
+        var arrow = new ScreenshotArrowAnnotation(
+            new LogicalPoint(10, 50),
+            new LogicalPoint(70, 10),
+            new ScreenshotAnnotationStyle(ScreenshotAnnotationColor.Blue, 4));
+        var arrowBounds = ScreenshotAnnotationRenderer.MeasureVisualBounds(arrow);
+        Assert.True(arrowBounds.Left < arrow.Start.X);
+        Assert.True(arrowBounds.Top < arrow.End.Y);
+        Assert.True(arrowBounds.Right > arrow.End.X);
+        Assert.True(arrowBounds.Bottom > arrow.Start.Y);
+
+        var text = new ScreenshotTextAnnotation(
+            new LogicalPoint(12, 4),
+            "Snaploom 文字",
+            70,
+            new ScreenshotTextStyle(ScreenshotAnnotationColor.Black, 24));
+        var textBounds = ScreenshotAnnotationRenderer.MeasureVisualBounds(text);
+        Assert.InRange(textBounds.Left, text.Origin.X, text.Origin.X + text.MaxWidth);
+        Assert.InRange(textBounds.Right, textBounds.Left, text.Origin.X + text.MaxWidth);
+        Assert.True(textBounds.Bottom > textBounds.Top);
+    }
+
+    [Fact]
     public void MultilineTextWrapsAndIsClippedToItsLogicalMaximumWidth()
     {
         var annotation = new ScreenshotTextAnnotation(

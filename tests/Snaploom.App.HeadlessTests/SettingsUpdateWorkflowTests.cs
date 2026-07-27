@@ -42,6 +42,7 @@ public sealed class SettingsUpdateWorkflowTests
             uriLauncher);
         try
         {
+            Assert.Equal(WindowDecorations.None, window.WindowDecorations);
             window.Show();
             Assert.Single(window.GetVisualDescendants().OfType<ComboBox>());
             Assert.Equal(0, updateService.CallCount);

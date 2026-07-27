@@ -58,7 +58,7 @@ internal sealed class ScreenshotToolbar : Border
         Height = ScreenshotUiTheme.ToolbarHeight;
         Background = ScreenshotUiTheme.FloatingSurfaceBrush;
         BorderBrush = ScreenshotUiTheme.FloatingBorderBrush;
-        BorderThickness = new Thickness(1);
+        BorderThickness = new Thickness(ScreenshotUiTheme.FloatingBorderThickness);
         CornerRadius = new CornerRadius(ScreenshotUiTheme.FloatingCornerRadius);
         BoxShadow = ScreenshotUiTheme.FloatingShadow;
         Padding = new Thickness(ScreenshotUiTheme.ToolbarHorizontalPadding, 0);
@@ -598,7 +598,7 @@ internal sealed class ScreenshotToolbarButton : Border
         ArgumentNullException.ThrowIfNull(content);
         Width = ScreenshotUiTheme.ToolbarButtonSize;
         Height = ScreenshotUiTheme.ToolbarButtonSize;
-        Background = Brushes.Transparent;
+        Background = ScreenshotUiTheme.TransparentBrush;
         HorizontalAlignment = HorizontalAlignment.Center;
         VerticalAlignment = VerticalAlignment.Center;
         Focusable = false;
@@ -607,8 +607,8 @@ internal sealed class ScreenshotToolbarButton : Border
         {
             Width = ScreenshotUiTheme.SelectedToolBackgroundSize,
             Height = ScreenshotUiTheme.SelectedToolBackgroundSize,
-            Background = Brushes.Transparent,
-            CornerRadius = new CornerRadius(4),
+            Background = ScreenshotUiTheme.TransparentBrush,
+            CornerRadius = new CornerRadius(ScreenshotUiTheme.ToolBackgroundCornerRadius),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             Child = content,
@@ -697,13 +697,15 @@ internal sealed class ScreenshotToolbarButton : Border
             ? ScreenshotUiTheme.SelectedToolBrush
             : isHovered
                 ? ScreenshotUiTheme.HoveredToolBrush
-                : Brushes.Transparent;
+                : ScreenshotUiTheme.TransparentBrush;
     }
 }
 
 internal sealed class ScreenshotColorSwatch : Control
 {
-    private static readonly Pen BorderPen = new(ScreenshotUiTheme.FloatingBorderBrush, 1);
+    private static readonly Pen BorderPen = new(
+        ScreenshotUiTheme.FloatingBorderBrush,
+        ScreenshotUiTheme.FloatingBorderThickness);
     private readonly IBrush _brush;
 
     internal ScreenshotColorSwatch(IBrush brush)
@@ -718,7 +720,13 @@ internal sealed class ScreenshotColorSwatch : Control
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        context.DrawEllipse(_brush, BorderPen, new Point(9, 9), 6, 6);
+        var center = new Point(ScreenshotUiTheme.IconSize / 2, ScreenshotUiTheme.IconSize / 2);
+        context.DrawEllipse(
+            _brush,
+            BorderPen,
+            center,
+            ScreenshotUiTheme.ColorSwatchRadius,
+            ScreenshotUiTheme.ColorSwatchRadius);
     }
 }
 
@@ -737,12 +745,21 @@ internal sealed class ScreenshotLineWidthSwatch : Control
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        var previewWidth = Math.Clamp(_lineWidth / 2, 1, 4);
+        var previewWidth = Math.Clamp(
+            _lineWidth * ScreenshotUiTheme.LineWidthPreviewScale,
+            ScreenshotUiTheme.LineWidthPreviewMinimum,
+            ScreenshotUiTheme.LineWidthPreviewMaximum);
         var pen = new Pen(
             ScreenshotUiTheme.PrimaryTextBrush,
             previewWidth,
             lineCap: PenLineCap.Round);
-        context.DrawLine(pen, new Point(2, 9), new Point(16, 9));
+        var centerY = ScreenshotUiTheme.IconSize / 2;
+        context.DrawLine(
+            pen,
+            new Point(ScreenshotUiTheme.LineWidthPreviewHorizontalPadding, centerY),
+            new Point(
+                ScreenshotUiTheme.IconSize - ScreenshotUiTheme.LineWidthPreviewHorizontalPadding,
+                centerY));
     }
 }
 
@@ -752,7 +769,7 @@ internal sealed class ScreenshotFontSizeSwatch : TextBlock
     {
         Text = fontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
         Foreground = ScreenshotUiTheme.PrimaryTextBrush;
-        FontSize = 10;
+        FontSize = ScreenshotUiTheme.FontSizePreviewFontSize;
         FontWeight = FontWeight.SemiBold;
         HorizontalAlignment = HorizontalAlignment.Center;
         VerticalAlignment = VerticalAlignment.Center;
@@ -768,9 +785,9 @@ internal sealed class ScreenshotMosaicBrushSwatch : Control
     {
         _diameter = brushSize switch
         {
-            16 => 6,
-            32 => 10,
-            _ => 14,
+            16 => ScreenshotUiTheme.MosaicSmallPreviewDiameter,
+            32 => ScreenshotUiTheme.MosaicMediumPreviewDiameter,
+            _ => ScreenshotUiTheme.MosaicLargePreviewDiameter,
         };
         Width = ScreenshotUiTheme.IconSize;
         Height = ScreenshotUiTheme.IconSize;
@@ -783,10 +800,12 @@ internal sealed class ScreenshotMosaicBrushSwatch : Control
         var topLeft = new Point(
             (ScreenshotUiTheme.IconSize - _diameter) / 2,
             (ScreenshotUiTheme.IconSize - _diameter) / 2);
-        var cell = Math.Max(2, _diameter / 3);
-        for (var row = 0; row < 3; row++)
+        var cell = Math.Max(
+            ScreenshotUiTheme.MosaicPreviewMinimumCellSize,
+            _diameter / ScreenshotUiTheme.MosaicPreviewGridSize);
+        for (var row = 0; row < ScreenshotUiTheme.MosaicPreviewGridSize; row++)
         {
-            for (var column = 0; column < 3; column++)
+            for (var column = 0; column < ScreenshotUiTheme.MosaicPreviewGridSize; column++)
             {
                 context.DrawRectangle(
                     ScreenshotUiTheme.PrimaryTextBrush,
@@ -794,8 +813,12 @@ internal sealed class ScreenshotMosaicBrushSwatch : Control
                     new Rect(
                         topLeft.X + (column * cell),
                         topLeft.Y + (row * cell),
-                        Math.Max(1, cell - 0.5),
-                        Math.Max(1, cell - 0.5)));
+                        Math.Max(
+                            ScreenshotUiTheme.MosaicPreviewMinimumFilledCellSize,
+                            cell - ScreenshotUiTheme.MosaicPreviewCellGap),
+                        Math.Max(
+                            ScreenshotUiTheme.MosaicPreviewMinimumFilledCellSize,
+                            cell - ScreenshotUiTheme.MosaicPreviewCellGap)));
             }
         }
     }

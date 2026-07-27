@@ -58,6 +58,24 @@ internal static unsafe partial class MacOSNative
     [LibraryImport(LibraryName, EntryPoint = "snaploom_configure_capture_overlay")]
     internal static partial void ConfigureCaptureOverlay(nint nativeWindowHandle);
 
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_create_frame_resize_cursor_image")]
+    internal static partial nint CreateFrameResizeCursorImage(int positionCode);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_resize_cursor_png_data")]
+    internal static partial nint GetFrameResizeCursorPngData(nint handle);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_resize_cursor_png_length")]
+    internal static partial nint GetFrameResizeCursorPngLength(nint handle);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_resize_cursor_hot_spot_x")]
+    internal static partial int GetFrameResizeCursorHotSpotX(nint handle);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_frame_resize_cursor_hot_spot_y")]
+    internal static partial int GetFrameResizeCursorHotSpotY(nint handle);
+
+    [LibraryImport(LibraryName, EntryPoint = "snaploom_release_frame_resize_cursor_image")]
+    internal static partial void ReleaseFrameResizeCursorImage(nint handle);
+
     [LibraryImport(LibraryName, EntryPoint = "snaploom_capture_current_display")]
     internal static partial nint CaptureCurrentDisplay();
 

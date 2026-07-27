@@ -86,6 +86,14 @@ public readonly record struct ScreenshotTextStyle
     public int FontSize { get; }
 }
 
+public static class ScreenshotTextMetrics
+{
+    public const double LineHeightMultiplier = 1.25;
+
+    public static double GetMinimumContentWidth(ScreenshotTextStyle style) =>
+        style.FontSize / 2d;
+}
+
 public readonly record struct ScreenshotMosaicStyle
 {
     public ScreenshotMosaicStyle(int brushSize, int pixelSize)
@@ -154,6 +162,58 @@ public enum AnnotationResizeHandle
     Left,
 }
 
+public readonly record struct AnnotationMovementConstraint
+{
+    private AnnotationMovementConstraint(
+        LogicalSize containmentSize,
+        LogicalPoint minimum,
+        LogicalPoint maximum)
+    {
+        if (maximum.X < minimum.X || maximum.Y < minimum.Y)
+        {
+            throw new ArgumentException(
+                "Annotation movement bounds must have ordered minimum and maximum points.");
+        }
+
+        ContainmentSize = containmentSize;
+        Minimum = minimum;
+        Maximum = maximum;
+        IsBounded = true;
+    }
+
+    public static AnnotationMovementConstraint Unbounded => default;
+
+    public static AnnotationMovementConstraint Within(
+        LogicalSize containmentSize,
+        LogicalPoint minimum,
+        LogicalPoint maximum) =>
+        new(containmentSize, minimum, maximum);
+
+    private LogicalSize ContainmentSize { get; }
+
+    private LogicalPoint Minimum { get; }
+
+    private LogicalPoint Maximum { get; }
+
+    private bool IsBounded { get; }
+
+    internal LogicalPoint Constrain(LogicalPoint offset)
+    {
+        if (!IsBounded)
+        {
+            return offset;
+        }
+
+        var minimumX = Math.Min(0, -Minimum.X);
+        var maximumX = Math.Max(0, ContainmentSize.Width - Maximum.X);
+        var minimumY = Math.Min(0, -Minimum.Y);
+        var maximumY = Math.Max(0, ContainmentSize.Height - Maximum.Y);
+        return new LogicalPoint(
+            Math.Clamp(offset.X, minimumX, maximumX),
+            Math.Clamp(offset.Y, minimumY, maximumY));
+    }
+}
+
 public sealed class ScreenshotAnnotationSession
 {
     private readonly List<IScreenshotAnnotation> _annotations = [];
@@ -166,6 +226,7 @@ public sealed class ScreenshotAnnotationSession
     private IScreenshotAnnotation? _transformOriginal;
     private LogicalPoint _transformStart;
     private AnnotationResizeHandle? _resizeHandle;
+    private AnnotationMovementConstraint _movementConstraint;
 
     public ScreenshotAnnotationSession()
     {
@@ -318,12 +379,28 @@ public sealed class ScreenshotAnnotationSession
             return false;
         }
 
+        return BeginTextEdit(annotationIndex, annotation.Origin, annotation.MaxWidth);
+    }
+
+    public bool BeginTextEdit(
+        int annotationIndex,
+        LogicalPoint origin,
+        double maxWidth)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxWidth);
+        if (annotationIndex < 0 ||
+            annotationIndex >= _annotations.Count ||
+            _annotations[annotationIndex] is not ScreenshotTextAnnotation annotation)
+        {
+            return false;
+        }
+
         Preview = null;
         SelectedIndex = annotationIndex;
         TextEdit = new ScreenshotTextEdit(
-            annotation.Origin,
+            origin,
             annotation.Text,
-            annotation.MaxWidth,
+            maxWidth,
             annotation.Style,
             annotationIndex,
             IsComposing: false);
@@ -457,7 +534,9 @@ public sealed class ScreenshotAnnotationSession
         return true;
     }
 
-    public bool BeginMoveSelected(LogicalPoint point)
+    public bool BeginMoveSelected(
+        LogicalPoint point,
+        AnnotationMovementConstraint movementConstraint)
     {
         if (SelectedAnnotation is not { } annotation || IsTransforming)
         {
@@ -468,6 +547,7 @@ public sealed class ScreenshotAnnotationSession
         _transformOriginal = annotation;
         _transformStart = point;
         _resizeHandle = null;
+        _movementConstraint = movementConstraint;
         return true;
     }
 
@@ -502,9 +582,9 @@ public sealed class ScreenshotAnnotationSession
             ? ResizeAnnotation(_transformOriginal, resizeHandle, point)
             : TranslateAnnotation(
                 _transformOriginal,
-                new LogicalPoint(
+                _movementConstraint.Constrain(new LogicalPoint(
                     point.X - _transformStart.X,
-                    point.Y - _transformStart.Y));
+                    point.Y - _transformStart.Y)));
     }
 
     public bool CompleteSelectedTransform()
@@ -714,6 +794,7 @@ public sealed class ScreenshotAnnotationSession
         _transformBefore = null;
         _transformOriginal = null;
         _resizeHandle = null;
+        _movementConstraint = AnnotationMovementConstraint.Unbounded;
     }
 
     private static IScreenshotAnnotation ResizeAnnotation(
@@ -856,9 +937,11 @@ public sealed class ScreenshotAnnotationSession
         var width = Math.Min(
             text.MaxWidth,
             Math.Max(
-                text.Style.FontSize / 2d,
+                ScreenshotTextMetrics.GetMinimumContentWidth(text.Style),
                 lines.Max(line => line.Length) * text.Style.FontSize * 0.6));
-        var height = Math.Max(1, lines.Length) * text.Style.FontSize * 1.25;
+        var height = Math.Max(1, lines.Length) *
+            text.Style.FontSize *
+            ScreenshotTextMetrics.LineHeightMultiplier;
         return point.X >= text.Origin.X && point.X <= text.Origin.X + width &&
             point.Y >= text.Origin.Y && point.Y <= text.Origin.Y + height;
     }

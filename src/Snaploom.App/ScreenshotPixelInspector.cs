@@ -7,21 +7,21 @@ namespace Snaploom.App;
 
 internal sealed class ScreenshotPixelInspector
 {
-    private static readonly Pen BorderPen = new(ScreenshotUiTheme.FloatingBorderBrush, 1);
-    private static readonly Pen CrosshairPen = new(ScreenshotUiTheme.AccentBrush, 1);
-    private const double Width = 132;
-    private const double PreviewHeight = 132;
-    private const double PointerGap = 16;
-    private const double ScreenMargin = 8;
-    private const double CornerRadius = 8;
-    private const int SampleDiameter = 55;
+    private static readonly Pen BorderPen = new(
+        ScreenshotUiTheme.FloatingBorderBrush,
+        ScreenshotUiTheme.FloatingBorderThickness);
+    private static readonly Pen CrosshairPen = new(
+        ScreenshotUiTheme.AccentBrush,
+        ScreenshotUiTheme.FloatingBorderThickness);
 
     private readonly CapturedFrame _frame;
     private readonly IImage _bitmap;
     private Point? _pointerPosition;
     private PhysicalPoint? _samplePoint;
 
-    internal static double Magnification => Width / SampleDiameter;
+    internal static double Magnification =>
+        ScreenshotUiTheme.PixelInspectorWidth /
+        ScreenshotUiTheme.PixelInspectorSampleDiameter;
 
     public ScreenshotPixelInspector(CapturedFrame frame, IImage bitmap)
     {
@@ -63,11 +63,12 @@ internal sealed class ScreenshotPixelInspector
             ScreenshotUiTheme.FloatingSurfaceBrush,
             BorderPen,
             card,
-            CornerRadius,
-            CornerRadius,
+            ScreenshotUiTheme.PixelInspectorCornerRadius,
+            ScreenshotUiTheme.PixelInspectorCornerRadius,
             ScreenshotUiTheme.FloatingShadow);
 
-        using (context.PushClip(new RoundedRect(card, CornerRadius)))
+        using (context.PushClip(
+                   new RoundedRect(card, ScreenshotUiTheme.PixelInspectorCornerRadius)))
         {
             DrawMagnifiedPixels(context, card, samplePoint);
         }
@@ -78,8 +79,12 @@ internal sealed class ScreenshotPixelInspector
         Rect preview,
         PhysicalPoint samplePoint)
     {
-        var sourceWidth = Math.Min(SampleDiameter, _frame.PhysicalSize.Width);
-        var sourceHeight = Math.Min(SampleDiameter, _frame.PhysicalSize.Height);
+        var sourceWidth = Math.Min(
+            ScreenshotUiTheme.PixelInspectorSampleDiameter,
+            _frame.PhysicalSize.Width);
+        var sourceHeight = Math.Min(
+            ScreenshotUiTheme.PixelInspectorSampleDiameter,
+            _frame.PhysicalSize.Height);
         var sourceX = Math.Clamp(
             samplePoint.X - (sourceWidth / 2),
             0,
@@ -115,30 +120,38 @@ internal sealed class ScreenshotPixelInspector
 
     private static Rect PlaceCard(Point pointer, Size bounds)
     {
-        const double totalHeight = PreviewHeight;
-        var x = pointer.X + PointerGap;
-        var y = pointer.Y + PointerGap;
+        const double totalHeight = ScreenshotUiTheme.PixelInspectorHeight;
+        var x = pointer.X + ScreenshotUiTheme.PixelInspectorPointerGap;
+        var y = pointer.Y + ScreenshotUiTheme.PixelInspectorPointerGap;
 
-        if (x + Width + ScreenMargin > bounds.Width)
+        if (x + ScreenshotUiTheme.PixelInspectorWidth +
+            ScreenshotUiTheme.PixelInspectorScreenMargin > bounds.Width)
         {
-            x = pointer.X - PointerGap - Width;
+            x = pointer.X - ScreenshotUiTheme.PixelInspectorPointerGap -
+                ScreenshotUiTheme.PixelInspectorWidth;
         }
 
-        if (y + totalHeight + ScreenMargin > bounds.Height)
+        if (y + totalHeight + ScreenshotUiTheme.PixelInspectorScreenMargin > bounds.Height)
         {
-            y = pointer.Y - PointerGap - totalHeight;
+            y = pointer.Y - ScreenshotUiTheme.PixelInspectorPointerGap - totalHeight;
         }
 
         return new Rect(
             Math.Clamp(
                 x,
-                ScreenMargin,
-                Math.Max(ScreenMargin, bounds.Width - Width - ScreenMargin)),
+                ScreenshotUiTheme.PixelInspectorScreenMargin,
+                Math.Max(
+                    ScreenshotUiTheme.PixelInspectorScreenMargin,
+                    bounds.Width - ScreenshotUiTheme.PixelInspectorWidth -
+                    ScreenshotUiTheme.PixelInspectorScreenMargin)),
             Math.Clamp(
                 y,
-                ScreenMargin,
-                Math.Max(ScreenMargin, bounds.Height - totalHeight - ScreenMargin)),
-            Width,
+                ScreenshotUiTheme.PixelInspectorScreenMargin,
+                Math.Max(
+                    ScreenshotUiTheme.PixelInspectorScreenMargin,
+                    bounds.Height - totalHeight -
+                    ScreenshotUiTheme.PixelInspectorScreenMargin)),
+            ScreenshotUiTheme.PixelInspectorWidth,
             totalHeight);
     }
 }
